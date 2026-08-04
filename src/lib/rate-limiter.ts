@@ -89,3 +89,18 @@ export const tiktokVerificationLimiter = new RateLimiter(60 * 60 * 1000, 5); // 
 // on that route already bounds the per-request fan-out abuse this budget defends
 // against, so giving it its own budget doesn't reopen that hole.
 export const tiktokVerificationUploadUrlsLimiter = new RateLimiter(60 * 60 * 1000, 5); // 5 mint calls per hour per warm container
+
+// Public, unauthenticated, DB-writing endpoint (POST /api/contact) — same
+// "intentionally public" category as tiktokVerificationLimiter above (infra-
+// simplification plan Phase 4a), standing in for a session guard. Own budget, not
+// shared with any other route.
+export const contactFormLimiter = new RateLimiter(60 * 60 * 1000, 5); // 5 submissions per hour per warm container
+
+// Public, unauthenticated, read-only endpoint (GET /api/pear) — Phase 4c. Given its
+// own instance per the "do not share a budget across endpoints" rule even though it's
+// a plain list/search read, not a write: it's still an unauthenticated Prisma query
+// reachable by anyone. Budget is deliberately far more generous than the write
+// limiters above (30/min vs. 5/hour) because the live caller (src/app/pear/page.tsx)
+// re-fetches on every keystroke of its search box — a tight budget would 429 a single
+// legitimate user mid-search.
+export const pearBrandsLimiter = new RateLimiter(60 * 1000, 30); // 30 requests per minute per warm container
