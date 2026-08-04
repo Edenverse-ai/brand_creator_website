@@ -71,4 +71,10 @@ export const loginAttemptsLimiter = new RateLimiter(15 * 60 * 1000, 10); // 10 a
 // Public, unauthenticated, DB-writing endpoint (POST /api/tiktokverification) — stands in
 // for the session guard other mutating routes get, per the infra-simplification plan's
 // Global Constraints ("intentionally public" routes get zod + rate limiting instead).
-export const tiktokVerificationLimiter = new RateLimiter(60 * 60 * 1000, 5); // 5 submissions per hour
+// CAVEAT: this class backs its counts with a plain in-memory Map (see above), so on
+// Netlify's Lambda-backed functions this is a best-effort PER-INSTANCE throttle, not a
+// global cap — each warm container keeps its own counts, and a cold start (or a
+// request routed to a different container) resets them. It raises the bar against
+// casual/single-container abuse; it does not guarantee a hard ceiling across the
+// deployment. Treat it as defense-in-depth, not a promise.
+export const tiktokVerificationLimiter = new RateLimiter(60 * 60 * 1000, 5); // 5 submissions per hour per warm container

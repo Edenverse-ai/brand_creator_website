@@ -1,5 +1,6 @@
 import "server-only";
 import { createSignedUpload } from "@/lib/storage/signed-upload";
+import { isOwnedStoragePath } from "@/lib/storage/path-ownership";
 
 /**
  * Field-for-field port of TikTokVerificationService
@@ -50,6 +51,16 @@ export async function generateUploadUrls(
   const entries = await Promise.all(
     recognized.map(async ({ fileInfo, fileName }) => {
       const filePath = `${idNumber}/${fileName}.${fileInfo.extension}`;
+      // Defense in depth: filePath is built by string interpolation from the
+      // caller-supplied id_number, so a crafted id_number containing "/", "..", or
+      // "%" could otherwise mint a signed upload URL outside that id_number's own
+      // folder (e.g. id_number "../victim" -> "../victim/id_front.png"). Assert the
+      // constructed path is still structurally owned by id_number before minting.
+      if (!isOwnedStoragePath(filePath, idNumber)) {
+        throw new Error(
+          `Refusing to mint an upload URL outside id_number's own folder: ${filePath}`
+        );
+      }
       const signed = await createSignedUpload(VERIFICATION_ASSETS_BUCKET, filePath);
       const entry: UploadUrlEntry = {
         upload_url: signed.uploadUrl,

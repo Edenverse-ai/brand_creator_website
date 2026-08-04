@@ -109,4 +109,23 @@ describe("generateUploadUrls", () => {
 
     expect(result.id_front_file.token).toBeNull();
   });
+
+  it("rejects an id_number containing path traversal instead of minting outside its own folder", async () => {
+    // "../victim" -> filePath "../victim/id_front.png"; isOwnedStoragePath rejects it
+    // (first segment ".." !== ownerId "../victim", and ".." is also a banned segment),
+    // so this must never reach createSignedUpload.
+    await expect(
+      generateUploadUrls("../victim", [{ key: "id_front_file", extension: "png" }])
+    ).rejects.toThrow(/outside id_number's own folder/);
+
+    expect(createSignedUpload).not.toHaveBeenCalled();
+  });
+
+  it("rejects an id_number containing a slash (would otherwise redirect into a different folder)", async () => {
+    await expect(
+      generateUploadUrls("TEST123/../victim", [{ key: "id_front_file", extension: "png" }])
+    ).rejects.toThrow(/outside id_number's own folder/);
+
+    expect(createSignedUpload).not.toHaveBeenCalled();
+  });
 });

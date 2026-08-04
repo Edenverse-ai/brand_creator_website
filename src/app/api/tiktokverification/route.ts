@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { tiktokVerificationLimiter } from "@/lib/rate-limiter";
+import { isOwnedStoragePath } from "@/lib/storage/path-ownership";
 
 // Legacy multipart proxy target — kept as a rollback lever, NOT ported (presigned
 // upload-urls + the JSON path below replace it; see Task 2.3 of the infra-simplification
@@ -18,19 +19,21 @@ const FilePathsSchema = z.record(z.string(), z.unknown());
 // Field-for-field mirror of TikTokVerificationWithPaths (backend/app/main/models/tiktokverify.py).
 // Pydantic's `str` fields accept empty strings, so no `.min(1)` here — only presence
 // and type are enforced, matching what FastAPI would actually reject vs. accept.
+// stage_name/other_platforms use `.nullish()` (not `.optional()`) because Pydantic's
+// `str | None = None` accepts an explicit JSON `null`, not just an omitted key.
 const SubmissionBody = z.object({
   passport_name: z.string(),
   real_name: z.string(),
   id_type: z.string(),
   gender: z.string(),
   nationality: z.string(),
-  stage_name: z.string().optional(),
+  stage_name: z.string().nullish(),
   id_number: z.string(),
   date_of_birth: z.string(),
   account_intro: z.string(),
   overseas_platform_url: z.string(),
   follower_count: z.number().int(),
-  other_platforms: z.string().optional(),
+  other_platforms: z.string().nullish(),
   agent_email: z.string(),
   file_paths: FilePathsSchema,
 });
@@ -48,23 +51,40 @@ interface VerificationFilePaths {
   identity_video_path: string | null;
 }
 
-interface FilePathExtraction {
-  paths: VerificationFilePaths | null;
-  missing: string[];
-}
+type FilePathExtraction =
+  | { ok: true; paths: VerificationFilePaths }
+  | { ok: false; reason: "missing"; missing: string[] }
+  | { ok: false; reason: "foreign"; fields: string[] };
 
 /**
  * Mirrors submit_verification_with_paths' file_paths remap (tiktokverify.py
- * service): frontend upload keys -> DB column names. `paths` is null when any
- * required (non-nullable) column would be missing; `missing` then lists which.
+ * service): frontend upload keys -> DB column names, then validates the result.
  *
- * Deliberate improvement over the Python source: it lets a missing required path
- * flow through to a Postgres NOT NULL violation, surfacing as an opaque 500. The
- * only real caller (creatorportal/tiktok-verify's validateForm) always supplies all
- * four before submission ever reaches this route, so this only changes behavior for
- * malformed/direct API calls, where a clean 400 is strictly better.
+ * Two validations, neither present in the Python source (both deliberate
+ * improvements — see below):
+ *
+ * 1. Missing required (non-nullable) column -> `{ ok: false, reason: "missing" }`.
+ *    Python lets this flow through to a Postgres NOT NULL violation, surfacing as
+ *    an opaque 500. The only real caller (creatorportal/tiktok-verify's
+ *    validateForm) always supplies all four before submission ever reaches this
+ *    route, so this only changes behavior for malformed/direct API calls, where a
+ *    clean 400 is strictly better.
+ * 2. Any provided path whose first segment isn't the submission's own `id_number`
+ *    -> `{ ok: false, reason: "foreign" }`. There is no session here (this route is
+ *    intentionally public), so this is a self-consistency check, not an
+ *    authentication check: nothing stops a caller from submitting someone else's
+ *    id_number, but a given submission's file_paths must at least be internally
+ *    consistent with the id_number on the SAME request — otherwise a caller can
+ *    submit `id_number: "attacker"` with `file_paths` pointing at
+ *    `"victim/id_front.png"` etc. and persist a row that references another
+ *    applicant's identity documents. `isOwnedStoragePath` also rejects traversal
+ *    (`..`) and encoded (`%`) segments, so a malicious id_number itself can't be
+ *    used to smuggle a path outside its own folder either.
  */
-function extractFilePaths(filePaths: Record<string, unknown>): FilePathExtraction {
+function extractFilePaths(
+  filePaths: Record<string, unknown>,
+  idNumber: string
+): FilePathExtraction {
   const idFrontPath = readFilePath(filePaths, "id_front_file");
   const handheldIdPath = readFilePath(filePaths, "handheld_id_file");
   const backendSsPath = readFilePath(filePaths, "backend_ss_file");
@@ -78,10 +98,25 @@ function extractFilePaths(filePaths: Record<string, unknown>): FilePathExtractio
       !backendSsPath && "backend_ss_path",
       !authorizationPath && "authorization_path",
     ].filter((v): v is string => Boolean(v));
-    return { paths: null, missing };
+    return { ok: false, reason: "missing", missing };
+  }
+
+  const candidates: Array<[field: string, path: string | null]> = [
+    ["id_front_path", idFrontPath],
+    ["handheld_id_path", handheldIdPath],
+    ["backend_ss_path", backendSsPath],
+    ["authorization_path", authorizationPath],
+    ["identity_video_path", identityVideoPath],
+  ];
+  const foreignFields = candidates
+    .filter(([, path]) => path !== null && !isOwnedStoragePath(path, idNumber))
+    .map(([field]) => field);
+  if (foreignFields.length > 0) {
+    return { ok: false, reason: "foreign", fields: foreignFields };
   }
 
   return {
+    ok: true,
     paths: {
       id_front_path: idFrontPath,
       handheld_id_path: handheldIdPath,
@@ -89,7 +124,6 @@ function extractFilePaths(filePaths: Record<string, unknown>): FilePathExtractio
       authorization_path: authorizationPath,
       identity_video_path: identityVideoPath,
     },
-    missing: [],
   };
 }
 
@@ -125,9 +159,14 @@ function buildVerificationRecord(
  * Replicates Python's strptime `%y` century pivot (CPython Lib/_strptime.py): two-digit
  * years 00-68 map to 2000-2068, 69-99 map to 1900-1999. Throws (mirroring Python's
  * ValueError) on a malformed or calendar-invalid date instead of silently normalizing.
+ *
+ * Month/day accept 1 or 2 digits — CPython's `_strptime.py` TimeRE patterns for `%m`
+ * (`1[0-2]|0[1-9]|[1-9]`) and `%d` (`3[0-1]|[1-2]\d|0[1-9]|[1-9]`) both allow an
+ * unpadded single digit (e.g. "5/1/98"), so a `\d{2}`-only regex here would reject
+ * inputs Python accepts.
  */
 function formatDateOfBirth(mmddyy: string): string {
-  const match = /^(\d{2})\/(\d{2})\/(\d{2})$/.exec(mmddyy);
+  const match = /^(\d{1,2})\/(\d{1,2})\/(\d{2})$/.exec(mmddyy);
   if (!match) {
     throw new Error(`time data '${mmddyy}' does not match format '%m/%d/%y'`);
   }
@@ -198,7 +237,9 @@ async function saveVerification(
  * This endpoint is intentionally public/unauthenticated (same category as
  * /api/contact per the infra-simplification plan's Global Constraints — the Python
  * route never required a session either). Zod validation + IP rate limiting stand in
- * for the session guard other ported mutating routes get.
+ * for the session guard other ported mutating routes get — note the rate limit is a
+ * best-effort per-instance throttle (in-memory, per Netlify function container), not
+ * a global cap; see the caveat on `tiktokVerificationLimiter` in rate-limiter.ts.
  */
 async function handleJsonSubmission(request: NextRequest): Promise<NextResponse> {
   const ip = request.headers.get("x-forwarded-for") || "unknown";
@@ -215,13 +256,15 @@ async function handleJsonSubmission(request: NextRequest): Promise<NextResponse>
   }
   const body = parsed.data;
 
-  const { paths, missing } = extractFilePaths(body.file_paths);
-  if (!paths) {
-    return NextResponse.json(
-      { detail: `Missing required file path(s): ${missing.join(", ")}` },
-      { status: 400 }
-    );
+  const extraction = extractFilePaths(body.file_paths, body.id_number);
+  if (!extraction.ok) {
+    const detail =
+      extraction.reason === "missing"
+        ? `Missing required file path(s): ${extraction.missing.join(", ")}`
+        : `File path(s) do not belong to id_number ${body.id_number}: ${extraction.fields.join(", ")}`;
+    return NextResponse.json({ detail }, { status: 400 });
   }
+  const { paths } = extraction;
 
   if (await checkIdExists(body.id_number)) {
     return NextResponse.json(

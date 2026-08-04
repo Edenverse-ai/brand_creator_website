@@ -149,6 +149,60 @@ describe("POST /api/tiktokverification (JSON path-based submission)", () => {
     expect(influencerVerificationsCreate).not.toHaveBeenCalled();
   });
 
+  it("rejects a submission whose file_paths point at a different id_number's folder (cross-id_number attack)", async () => {
+    // Attacker submits under their own id_number but points file_paths at another
+    // applicant's already-uploaded documents, trying to attach a stranger's ID/video
+    // to their own application.
+    const res = await POST(
+      jsonRequest({
+        ...VALID_BODY,
+        id_number: "ATTACKER-0001",
+        file_paths: {
+          id_front_file: "VICTIM-ID/id_front.png",
+          handheld_id_file: "VICTIM-ID/id_handheld.png",
+          backend_ss_file: "VICTIM-ID/backend_ss.png",
+          signed_auth_file: "VICTIM-ID/authorization.pdf",
+        },
+      }) as never
+    );
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.detail).toBe(
+      "File path(s) do not belong to id_number ATTACKER-0001: id_front_path, handheld_id_path, backend_ss_path, authorization_path"
+    );
+    expect(influencerVerificationsFindFirst).not.toHaveBeenCalled();
+    expect(influencerVerificationsCreate).not.toHaveBeenCalled();
+  });
+
+  it("rejects a submission when only the optional identity_video path is foreign", async () => {
+    const res = await POST(
+      jsonRequest({
+        ...VALID_BODY,
+        file_paths: {
+          ...VALID_BODY.file_paths,
+          identity_video_file: "VICTIM-ID/identity_video.mp4",
+        },
+      }) as never
+    );
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.detail).toBe(
+      "File path(s) do not belong to id_number TEST123: identity_video_path"
+    );
+    expect(influencerVerificationsCreate).not.toHaveBeenCalled();
+  });
+
+  it("accepts file paths whose first segment matches the submission's own id_number (legitimate same-id_number flow)", async () => {
+    // Mirrors the real client: uploadHelper.ts mints under {id_number}/{file}, and
+    // page.tsx submits with that same id_number, so this must keep working.
+    const res = await POST(jsonRequest(VALID_BODY) as never);
+
+    expect(res.status).toBe(200);
+    expect(influencerVerificationsCreate).toHaveBeenCalledTimes(1);
+  });
+
   it("defaults identity_video_path to null when the optional file is omitted", async () => {
     const { identity_video_file: _drop, ...requiredOnly } = VALID_BODY.file_paths;
 
@@ -164,6 +218,19 @@ describe("POST /api/tiktokverification (JSON path-based submission)", () => {
     const { stage_name: _s, other_platforms: _o, ...rest } = VALID_BODY;
 
     const res = await POST(jsonRequest(rest) as never);
+
+    expect(res.status).toBe(200);
+    expect(influencerVerificationsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ stage_name: null, other_platforms: null }),
+      })
+    );
+  });
+
+  it("accepts an explicit JSON null for stage_name and other_platforms (Pydantic `str | None` parity)", async () => {
+    const res = await POST(
+      jsonRequest({ ...VALID_BODY, stage_name: null, other_platforms: null }) as never
+    );
 
     expect(res.status).toBe(200);
     expect(influencerVerificationsCreate).toHaveBeenCalledWith(
@@ -207,6 +274,15 @@ describe("POST /api/tiktokverification (JSON path-based submission)", () => {
     expect(res.status).toBe(200);
     expect(influencerVerificationsCreate).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ date_of_birth: expected }) })
+    );
+  });
+
+  it("parses a 1-digit month/day (strptime %m/%d accept unpadded single digits too)", async () => {
+    const res = await POST(jsonRequest({ ...VALID_BODY, date_of_birth: "5/1/98" }) as never);
+
+    expect(res.status).toBe(200);
+    expect(influencerVerificationsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ date_of_birth: "1998-05-01" }) })
     );
   });
 
