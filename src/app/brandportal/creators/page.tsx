@@ -1,6 +1,7 @@
 "use client";
 
-import { Search, Filter, Instagram, Youtube, Video } from "lucide-react";
+import { Search, Filter, Instagram, Youtube } from "lucide-react";
+import { TikTokIcon } from "@/components/ui/TikTokIcon";
 
 const creators = [
   {
@@ -159,7 +160,7 @@ const categories = [
 const platformIcons = {
   instagram: Instagram,
   youtube: Youtube,
-  tiktok: Video,
+  tiktok: TikTokIcon,
 };
 
 export default function CreatorsPage() {
