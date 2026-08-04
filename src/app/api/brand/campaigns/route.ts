@@ -1,120 +1,274 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
+import type { Prisma } from "@prisma/client";
 import { authConfig } from "@/app/api/auth/[...nextauth]/auth.config";
 import { prisma } from "@/lib/prisma";
+import {
+  serializeBrandCampaign,
+  fetchClaimsByCampaignIds,
+  fetchCreatorsByIds,
+  buildListApplication,
+} from "@/lib/campaigns/serialize";
+import {
+  CAMPAIGN_ARRAY_FIELDS,
+  combineTierRequirement,
+  finalizeCampaignWriteData,
+  campaignWriteErrorResponse,
+} from "@/lib/campaigns/write";
+import { isValidCalendarDateOnly } from "@/lib/campaigns/dates";
 
-// Define the Python API URL
-const PYTHON_API_URL = process.env.CAMPAIGNS_API_URL || "http://localhost:5000";
+/**
+ * Multipart branch of campaign creation (`src/app/brandportal/campaigns/new/page.tsx`
+ * submits `FormData`, the only actively-used "create campaign" UI). Field-for-field mirror
+ * of the pre-port TS proxy's own multipart handling (this normalization to Python's
+ * `CampaignCreate` shape was already happening client-side in TS before this port; only the
+ * final write target changes, from `fetch(pythonApiUrl)` to `prisma.campaigns.create`).
+ *
+ * `follower_requirement`/`order_requirement` have no Prisma column Python ever wrote to
+ * (phase-4-port-reference.md §1.3.3) and are folded into `creator_tier_requirement`, exactly
+ * as before: when neither an existing non-empty array nor a follower/order value survives,
+ * the key is deleted outright (not left as whatever `campaignData.creator_tier_requirement`
+ * happened to parse to) — this diverges from the JSON branch below on purpose; that is the
+ * live, frozen behavior of each branch today, not a bug introduced by this port.
+ */
+function buildMultipartCreatePayload(formData: FormData): Record<string, unknown> {
+  const getStr = (key: string) => formData.get(key) as string | null;
 
-export async function GET(request: Request) {
+  const campaignData: Record<string, unknown> = {
+    title: getStr("title"),
+    brief: getStr("brief"),
+    requirements: getStr("requirements"),
+    budget_range: getStr("budget_range"),
+    budget_unit: getStr("budgetUnit"),
+    commission: getStr("commission"),
+    platform: getStr("platform"),
+    deadline: getStr("deadline"),
+    max_creators: parseInt(getStr("max_creators") ?? "", 10) || 10,
+    is_open: getStr("is_open") === "true",
+    sample_video_url: getStr("sample_video_url"),
+    industry_category: getStr("industry_category"),
+    ad_placement: getStr("ad_placement"),
+    campaign_execution_mode: getStr("campaign_execution_mode"),
+    language_requirement_for_creators: getStr("language_requirement_for_creators"),
+    send_to_creator: getStr("send_to_creator"),
+    approved_by_brand: getStr("approved_by_brand"),
+    kpi_reference_target: getStr("kpi_reference_target"),
+    prohibited_content_warnings: getStr("prohibited_content_warnings"),
+    posting_requirements: getStr("posting_requirements"),
+    product_photo: getStr("product_photo"),
+    script_required: getStr("script_required"),
+    product_name: getStr("product_name"),
+    product_highlight: getStr("product_highlight"),
+    product_price: getStr("product_price"),
+    product_sold_number: getStr("product_sold_number"),
+    paid_promotion_type: getStr("paid_promotion_type"),
+    video_buyout_budget_range: getStr("video_buyout_budget_range"),
+    base_fee_budget_range: getStr("base_fee_budget_range"),
+    follower_requirement: getStr("follower_requirement"),
+    order_requirement: getStr("order_requirement"),
+  };
+
+  for (const field of CAMPAIGN_ARRAY_FIELDS) {
+    const value = getStr(field);
+    if (value) {
+      try {
+        campaignData[field] = JSON.parse(value);
+      } catch {
+        campaignData[field] = value;
+      }
+    }
+  }
+
+  const combinedTier = combineTierRequirement(
+    campaignData.creator_tier_requirement,
+    campaignData.follower_requirement,
+    campaignData.order_requirement
+  );
+
+  const { follower_requirement: _fr, order_requirement: _or, ...payload } = campaignData;
+  if (combinedTier !== undefined) {
+    payload.creator_tier_requirement = combinedTier;
+  } else {
+    delete payload.creator_tier_requirement;
+  }
+
+  return payload;
+}
+
+/**
+ * JSON branch of campaign creation. Same tier-folding idea as the multipart branch, but
+ * when neither an array nor a follower/order value survives, it falls back to whatever
+ * `creator_tier_requirement` the client originally sent (`combinedTier ?? original`),
+ * NOT a delete — matching the pre-port proxy's JSON branch exactly, which differs from its
+ * own multipart branch in this one respect.
+ */
+function buildJsonCreatePayload(data: Record<string, unknown>): Record<string, unknown> {
+  const campaignData: Record<string, unknown> = {
+    ...data,
+    budget_unit: data.budget_unit || data.budgetUnit,
+    script_required: data.script_required || "no",
+    product_name: data.product_name || "",
+    product_highlight: data.product_highlight || "",
+    product_price: data.product_price || "",
+    product_sold_number: data.product_sold_number || "",
+    paid_promotion_type: data.paid_promotion_type || "commission_based",
+    video_buyout_budget_range: data.video_buyout_budget_range || "",
+    base_fee_budget_range: data.base_fee_budget_range || "",
+    product_photo: data.product_photo || data.product_photo_url || data.productPhotoUrl || "",
+  };
+
+  const followerRequirement = data.follower_requirement || data.followerRequirement || "";
+  const orderRequirement = data.order_requirement || data.orderRequirement || "";
+  const combinedTier = combineTierRequirement(
+    campaignData.creator_tier_requirement,
+    followerRequirement,
+    orderRequirement
+  );
+
+  const merged: Record<string, unknown> = {
+    ...campaignData,
+    creator_tier_requirement: combinedTier ?? campaignData.creator_tier_requirement,
+  };
+  const {
+    follower_requirement: _fr1,
+    followerRequirement: _fr2,
+    order_requirement: _or1,
+    orderRequirement: _or2,
+    ...payload
+  } = merged;
+
+  return payload;
+}
+
+/**
+ * Native port of `GET /campaigns/brand/{brand_id}`
+ * (backend/app/main/routes/campaigns.py -> BrandService.get_brand_campaigns,
+ * backend/app/main/services/brand_service.py).
+ *
+ * Auth: unchanged (already the strongest ownership pattern in this domain — session ->
+ * User lookup -> role must be BRAND -> explicit BrandProfile.findUnique ownership
+ * pre-check, 403 otherwise). Kept on `authConfig` per phase-4-port-reference.md §0.5.
+ *
+ * PHANTOM FILTER COLUMNS (confirmed against prisma/schema.prisma and
+ * prisma/migrations/20260507000000_add_campaigns_legacy/migration.sql — neither
+ * `start_date`/`end_date` nor `status` exist as columns on `campaigns`): today, supplying
+ * `status` makes `get_brand_campaigns`'s `.eq("status", ...)` fail at `.execute()` time
+ * with an "undefined column" error from Postgrest — there is no guard around it, so ANY
+ * value crashes. That exception propagates as an uncaught-by-the-route HTTPException(500),
+ * which this route's own `!response.ok` branch then masks to HTTP 200 with
+ * `{ error: "API Error: 500", campaigns: [] }` (`response.status === 500 ? 200 :
+ * response.status`). Reproduced exactly below rather than silently treating the filter as a
+ * no-op (a real behavior change) or inventing the missing columns (out of scope).
+ *
+ * `start_date`/`end_date` are different: `brand_service.py:39-51` wraps its
+ * `datetime.strptime(value, "%Y-%m-%d")` parse in its own `try/except ValueError`, and only
+ * calls `.gte("start_date", …)` / `.lte("end_date", …)` (the calls that reference the
+ * nonexistent columns) when the parse *succeeds*. A malformed value — `?start_date=notadate`
+ * — never reaches those calls, so Python silently skips the filter and the query proceeds,
+ * returning the brand's real campaigns. Only a validly-formatted date crashes. Matched via
+ * `isValidCalendarDateOnly` (dates.ts), not mere presence of the param.
+ *
+ * `search` also nominally ORs against a `description` column that likewise does not exist
+ * (`c.get("description", "")` always yields `""` in Python), so it is implemented here as a
+ * title-only filter — functionally identical to the Python source's OR-against-empty-string.
+ */
+export async function GET(request: NextRequest) {
   try {
-    // Get the authenticated user's session
     const session = await getServerSession(authConfig);
-    console.log("Session:", session);
-
     if (!session?.user?.email) {
-      console.log("No session or email");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get the user and ensure they are a brand
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
       select: { id: true, role: true },
     });
-    console.log("User:", { id: user?.id, email: session.user.email, role: user?.role });
-
     if (!user || user.role !== "BRAND") {
-      console.log("Not a brand:", { role: user?.role });
       return NextResponse.json({ error: "Unauthorized - Brand access only" }, { status: 403 });
     }
 
-    const brandProfile = await prisma.brandProfile.findUnique({
-      where: { userId: user.id },
-      select: { id: true },
-    });
-
+    const brandProfile = await prisma.brandProfile.findUnique({ where: { userId: user.id } });
     if (!brandProfile) {
-      console.log("Brand profile not found for user:", user.id);
       return NextResponse.json({ error: "Unauthorized - Brand access only" }, { status: 403 });
     }
 
-    // Extract any query parameters from the request
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search");
-    // Normalize filters to what the Python API expects while tolerating camelCase from the UI
     const startDate = searchParams.get("start_date") || searchParams.get("startDate");
     const endDate = searchParams.get("end_date") || searchParams.get("endDate");
     const status = searchParams.get("status");
 
-    // Build the Python API URL with query parameters using brand profile ID directly
-    let pythonApiUrl = `${PYTHON_API_URL}/campaigns/brand/${brandProfile.id}`;
-    const queryParams = new URLSearchParams();
+    const startDateCrashes = startDate !== null && isValidCalendarDateOnly(startDate);
+    const endDateCrashes = endDate !== null && isValidCalendarDateOnly(endDate);
 
-    if (search) queryParams.append("search", search);
-    if (startDate) queryParams.append("start_date", startDate);
-    if (endDate) queryParams.append("end_date", endDate);
-    if (status) queryParams.append("status", status);
-
-    if (queryParams.toString()) {
-      pythonApiUrl += `?${queryParams.toString()}`;
+    if (status || startDateCrashes || endDateCrashes) {
+      return NextResponse.json({ error: "API Error: 500", campaigns: [] }, { status: 200 });
     }
 
-    console.log("Fetching from Python API with brand profile ID:", pythonApiUrl);
+    const campaigns = await prisma.campaigns.findMany({ where: { brand_id: brandProfile.id } });
 
-    const response = await fetch(pythonApiUrl, {
-      headers: {
-        "Content-Type": "application/json",
-      },
-      signal: AbortSignal.timeout(5000),
+    let rows = campaigns;
+    if (search && search.trim()) {
+      const searchLower = search.toLowerCase();
+      rows = rows.filter((c) => (c.title ?? "").toLowerCase().includes(searchLower));
+    }
+
+    const claimsByCampaign = await fetchClaimsByCampaignIds(rows.map((c) => c.id));
+    const allClaims = Array.from(claimsByCampaign.values()).flat();
+    const creators = await fetchCreatorsByIds(allClaims.map((c) => c.creator_id));
+
+    const result = rows.map((campaign) => {
+      const claims = claimsByCampaign.get(campaign.id) ?? [];
+      const applications = claims.map((claim) => buildListApplication(claim, creators));
+      return serializeBrandCampaign(campaign, applications, brandProfile);
     });
 
-    if (!response.ok) {
-      console.error(`Python API returned status ${response.status}`);
-      return NextResponse.json(
-        {
-          error: `API Error: ${response.status}`,
-          campaigns: [],
-        },
-        { status: response.status === 500 ? 200 : response.status }
-      );
-    }
-
-    const campaigns = await response.json();
-    console.log(
-      "Python API campaigns:",
-      Array.isArray(campaigns) ? campaigns.length : "not an array"
-    );
-
-    // Return the campaigns
-    return NextResponse.json(campaigns);
+    return NextResponse.json(result);
   } catch (error) {
-    console.error("Error fetching brand campaigns:", error);
-    // Return empty array with error message instead of 500 status
+    console.error("GET /api/brand/campaigns failed:", error instanceof Error ? error.name : error);
     return NextResponse.json(
-      {
-        error: "Failed to fetch campaigns",
-        campaigns: [],
-      },
+      { error: "Failed to fetch campaigns", campaigns: [] },
       { status: 200 }
     );
   }
 }
 
-export async function POST(request: Request) {
+/**
+ * Native port of `POST /campaigns/brand/{brand_id}/add`
+ * (backend/app/main/routes/campaigns.py -> CampaignService.create_campaign,
+ * backend/app/main/services/campaign_service.py).
+ *
+ * Auth: unchanged — session -> User lookup -> role BRAND -> explicit BrandProfile
+ * ownership pre-check (403 "Brand profile not found" — note this route uses a DIFFERENT
+ * message than GET's "Unauthorized - Brand access only" for the identical missing-profile
+ * condition; both are preserved exactly as they exist per-handler today, not unified).
+ *
+ * Python's `create_campaign` has an elaborate auto-vivify fallback that creates a
+ * BrandProfile on the fly if none exists — NOT ported, because this TS route already
+ * requires a pre-existing BrandProfile (403s otherwise) before ever reaching that logic, so
+ * the fallback has been unreachable dead code even in the live proxy
+ * (phase-4-port-reference.md §1.2, §6.1). Porting it would change today's actual behavior,
+ * not preserve it.
+ *
+ * SECURITY FIX: the write payload is allowlisted to exactly `CampaignCreate`'s own field set
+ * (`finalizeCampaignWriteData`, src/lib/campaigns/write.ts) before it ever reaches Prisma —
+ * `CampaignCreate` is `extra="forbid"`, so Python 422s any unlisted key, but this route
+ * previously had no equivalent guard and `campaignsCreateInput` has no field-level ACL of
+ * its own. Any client-supplied `brand_id` is unconditionally ignored (never allowlisted,
+ * always overridden below by the resolved `brandProfile.id`) regardless of the allowlist
+ * outcome.
+ */
+export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authConfig);
-
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Get the user and ensure they are a brand
     const user = await prisma.user.findUnique({
       where: { email: session.user.email },
       select: { id: true, role: true },
     });
-
     if (!user || user.role !== "BRAND") {
       return NextResponse.json({ error: "Unauthorized - Brand access only" }, { status: 403 });
     }
@@ -123,214 +277,46 @@ export async function POST(request: Request) {
       where: { userId: user.id },
       select: { id: true },
     });
-
     if (!brandProfile) {
       return NextResponse.json({ error: "Brand profile not found" }, { status: 403 });
     }
 
-    // Check if this is a multipart/form-data request
     const contentType = request.headers.get("content-type") || "";
+    let payload: Record<string, unknown>;
 
     if (contentType.includes("multipart/form-data")) {
-      // Handle FormData submission with file upload
       const formData = await request.formData();
-
-      // Extract and prepare campaign data with all new fields
-      const campaignData: any = {
-        brand_id: brandProfile.id,
-        title: formData.get("title") as string,
-        brief: formData.get("brief") as string,
-        requirements: formData.get("requirements") as string,
-        budget_range: formData.get("budget_range") as string,
-        budget_unit: formData.get("budgetUnit") as string,
-        commission: formData.get("commission") as string,
-        platform: formData.get("platform") as string,
-        deadline: formData.get("deadline") as string,
-        max_creators: parseInt(formData.get("max_creators") as string) || 10,
-        is_open: formData.get("is_open") === "true",
-        sample_video_url: formData.get("sample_video_url") as string,
-        // Existing new fields
-        industry_category: formData.get("industry_category") as string,
-        ad_placement: formData.get("ad_placement") as string,
-        campaign_execution_mode: formData.get("campaign_execution_mode") as string,
-        language_requirement_for_creators: formData.get(
-          "language_requirement_for_creators"
-        ) as string,
-        send_to_creator: formData.get("send_to_creator") as string,
-        approved_by_brand: formData.get("approved_by_brand") as string,
-        kpi_reference_target: formData.get("kpi_reference_target") as string,
-        prohibited_content_warnings: formData.get("prohibited_content_warnings") as string,
-        posting_requirements: formData.get("posting_requirements") as string,
-        product_photo: formData.get("product_photo") as string,
-        // New frontend fields
-        script_required: formData.get("script_required") as string,
-        product_name: formData.get("product_name") as string,
-        product_highlight: formData.get("product_highlight") as string,
-        product_price: formData.get("product_price") as string,
-        product_sold_number: formData.get("product_sold_number") as string,
-        paid_promotion_type: formData.get("paid_promotion_type") as string,
-        video_buyout_budget_range: formData.get("video_buyout_budget_range") as string,
-        base_fee_budget_range: formData.get("base_fee_budget_range") as string,
-        follower_requirement: formData.get("follower_requirement") as string,
-        order_requirement: formData.get("order_requirement") as string,
-      };
-
-      // Handle array fields that come as JSON strings
-      const arrayFields = [
-        "primary_promotion_objectives",
-        "creator_profile_preferences_gender",
-        "creator_profile_preference_ethnicity",
-        "creator_profile_preference_content_niche",
-        "preferred_creator_location",
-        "creator_tier_requirement",
-      ];
-
-      arrayFields.forEach((field) => {
-        const value = formData.get(field) as string;
-        if (value) {
-          try {
-            campaignData[field] = JSON.parse(value);
-          } catch (_e) {
-            // If it's not valid JSON, treat as string
-            campaignData[field] = value;
-          }
-        }
-      });
-
-      // Map tier selections into the field the Python API accepts and strip unsupported extras
-      const followerRequirement = campaignData.follower_requirement as string | null;
-      const orderRequirement = campaignData.order_requirement as string | null;
-      const combinedTier =
-        Array.isArray(campaignData.creator_tier_requirement) &&
-        campaignData.creator_tier_requirement.length > 0
-          ? campaignData.creator_tier_requirement
-          : followerRequirement || orderRequirement
-            ? [[followerRequirement, orderRequirement].filter(Boolean).join("; ")]
-            : undefined;
-
-      const {
-        follower_requirement: _followerRequirement,
-        order_requirement: _orderRequirement,
-        ...pythonPayload
-      } = campaignData;
-      if (combinedTier !== undefined) {
-        pythonPayload.creator_tier_requirement = combinedTier;
-      } else {
-        delete pythonPayload.creator_tier_requirement;
-      }
-
-      console.log("Campaign data with new fields:", {
-        script_required: campaignData.script_required,
-        product_name: campaignData.product_name,
-        product_highlight: campaignData.product_highlight,
-        product_price: campaignData.product_price,
-        product_sold_number: campaignData.product_sold_number,
-        paid_promotion_type: campaignData.paid_promotion_type,
-        video_buyout_budget_range: campaignData.video_buyout_budget_range,
-        base_fee_budget_range: campaignData.base_fee_budget_range,
-      });
-
-      // Forward the request to the Python API
-      const pythonApiUrl = `${PYTHON_API_URL}/campaigns/brand/${user.id}/add`;
-
-      console.log("Creating campaign via Python API:", pythonApiUrl);
-
-      const response = await fetch(pythonApiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(pythonPayload),
-      });
-
-      if (!response.ok) {
-        console.error(`Python API returned status ${response.status} for POST`);
-        const errorData = await response.json().catch(() => ({}));
-        return NextResponse.json(
-          {
-            error: "Failed to create campaign",
-            details: errorData,
-          },
-          { status: response.status }
-        );
-      }
-
-      const campaign = await response.json();
-      console.log("Campaign created successfully:", campaign);
-      return NextResponse.json(campaign);
+      payload = buildMultipartCreatePayload(formData);
     } else {
-      // Handle JSON submission (original implementation) - also update with new fields
-      const data = await request.json();
-
-      // Ensure all new fields are included
-      const campaignData = {
-        ...data,
-        brand_id: brandProfile.id,
-        budget_unit: data.budget_unit || data.budgetUnit,
-        // Ensure new fields have defaults if not provided
-        script_required: data.script_required || "no",
-        product_name: data.product_name || "",
-        product_highlight: data.product_highlight || "",
-        product_price: data.product_price || "",
-        product_sold_number: data.product_sold_number || "",
-        paid_promotion_type: data.paid_promotion_type || "commission_based",
-        video_buyout_budget_range: data.video_buyout_budget_range || "",
-        base_fee_budget_range: data.base_fee_budget_range || "",
-        product_photo: data.product_photo || data.product_photo_url || data.productPhotoUrl || "",
-      };
-
-      // Normalize tier requirements for the Python API and drop unsupported extras
-      const followerRequirement = data.follower_requirement || data.followerRequirement || "";
-      const orderRequirement = data.order_requirement || data.orderRequirement || "";
-      const combinedTier =
-        campaignData.creator_tier_requirement &&
-        (campaignData.creator_tier_requirement as any[]).length
-          ? campaignData.creator_tier_requirement
-          : followerRequirement || orderRequirement
-            ? [[followerRequirement, orderRequirement].filter(Boolean).join("; ")]
-            : undefined;
-
-      const {
-        follower_requirement: _formFollowerRequirement,
-        followerRequirement: _followerRequirement,
-        order_requirement: _formOrderRequirement,
-        orderRequirement: _orderRequirement,
-        ...pythonPayload
-      } = {
-        ...campaignData,
-        creator_tier_requirement: combinedTier ?? campaignData.creator_tier_requirement,
-      };
-
-      // Forward the request to the Python API
-      const pythonApiUrl = `${PYTHON_API_URL}/campaigns/brand/${user.id}/add`;
-
-      console.log("Creating campaign via Python API (JSON):", pythonApiUrl);
-
-      const response = await fetch(pythonApiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(pythonPayload),
-      });
-
-      if (!response.ok) {
-        console.error(`Python API returned status ${response.status} for POST`);
-        const errorData = await response.json().catch(() => ({}));
-        return NextResponse.json(
-          {
-            error: "Failed to create campaign",
-            details: errorData,
-          },
-          { status: response.status }
-        );
+      const data = await request.json().catch(() => null);
+      if (!data || typeof data !== "object") {
+        return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
       }
-
-      const campaign = await response.json();
-      return NextResponse.json(campaign);
+      payload = buildJsonCreatePayload(data as Record<string, unknown>);
     }
+
+    const outcome = finalizeCampaignWriteData(payload);
+    if (!outcome.ok) {
+      const { status, body } = campaignWriteErrorResponse(outcome, "create");
+      return NextResponse.json(body, { status });
+    }
+
+    const created = await prisma.campaigns.create({
+      data: {
+        ...outcome.data,
+        brand_id: brandProfile.id,
+      } as unknown as Prisma.campaignsCreateInput,
+      select: { id: true },
+    });
+
+    return NextResponse.json({
+      success: true,
+      message: "Campaign created successfully",
+      campaign_id: created.id,
+      campaign_title: null,
+    });
   } catch (error) {
-    console.error("Error creating campaign:", error);
+    console.error("Error creating campaign:", error instanceof Error ? error.name : error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
