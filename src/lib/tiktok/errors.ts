@@ -16,7 +16,18 @@ export const TIKTOK_MESSAGES = {
   missingPrivacyLevel: "Missing privacy_level for TikTok upload",
   missingVideoSource: "Missing video_url or video_path",
   unsafeVideoUrl: "video_url is not allowed",
-  sourceNotRelayable: "video_url is not supported for direct upload; use video_path instead",
+  // POST-REVIEW FIX: the previous wording ("use video_path instead") was
+  // factually wrong -- the constraint isn't about which request field was
+  // used, it's about which HOST the source is on (relay-url-guard.ts's
+  // assertSourceTargetUrl allowlist: our own configured Supabase project
+  // only). In production, video_url is ALSO usually Supabase-hosted (see
+  // task-3-report.md's "Post-review fixes" for the traced data path), so
+  // this only fires for a genuinely external/third-party source -- telling
+  // the caller to "use video_path instead" would have been misleading advice
+  // even then, since video_path resolves to the exact same host check.
+  sourceNotRelayable:
+    "video source must be hosted on this app's own storage; external URLs are not supported for direct upload",
+  uploadTargetInvalid: "TikTok returned an unexpected upload destination",
   signFailed: "Failed to sign video URL",
   sizeUnknown: "Unable to determine video size",
   initFailed: "TikTok init failed",
@@ -71,7 +82,16 @@ export class TikTokStatusFetchError extends Error {
 /** Maps a caught error to one of the fixed, caller-safe TIKTOK_MESSAGES strings. */
 export function publicMessageFor(error: unknown): string {
   if (error instanceof UnsafeVideoUrlError) return TIKTOK_MESSAGES.unsafeVideoUrl;
-  if (error instanceof UnsafeRelayTargetError) return TIKTOK_MESSAGES.sourceNotRelayable;
+  if (error instanceof UnsafeRelayTargetError) {
+    // POST-REVIEW FIX: UnsafeRelayTargetError carries kind: "source" | "upload"
+    // (relay-url-guard.ts) but this used to collapse both onto the
+    // source-flavoured message unconditionally -- harmless while only
+    // assertSourceTargetUrl was route-reachable, but wrong the moment
+    // assertUploadTargetUrl is ever called route-side too.
+    return error.kind === "upload"
+      ? TIKTOK_MESSAGES.uploadTargetInvalid
+      : TIKTOK_MESSAGES.sourceNotRelayable;
+  }
   if (error instanceof TikTokSignError) return TIKTOK_MESSAGES.signFailed;
   if (error instanceof TikTokVideoSizeError) return TIKTOK_MESSAGES.sizeUnknown;
   if (error instanceof TikTokInitError) return TIKTOK_MESSAGES.initFailed;

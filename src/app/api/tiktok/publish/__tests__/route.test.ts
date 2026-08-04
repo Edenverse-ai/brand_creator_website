@@ -367,7 +367,8 @@ describe("POST /api/tiktok/publish", () => {
         {
           id: "vid-1",
           status: "error",
-          error: "video_url is not supported for direct upload; use video_path instead",
+          error:
+            "video source must be hosted on this app's own storage; external URLs are not supported for direct upload",
         },
       ]);
       // Rejected before fetchVideoSize/init -- no TikTok init call, no size probe.

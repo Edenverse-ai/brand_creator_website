@@ -24,13 +24,23 @@
  *     `assertPublicVideoUrl` -- before any fetch happens, and independent of
  *     whether the relay would later accept it.)
  *
- * This intentionally means the background relay only ever succeeds for
- * video_path-sourced videos. See the task report's "Post-review fixes" for
- * the resulting behavior change.
+ * This intentionally means the relay only accepts a sourceUrl on OUR OWN
+ * storage host -- NOT "video_path only, video_url excluded" (an earlier draft
+ * of this comment overstated it that way). In production, video.video_url is
+ * itself usually built from this same Supabase project (see
+ * backend/app/main/services/ai_video_service.py's `_get_public_url` /
+ * `_resolve_video_url`, and src/app/creatorportal/ai-video/data.ts's
+ * pass-through), so it passes this check too. What this actually forecloses
+ * is relaying from a genuinely THIRD-PARTY host -- which was the exfil
+ * primitive CRITICAL 1 closed. See the task report's "Post-review fixes" for
+ * the traced data path and the corrected disclosure.
  */
 
 export class UnsafeRelayTargetError extends Error {
-  constructor(rawUrl: string, kind: "source" | "upload") {
+  constructor(
+    rawUrl: string,
+    public readonly kind: "source" | "upload"
+  ) {
     super(`Relay ${kind} target not on the allowlist: ${safeHostnameFor(rawUrl)}`);
     this.name = "UnsafeRelayTargetError";
   }
