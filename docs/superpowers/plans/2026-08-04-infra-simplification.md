@@ -113,7 +113,10 @@ import bcrypt from "bcryptjs"; // hash(pw, 10) / compare(pw, hash) unchanged
 - [ ] **Step 3:** Rewrite the single `react-chartjs-2` chart with `recharts` (already used elsewhere — copy the existing recharts usage style from the other chart file found in Step 1's grep).
 - [ ] **Step 4:** Replace `axios` calls with native `fetch` (Next polyfills server-side): `axios.get(url)` → `await fetch(url)` + `await res.json()`, error check via `res.ok`.
 - [ ] **Step 5:** Replace 2 `react-icons` imports with `lucide-react` equivalents (45 files already use lucide).
-- [ ] **Step 6:** `npm uninstall bcrypt @types/bcrypt axios @types/node-fetch chart.js react-chartjs-2 react-icons @auth/prisma-adapter`
+- [ ] **Step 6:** `npm uninstall bcrypt @types/bcrypt axios @types/node-fetch react-chartjs-2 react-icons @auth/prisma-adapter`
+
+`chart.js` retained — `src/components/charts/PerformanceMetricsChart.tsx`, `AudienceMetricsChart.tsx`, `IncomeCharts.tsx` import `chart.js/auto` directly; migrate those to recharts in a follow-up before uninstalling.
+
 - [ ] **Step 7:** `npm run typecheck && npm run lint && npm run test:run && npm run build` → pass. `npm run e2e -- e2e/smoke` → pass.
 - [ ] **Step 8:** `git commit -m "chore: dedupe dependencies (one bcrypt, one chart lib, one icon set, drop axios)"`
 
