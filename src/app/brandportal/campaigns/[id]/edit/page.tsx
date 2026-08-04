@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { useRouter, useParams } from "next/navigation";
 import { ArrowLeft, Calendar } from "lucide-react";
 import Link from "next/link";
+import { validateCampaignImageFile, uploadCampaignImage } from "@/lib/campaign-image-upload";
 
 interface Platform {
   id: string;
@@ -152,6 +153,10 @@ export default function EditCampaign() {
       fetchPlatforms();
       fetchCampaign();
     }
+    // fetchPlatforms/fetchCampaign are recreated every render; only re-run this effect for
+    // actual navigation/identity changes, matching the pre-existing (unrelated to this task)
+    // behavior of this effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, session, router, campaignId]);
 
   const fetchPlatforms = async () => {
@@ -342,34 +347,21 @@ export default function EditCampaign() {
       return;
     }
 
-    if (formData.product_photo && formData.product_photo.size > 5 * 1024 * 1024) {
-      setFormError("Product photo must be less than 5MB");
-      setIsLoading(false);
-      return;
+    if (formData.product_photo) {
+      const photoValidation = validateCampaignImageFile(formData.product_photo);
+      if (!photoValidation.ok) {
+        setFormError(photoValidation.error);
+        setIsLoading(false);
+        return;
+      }
     }
 
     try {
       let productPhotoUrl = formData.product_photo_url;
 
-      // Upload new photo if provided
+      // Upload new photo if provided (direct-to-storage via presigned URL)
       if (formData.product_photo) {
-        const photoFormData = new FormData();
-        photoFormData.append("file", formData.product_photo);
-        photoFormData.append("brand_id", session?.user?.id || "unknown");
-        photoFormData.append("campaign_id", campaignId);
-
-        const uploadResponse = await fetch("/api/campaigns/upload", {
-          method: "POST",
-          body: photoFormData,
-        });
-
-        if (!uploadResponse.ok) {
-          const uploadError = await uploadResponse.json();
-          throw new Error(uploadError.error || "Failed to upload product photo");
-        }
-
-        const uploadData = await uploadResponse.json();
-        productPhotoUrl = uploadData.url;
+        productPhotoUrl = await uploadCampaignImage(formData.product_photo);
       }
 
       // Prepare update data
