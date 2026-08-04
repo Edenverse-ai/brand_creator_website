@@ -8,7 +8,7 @@ import { assertRelayTargetUrl } from "../../src/lib/tiktok/relay-url-guard";
  * 15-minute execution budget, Netlify responds 202 to the caller as soon as
  * this invocation is scheduled, and this function's return value is ignored).
  *
- * Dispatched by POST /api/tiktok/publish (src/app/api/tiktok/background-dispatch.ts)
+ * Dispatched by POST /api/tiktok/publish (via src/lib/tiktok/background-dispatch.ts)
  * after TikTok's init call returns an upload_url + publish_id. Performs the
  * actual byte relay -- fetch the signed Supabase video, PUT it to TikTok's
  * upload_url in chunks -- which is why this exists as a background function
