@@ -1,45 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { generateUploadUrls } from "./logic";
 
+const FileInfoSchema = z.object({
+  key: z.string().min(1),
+  extension: z.string().min(1),
+});
+
+const Body = z.object({
+  id_number: z.string().min(1),
+  files: z.array(FileInfoSchema),
+});
+
+/**
+ * Native port of tiktokverify.py's `POST /tiktokverification/upload-urls`
+ * (`generate_upload_urls`). Mints presigned direct-to-storage upload URLs so the
+ * browser can upload verification files straight to Supabase Storage instead of
+ * relaying bytes through this server. Success shape matches Python's
+ * `UploadUrlsResponse` byte-for-byte; the 400/500 error shapes match the Next proxy
+ * this route replaces (which the only caller, uploadHelper.ts, already reads
+ * `errorData.error` from).
+ */
 export async function POST(request: NextRequest) {
+  const parsed = Body.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Missing id_number or files array" }, { status: 400 });
+  }
+
   try {
-    console.log("=== GENERATING UPLOAD URLS ===");
-
-    const { id_number, files } = await request.json();
-
-    if (!id_number || !files || !Array.isArray(files)) {
-      return NextResponse.json({ error: "Missing id_number or files array" }, { status: 400 });
-    }
-
-    console.log("Requesting upload URLs for:", { id_number, files });
-
-    // Forward request to FastAPI backend
-    const baseUrl =
-      process.env.CAMPAIGNS_API_URL || process.env.PYTHON_API_URL || "http://127.0.0.1:5000";
-    const apiUrl = `${baseUrl}/tiktokverification/upload-urls`;
-
-    const response = await fetch(apiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ id_number, files }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("FastAPI error:", errorText);
-      return NextResponse.json(
-        { error: "Failed to generate upload URLs" },
-        { status: response.status }
-      );
-    }
-
-    const uploadUrls = await response.json();
-    console.log("Generated upload URLs successfully");
-
-    return NextResponse.json(uploadUrls);
+    const uploadUrls = await generateUploadUrls(parsed.data.id_number, parsed.data.files);
+    return NextResponse.json({ success: true, upload_urls: uploadUrls });
   } catch (error) {
-    console.error("Upload URLs generation error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    console.error("tiktokverification/upload-urls: failed to generate upload URLs", error);
+    return NextResponse.json({ error: "Failed to generate upload URLs" }, { status: 500 });
   }
 }

@@ -68,3 +68,7 @@ export class RateLimiter {
 // Create singleton instances for different operations
 export const emailVerificationLimiter = new RateLimiter(60 * 60 * 1000, 5); // 5 requests per hour
 export const loginAttemptsLimiter = new RateLimiter(15 * 60 * 1000, 10); // 10 attempts per 15 minutes
+// Public, unauthenticated, DB-writing endpoint (POST /api/tiktokverification) — stands in
+// for the session guard other mutating routes get, per the infra-simplification plan's
+// Global Constraints ("intentionally public" routes get zod + rate limiting instead).
+export const tiktokVerificationLimiter = new RateLimiter(60 * 60 * 1000, 5); // 5 submissions per hour
