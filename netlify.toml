@@ -11,3 +11,16 @@
 
 [[plugins]]
   package = "/plugins/smoke-e2e"
+
+# Same-domain proxy for TikTok's PULL_FROM_URL source (Task 3.1). Bytes flow
+# Netlify CDN -> Supabase Storage directly -- no function, no timeout. This is
+# infrastructure for the PULL_FROM_URL path (src/lib/tiktok/flags.ts,
+# TIKTOK_PULL_FROM_URL_ENABLED), which stays OFF until the owner verifies this
+# prefix in the TikTok developer console -- see .superpowers/sdd/task-3-report.md
+# for the exact steps. Safe to deploy inert: nothing links to /media/* until
+# that flag is on.
+[[redirects]]
+  force = true
+  from = "/media/*"
+  to = "https://loesykbqlhynbjmqxfxc.supabase.co/storage/v1/:splat"
+  status = 200
