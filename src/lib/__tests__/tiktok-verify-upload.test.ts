@@ -7,6 +7,7 @@ import {
   TIKTOK_VERIFY_ALLOWED_EXTENSIONS_LABEL,
   isAllowedTikTokVerifyExtension,
   describeUnsupportedTikTokVerifyExtension,
+  resolveTikTokVerifyFileSelection,
 } from "@/lib/tiktok-verify-upload";
 
 describe("TIKTOK_VERIFY_ALLOWED_EXTENSIONS", () => {
@@ -25,8 +26,10 @@ describe("TIKTOK_VERIFY_ALLOWED_EXTENSIONS", () => {
   it('covers what a real accept="image/*" picker can hand back for the three image fields, beyond the old label-derived set', () => {
     // Task 2.3 re-review FIX 1: the previous allowlist rejected these even though
     // accept="image/*" (id_front_file, handheld_id_file, backend_ss_file) let a real
-    // browser picker select them.
-    for (const ext of ["webp", "heic", "heif", "avif", "bmp", "tif", "tiff"]) {
+    // browser picker select them. jfif added in the final-polish pass: Chrome on
+    // Windows has historically written .jfif instead of .jpg for "Save image as",
+    // which is plausible on the backend_ss_file screenshot field.
+    for (const ext of ["webp", "heic", "heif", "avif", "bmp", "tif", "tiff", "jfif"]) {
       expect(TIKTOK_VERIFY_IMAGE_EXTENSIONS).toContain(ext);
     }
   });
@@ -72,5 +75,32 @@ describe("describeUnsupportedTikTokVerifyExtension", () => {
     );
     expect(message).toContain("webp");
     expect(message).toContain("heic");
+  });
+});
+
+describe("resolveTikTokVerifyFileSelection", () => {
+  it("accepts a file whose extension is in the allowlist, returning the same File with no error", () => {
+    const file = new File(["content"], "id-front.png", { type: "image/png" });
+    expect(resolveTikTokVerifyFileSelection(file, "png")).toEqual({ file, error: "" });
+  });
+
+  it("accepts every extension in the shared allowlist", () => {
+    for (const ext of TIKTOK_VERIFY_ALLOWED_EXTENSIONS) {
+      const file = new File(["content"], `sample.${ext}`, { type: "application/octet-stream" });
+      expect(resolveTikTokVerifyFileSelection(file, ext).file).toBe(file);
+    }
+  });
+
+  it("rejects a file whose extension is outside the allowlist, resolving to a null file and the shared unsupported-type message", () => {
+    // Regression guard for the Task 2.3 final-polish stale-state bug: page.tsx's
+    // handleFileChange writes this `file: null` straight into formData[name] on
+    // every rejection — including when the field already held a previously-accepted
+    // file — so the input and form state can never disagree about whether a file is
+    // selected.
+    const file = new File(["content"], "id-front.exe", { type: "application/octet-stream" });
+    expect(resolveTikTokVerifyFileSelection(file, "exe")).toEqual({
+      file: null,
+      error: describeUnsupportedTikTokVerifyExtension("id-front.exe", "exe"),
+    });
   });
 });

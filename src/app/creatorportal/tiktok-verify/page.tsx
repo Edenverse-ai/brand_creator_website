@@ -9,10 +9,7 @@ import {
   getFileExtension,
   FileUploadInfo,
 } from "./uploadHelper";
-import {
-  isAllowedTikTokVerifyExtension,
-  describeUnsupportedTikTokVerifyExtension,
-} from "@/lib/tiktok-verify-upload";
+import { resolveTikTokVerifyFileSelection } from "@/lib/tiktok-verify-upload";
 
 export default function TikTokVerify() {
   const router = useRouter();
@@ -91,26 +88,25 @@ export default function TikTokVerify() {
     // /api/tiktokverification/upload-urls. `accept` on each <input type="file"> below
     // is only a file-picker hint (drag-and-drop ignores it entirely, and some pickers
     // let users override it), so this is the real client-side gate.
-    if (!isAllowedTikTokVerifyExtension(extension)) {
-      setFormErrors({
-        ...formErrors,
-        [name]: describeUnsupportedTikTokVerifyExtension(file.name, extension),
-      });
-      e.target.value = "";
-      return;
-    }
+    //
+    // resolveTikTokVerifyFileSelection returns `file: null` on rejection — always
+    // write that into formData below (never skip it). Otherwise a user replacing an
+    // already-selected valid file with a rejected one keeps the OLD file silently in
+    // form state while the input looks empty, and unknowingly resubmits it believing
+    // the swap happened.
+    const { file: resolvedFile, error } = resolveTikTokVerifyFileSelection(file, extension);
 
     setFormData({
       ...formData,
-      [name]: file,
+      [name]: resolvedFile,
+    });
+    setFormErrors({
+      ...formErrors,
+      [name]: error,
     });
 
-    // Clear error when field is edited
-    if (formErrors[name]) {
-      setFormErrors({
-        ...formErrors,
-        [name]: "",
-      });
+    if (!resolvedFile) {
+      e.target.value = "";
     }
   };
 

@@ -24,12 +24,15 @@
 // What a browser's native "image/*" picker realistically hands back — not just the
 // three formats the form's placeholder text advertised. webp is the dominant
 // save-from-web format (and backend_ss_file's accept is literally on a "screenshot"
-// field); heic/heif is the default iPhone camera format (the two ID-photo fields are
+// field); jfif is what Chrome on Windows has historically written instead of .jpg for
+// that same "Save image as" flow — same field, same use case, different extension;
+// heic/heif is the default iPhone camera format (the two ID-photo fields are
 // commonly filled from a phone's photo library); avif/bmp/tif/tiff cover the rest of
 // the realistic "image/*" long tail (scanned IDs in particular skew towards tif/tiff).
 export const TIKTOK_VERIFY_IMAGE_EXTENSIONS = [
   "jpg",
   "jpeg",
+  "jfif",
   "png",
   "gif",
   "webp",
@@ -84,4 +87,39 @@ export function describeUnsupportedTikTokVerifyExtension(
   extension: string
 ): string {
   return `"${fileName}" has an unsupported file type (.${extension}). Accepted types: ${TIKTOK_VERIFY_ALLOWED_EXTENSIONS_LABEL}.`;
+}
+
+/**
+ * Outcome of a single <input type="file"> selection, ready to write straight into a
+ * form's state.
+ */
+export interface TikTokVerifyFileSelectionOutcome {
+  /**
+   * Value for the field's formData entry: the accepted File on success, or `null` on
+   * rejection. The `null` is load-bearing, not incidental — a rejected REPLACEMENT
+   * selection must clear whatever file the field held before, or the (now-empty)
+   * input and (still-populated) form state disagree, and a user who swapped a good
+   * file for what they believed was a valid replacement unknowingly resubmits the
+   * stale one. See page.tsx's handleFileChange, the only caller.
+   */
+  file: File | null;
+  /** Value for the field's formErrors entry; "" clears any earlier error. */
+  error: string;
+}
+
+/**
+ * Pure accept/reject decision for a single file-input selection, extracted out of
+ * page.tsx's handleFileChange so the input-vs-state sync fix is unit-testable
+ * without a React render harness — a `File` is directly constructible in a jsdom
+ * test environment, and nothing else about this decision touches the DOM or React
+ * state.
+ */
+export function resolveTikTokVerifyFileSelection(
+  file: File,
+  extension: string
+): TikTokVerifyFileSelectionOutcome {
+  if (!isAllowedTikTokVerifyExtension(extension)) {
+    return { file: null, error: describeUnsupportedTikTokVerifyExtension(file.name, extension) };
+  }
+  return { file, error: "" };
 }
