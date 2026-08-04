@@ -12,6 +12,10 @@
  * Rules enforced (all must hold):
  * - path is non-empty and does not start with "/"
  * - path does not contain a backslash
+ * - path does not contain a "%" — storage keys we mint never contain %; rejecting
+ *   it forecloses encoded-traversal ambiguity at the HTTP layer (e.g. "%2e%2e"
+ *   decoding to ".." in a downstream storage/HTTP layer even though the raw
+ *   segment is neither "." nor ".." and would otherwise slip past the checks below)
  * - splitting on "/" yields at least 2 segments
  * - the first segment equals `ownerId` exactly (non-empty)
  * - no segment is empty (blocks "//"), "." or ".." (blocks traversal)
@@ -20,6 +24,7 @@ export function isOwnedStoragePath(path: string, ownerId: string): boolean {
   if (!ownerId || !path) return false;
   if (path.startsWith("/")) return false;
   if (path.includes("\\")) return false;
+  if (path.includes("%")) return false;
 
   const segments = path.split("/");
   if (segments.length < 2) return false;

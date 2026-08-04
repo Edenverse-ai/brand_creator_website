@@ -57,17 +57,22 @@ async function handleJsonGenerate(
     return NextResponse.json({ error: "Prompt is required" }, { status: 400 });
   }
 
-  const creatorId = parsed.data.creator_id?.trim() || sessionUserId;
-
+  // Ownership must anchor to the AUTHENTICATED session identity, never to the
+  // body-supplied creator_id override — otherwise a caller can set creator_id to a
+  // victim's id and pair it with a path under that same prefix to trivially pass.
+  // The override is still allowed to populate the DB row below (frozen contract),
+  // just not to decide whose storage paths are acceptable.
   const pathsToCheck = [parsed.data.voice_sample_path, parsed.data.reference_image_path].filter(
     (path): path is string => Boolean(path)
   );
-  if (pathsToCheck.some((path) => !isOwnedStoragePath(path, creatorId))) {
+  if (pathsToCheck.some((path) => !isOwnedStoragePath(path, sessionUserId))) {
     return NextResponse.json(
       { error: "Storage path does not belong to the current session" },
       { status: 403 }
     );
   }
+
+  const creatorId = parsed.data.creator_id?.trim() || sessionUserId;
 
   const voiceSampleUrl = parsed.data.voice_sample_path
     ? resolvePublicUrl(parsed.data.voice_sample_path)

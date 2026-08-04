@@ -56,6 +56,24 @@ const cases: Array<{ description: string; path: string; ownerId: string; expecte
     ownerId: "user1",
     expected: false,
   },
+  {
+    description: "rejects lowercase percent-encoded traversal (%2e%2e)",
+    path: "user1/%2e%2e/victim/x.mp3",
+    ownerId: "user1",
+    expected: false,
+  },
+  {
+    description: "rejects uppercase percent-encoded traversal (%2E%2E)",
+    path: "user1/%2E%2E/x",
+    ownerId: "user1",
+    expected: false,
+  },
+  {
+    description: "rejects a percent-encoded slash embedded in a segment",
+    path: "user1/a%2fb",
+    ownerId: "user1",
+    expected: false,
+  },
 ];
 
 describe("isOwnedStoragePath", () => {

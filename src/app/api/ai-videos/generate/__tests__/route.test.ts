@@ -66,7 +66,7 @@ describe("POST /api/ai-videos/generate (JSON path)", () => {
     expect(aiVideoRequestCreate).not.toHaveBeenCalled();
   });
 
-  it("returns 403 when voice_sample_path does not belong to the effective creator", async () => {
+  it("returns 403 when voice_sample_path does not belong to the session user", async () => {
     (getServerSession as any).mockResolvedValue({ user: { id: "user-1" } });
 
     const res = await POST(
@@ -93,10 +93,12 @@ describe("POST /api/ai-videos/generate (JSON path)", () => {
     expect(aiVideoRequestCreate).not.toHaveBeenCalled();
   });
 
-  it("checks paths against the effective (overridden) creator_id, not the raw session id", async () => {
+  it("accepts a path owned by the session user even when creator_id is overridden (override alone stays legal)", async () => {
     (getServerSession as any).mockResolvedValue({ user: { id: "session-user" } });
+    aiVideoRequestCreate.mockResolvedValue({ id: "req-override-owned-path" });
 
-    // Path belongs to the session user, not the overridden creator_id — must be rejected.
+    // Path belongs to the authenticated session user; creator_id override only affects
+    // which creator the row is attributed to, not whose paths are acceptable.
     const res = await POST(
       jsonRequest({
         prompt: "hi",
@@ -105,14 +107,18 @@ describe("POST /api/ai-videos/generate (JSON path)", () => {
       }) as never
     );
 
-    expect(res.status).toBe(403);
-    expect(aiVideoRequestCreate).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(aiVideoRequestCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ creator_id: "other-creator" }) })
+    );
   });
 
-  it("accepts a path owned by the effective (overridden) creator_id", async () => {
+  it("rejects a path owned by the creator_id override but not the session user (anti-bypass)", async () => {
     (getServerSession as any).mockResolvedValue({ user: { id: "session-user" } });
-    aiVideoRequestCreate.mockResolvedValue({ id: "req-owned" });
 
+    // Attacker sets creator_id to a victim id and pairs it with a path under that same
+    // prefix. Ownership must anchor to the authenticated session, never the body
+    // override, or this trivially passes for any path the attacker chooses.
     const res = await POST(
       jsonRequest({
         prompt: "hi",
@@ -121,10 +127,8 @@ describe("POST /api/ai-videos/generate (JSON path)", () => {
       }) as never
     );
 
-    expect(res.status).toBe(200);
-    expect(aiVideoRequestCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ creator_id: "other-creator" }) })
-    );
+    expect(res.status).toBe(403);
+    expect(aiVideoRequestCreate).not.toHaveBeenCalled();
   });
 
   it("creates the AiVideoRequest row with mapped fields and returns the frozen response shape", async () => {
