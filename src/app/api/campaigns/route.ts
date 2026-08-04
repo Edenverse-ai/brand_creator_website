@@ -1,44 +1,58 @@
 import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import {
+  resolveBrandNames,
+  brandNameFor,
+  serializePublicCampaign,
+} from "@/lib/campaigns/serialize";
 
-const PYTHON_API_URL = process.env.CAMPAIGNS_API_URL || "http://0.0.0.0:5000";
-
+/**
+ * Native port of `CampaignService.get_campaigns`
+ * (backend/app/main/services/campaign_service.py). Public, unauthenticated — matches
+ * Python (campaigns/routes.py has no auth on this route either).
+ *
+ * Two intentionally-preserved quirks from the Python source, not bugs to fix here:
+ *  - `category` is accepted as a query param (matching the Python route signature) but was
+ *    never actually used to filter — `CampaignService.get_campaigns` takes `category` and
+ *    ignores it. Kept as a dead param for request-shape parity.
+ *  - `search` matches against `title` OR the raw `brand_id` string (not `brand_name`) —
+ *    genuinely what the Python service does (`str(c.get("brand_id", "")).lower()`).
+ *
+ * Resilience: `get_campaigns` swallows every internal failure and returns `[]` rather than
+ * raising (the only `raise HTTPException` inside it is itself caught by its own outer
+ * `except Exception: return []`) — this list endpoint is designed to never hard-fail.
+ * Replicated here: any Prisma error also degrades to `[]` at HTTP 200.
+ */
 export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const search = searchParams.get("search");
+  const platform = searchParams.get("platform");
+
   try {
-    const { searchParams } = new URL(request.url);
-
-    // Build query string from search params
-    const queryString = searchParams.toString();
-
-    // Forward to the correct campaigns endpoint with /campaigns prefix
-    const apiUrl = `${PYTHON_API_URL}/campaigns/${queryString ? `?${queryString}` : ""}`;
-
-    console.log("Forwarding request to:", apiUrl);
-
-    const response = await fetch(apiUrl, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      signal: AbortSignal.timeout(5000),
+    const campaigns = await prisma.campaigns.findMany({
+      where: platform && platform !== "all" ? { platform: platform.toLowerCase() } : undefined,
     });
 
-    if (!response.ok) {
-      console.error(`Python API returned status ${response.status}`);
-      return NextResponse.json(
-        { error: `API Error: ${response.status}` },
-        { status: response.status }
+    const brandNames = await resolveBrandNames(campaigns.map((c) => c.brand_id));
+
+    let rows = campaigns;
+    if (search) {
+      const searchLower = search.toLowerCase();
+      rows = rows.filter(
+        (c) =>
+          (c.title ?? "").toLowerCase().includes(searchLower) ||
+          String(c.brand_id ?? "")
+            .toLowerCase()
+            .includes(searchLower)
       );
     }
 
-    const campaigns = await response.json();
-    console.log(
-      "Retrieved campaigns:",
-      Array.isArray(campaigns) ? campaigns.length : "not an array"
+    const result = rows.map((row) =>
+      serializePublicCampaign(row, brandNameFor(row.brand_id, brandNames))
     );
-
-    return NextResponse.json(campaigns);
+    return NextResponse.json(result);
   } catch (error) {
-    console.error("Error fetching campaigns:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    console.error("GET /api/campaigns failed:", error instanceof Error ? error.name : error);
+    return NextResponse.json([]);
   }
 }

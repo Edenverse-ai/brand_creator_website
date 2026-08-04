@@ -1,57 +1,47 @@
 import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import {
+  resolveBrandNames,
+  brandNameFor,
+  serializePublicCampaign,
+} from "@/lib/campaigns/serialize";
+import { isValidUuid } from "@/lib/campaigns/validation";
 
-const PYTHON_API_URL = process.env.CAMPAIGNS_API_URL || "http://localhost:5000";
-
+/**
+ * Native port of `CampaignService.get_campaign_by_id`
+ * (backend/app/main/services/campaign_service.py). Public, unauthenticated, only returns
+ * open campaigns (`is_open = true`) — matches Python's `.eq("is_open", True)` filter.
+ *
+ * Unlike the list endpoint, this one does NOT swallow errors to an empty success shape —
+ * Python raises real HTTPExceptions here (400 invalid id, 404 not found, 500 db error) with
+ * no outer catch-all, so those three statuses are the frozen error contract. The previous
+ * TS proxy's extra branches (403/non-JSON/parse-failure handling) were artifacts of the
+ * now-removed HTTP hop to Python and have no native equivalent.
+ */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id: campaignId } = await params;
+
+  if (!isValidUuid(campaignId)) {
+    return NextResponse.json({ error: "Invalid campaign ID format" }, { status: 400 });
+  }
+
   try {
-    const resolvedParams = await params;
-    const campaignId = resolvedParams.id;
-
-    console.log(`Fetching campaign details for ID: ${campaignId}`);
-
-    // Fetch from Python API
-    const response = await fetch(`${PYTHON_API_URL}/campaigns/${campaignId}`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      signal: AbortSignal.timeout(5000),
+    const campaign = await prisma.campaigns.findFirst({
+      where: { id: campaignId, is_open: true },
     });
 
-    if (!response.ok) {
-      console.error(`Python API returned status ${response.status} for campaign ${campaignId}`);
-
-      // Check if response is JSON before parsing
-      const contentType = response.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
-        try {
-          const error = await response.json();
-          return NextResponse.json(
-            { error: error.detail || "Campaign not found" },
-
-            { status: response.status }
-          );
-        } catch (parseError) {
-          console.error("Error parsing JSON response:", parseError);
-          return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
-        }
-      } else {
-        // Response is not JSON, likely HTML error page
-        const errorText = await response.text();
-        console.error("Non-JSON error response:", errorText.substring(0, 200));
-        return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
-      }
+    if (!campaign) {
+      return NextResponse.json({ error: "Campaign not found" }, { status: 404 });
     }
 
-    try {
-      const campaign = await response.json();
-      return NextResponse.json(campaign);
-    } catch (parseError) {
-      console.error("Error parsing successful response JSON:", parseError);
-      return NextResponse.json({ error: "Invalid response format from server" }, { status: 500 });
-    }
+    const brandNames = await resolveBrandNames([campaign.brand_id]);
+    const result = serializePublicCampaign(campaign, brandNameFor(campaign.brand_id, brandNames));
+    return NextResponse.json(result);
   } catch (error) {
-    console.error("Error fetching campaign:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    console.error(
+      `GET /api/campaigns/${campaignId} failed:`,
+      error instanceof Error ? error.name : error
+    );
+    return NextResponse.json({ error: "Database error fetching campaign" }, { status: 500 });
   }
 }
