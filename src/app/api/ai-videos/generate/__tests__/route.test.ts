@@ -66,6 +66,67 @@ describe("POST /api/ai-videos/generate (JSON path)", () => {
     expect(aiVideoRequestCreate).not.toHaveBeenCalled();
   });
 
+  it("returns 403 when voice_sample_path does not belong to the effective creator", async () => {
+    (getServerSession as any).mockResolvedValue({ user: { id: "user-1" } });
+
+    const res = await POST(
+      jsonRequest({ prompt: "hi", voice_sample_path: "someone-else/voice.mp3" }) as never
+    );
+
+    expect(res.status).toBe(403);
+    expect(aiVideoRequestCreate).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 for a path-traversal payload that string-prefix-matches the owner (security regression guard)", async () => {
+    (getServerSession as any).mockResolvedValue({ user: { id: "user-1" } });
+
+    // Starts with "user-1/" so a naive startsWith(ownerId + "/") check would incorrectly
+    // accept this; it must be rejected by structural validation instead.
+    const res = await POST(
+      jsonRequest({
+        prompt: "hi",
+        reference_image_path: "user-1/../someone-else/reference_image.jpg",
+      }) as never
+    );
+
+    expect(res.status).toBe(403);
+    expect(aiVideoRequestCreate).not.toHaveBeenCalled();
+  });
+
+  it("checks paths against the effective (overridden) creator_id, not the raw session id", async () => {
+    (getServerSession as any).mockResolvedValue({ user: { id: "session-user" } });
+
+    // Path belongs to the session user, not the overridden creator_id — must be rejected.
+    const res = await POST(
+      jsonRequest({
+        prompt: "hi",
+        creator_id: "other-creator",
+        voice_sample_path: "session-user/voice.mp3",
+      }) as never
+    );
+
+    expect(res.status).toBe(403);
+    expect(aiVideoRequestCreate).not.toHaveBeenCalled();
+  });
+
+  it("accepts a path owned by the effective (overridden) creator_id", async () => {
+    (getServerSession as any).mockResolvedValue({ user: { id: "session-user" } });
+    aiVideoRequestCreate.mockResolvedValue({ id: "req-owned" });
+
+    const res = await POST(
+      jsonRequest({
+        prompt: "hi",
+        creator_id: "other-creator",
+        voice_sample_path: "other-creator/voice.mp3",
+      }) as never
+    );
+
+    expect(res.status).toBe(200);
+    expect(aiVideoRequestCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ creator_id: "other-creator" }) })
+    );
+  });
+
   it("creates the AiVideoRequest row with mapped fields and returns the frozen response shape", async () => {
     (getServerSession as any).mockResolvedValue({ user: { id: "user-1" } });
     aiVideoRequestCreate.mockResolvedValue({ id: "req-123" });

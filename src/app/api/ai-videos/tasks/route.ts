@@ -19,6 +19,7 @@ import {
   deleteFromBucket,
   uploadToBucket,
 } from "@/lib/supabase-admin";
+import { isOwnedStoragePath } from "@/lib/storage/path-ownership";
 
 const JsonBody = z.object({
   prompt: z.string(),
@@ -26,10 +27,6 @@ const JsonBody = z.object({
   portrait_path: z.string().optional(),
   voice_path: z.string().optional(),
 });
-
-function isOwnedPath(path: string, sessionUserId: string): boolean {
-  return path.startsWith(`${sessionUserId}/`);
-}
 
 /**
  * Native JSON path: portrait/voice bytes were already uploaded direct-to-storage via
@@ -60,7 +57,7 @@ async function handleJsonTaskCreate(
   }
 
   const pathsToCheck = voicePath ? [portraitPath, voicePath] : [portraitPath];
-  if (pathsToCheck.some((path) => !isOwnedPath(path, sessionUserId))) {
+  if (pathsToCheck.some((path) => !isOwnedStoragePath(path, sessionUserId))) {
     return NextResponse.json(
       { error: "Storage path does not belong to the current session" },
       { status: 403 }

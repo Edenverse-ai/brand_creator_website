@@ -129,6 +129,22 @@ describe("POST /api/ai-videos/tasks (JSON path)", () => {
     expect(aiVideoTaskCreate).not.toHaveBeenCalled();
   });
 
+  it("returns 403 for a path-traversal payload that string-prefix-matches the owner (security regression guard)", async () => {
+    (getServerSession as any).mockResolvedValue({ user: { id: OWNER } });
+
+    // Starts with "user-1/" so a naive startsWith(ownerId + "/") check would incorrectly
+    // accept this; it must be rejected by structural validation instead.
+    const res = await POST(
+      jsonRequest({
+        ...validBody,
+        portrait_path: `${OWNER}/../someone-else/task-abc/portrait.jpg`,
+      }) as never
+    );
+
+    expect(res.status).toBe(403);
+    expect(aiVideoTaskCreate).not.toHaveBeenCalled();
+  });
+
   it("creates the AiVideoTask row with field parity to the multipart branch and returns { id, status }", async () => {
     (getServerSession as any).mockResolvedValue({ user: { id: OWNER } });
     aiVideoTaskCreate.mockResolvedValue({ id: "task-abc", status: "QUEUED" });

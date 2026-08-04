@@ -4,6 +4,7 @@ import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { isOwnedStoragePath } from "@/lib/storage/path-ownership";
 
 const PYTHON_API_BASE = process.env.CAMPAIGNS_API_URL || "http://localhost:5000";
 
@@ -57,6 +58,17 @@ async function handleJsonGenerate(
   }
 
   const creatorId = parsed.data.creator_id?.trim() || sessionUserId;
+
+  const pathsToCheck = [parsed.data.voice_sample_path, parsed.data.reference_image_path].filter(
+    (path): path is string => Boolean(path)
+  );
+  if (pathsToCheck.some((path) => !isOwnedStoragePath(path, creatorId))) {
+    return NextResponse.json(
+      { error: "Storage path does not belong to the current session" },
+      { status: 403 }
+    );
+  }
+
   const voiceSampleUrl = parsed.data.voice_sample_path
     ? resolvePublicUrl(parsed.data.voice_sample_path)
     : null;
