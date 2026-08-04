@@ -132,6 +132,9 @@ export function buildUserConfirmationEmail(fields: ContactEmailFields, submitted
   const subject = escapeHtml(fields.subject);
   const email = escapeHtml(fields.email);
   const submitted = formatSubmittedAtUtc(submittedAt);
+  // Intentional divergence from Python's `datetime.now().year` (local server time):
+  // UTC avoids a server-timezone-dependent off-by-one around New Year's, and this
+  // isn't part of the frozen JSON response contract — see the phase report.
   const year = new Date().getUTCFullYear();
 
   return `
@@ -177,9 +180,9 @@ export function buildUserConfirmationEmail(fields: ContactEmailFields, submitted
 
                     <div class="contact-info">
                         <strong>Other ways to reach us:</strong><br>
-                        Support: info@borderxmedia.com<br>
-                        Business Inquiries: sam@borderxmedia.com<br>
-                        Website: https://cricher.ai
+                        📧 Support: info@borderxmedia.com<br>
+                        📧 Business Inquiries: sam@borderxmedia.com<br>
+                        🌐 Website: https://cricher.ai
                     </div>
 
                     <p>In the meantime, feel free to explore our platform and discover the exciting opportunities available for creators and brands!</p>

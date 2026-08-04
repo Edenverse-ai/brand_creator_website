@@ -86,10 +86,11 @@ describe("buildUserConfirmationEmail", () => {
     expect(html).toContain("&lt;b&gt;bold&lt;/b&gt;");
   });
 
-  it("includes the fixed support contact addresses", () => {
+  it("includes the fixed support contact addresses with their emoji prefixes (parity with contact_service.py:174-176)", () => {
     const html = buildUserConfirmationEmail(FIELDS, new Date());
 
-    expect(html).toContain("info@borderxmedia.com");
-    expect(html).toContain("sam@borderxmedia.com");
+    expect(html).toContain("📧 Support: info@borderxmedia.com");
+    expect(html).toContain("📧 Business Inquiries: sam@borderxmedia.com");
+    expect(html).toContain("🌐 Website: https://cricher.ai");
   });
 });

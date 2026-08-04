@@ -7,6 +7,17 @@ import { buildAdminNotificationEmail, buildUserConfirmationEmail } from "./email
 
 // backend/app/main/services/contact_service.py ContactService class constants.
 const ADMIN_EMAIL = "sam@borderxai.com";
+
+// Ground-truth checked (both .env and Netlify production, 2026-08-05):
+// SMTP_USER=info@borderxmedia.com. Python's admin send omits from_email, so it falls
+// back to `formataddr(("Brand Creator Platform", settings.SMTP_USER))`
+// (contact_service.py:35) — i.e. this exact string. The user-confirmation send passes
+// SUPPORT_EMAIL explicitly (a separate class constant that independently happens to
+// equal the same address today). Kept as two named constants rather than one shared
+// one: they're two different Python sources of truth that currently coincide, and
+// collapsing them would silently couple a future SMTP_USER rotation to SUPPORT_EMAIL
+// (or vice versa) even if only one of the two actually changes.
+const ADMIN_EMAIL_FROM = '"Brand Creator Platform" <info@borderxmedia.com>';
 const SUPPORT_EMAIL_FROM = '"Brand Creator Platform" <info@borderxmedia.com>';
 
 interface ContactFields {
@@ -99,6 +110,7 @@ async function sendContactNotifications(
     to: ADMIN_EMAIL,
     subject: `New Contact Form: ${fields.subject}`,
     html: adminHtml,
+    from: ADMIN_EMAIL_FROM,
   });
   if (!adminResult.ok) {
     console.error("contact: failed to send admin notification email", {

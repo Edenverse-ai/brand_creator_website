@@ -188,11 +188,18 @@ describe("POST /api/contact", () => {
     );
   });
 
-  it("does not override the admin email's from-address (lets sendEmail's own default apply)", async () => {
+  // Regression guard for a post-review fix: this route's admin send used to omit
+  // `from` entirely, silently falling back to sendEmail's own default
+  // (rucheng@borderxai.com) instead of the address SMTP actually authenticates as.
+  // Ground-truth checked in both .env and Netlify production: SMTP_USER is
+  // info@borderxmedia.com, which is also what Python's admin send resolves to
+  // (contact_service.py:35, from_email=None -> settings.SMTP_USER). Pinning this
+  // exact string so a future edit can't silently drop the override again.
+  it("sends the admin notification email from the same address SMTP authenticates as (matches Python's settings.SMTP_USER fallback)", async () => {
     await POST(jsonRequest(VALID_BODY) as never);
 
     const adminCall = sendEmailMock.mock.calls[0][0];
-    expect(adminCall.from).toBeUndefined();
+    expect(adminCall.from).toBe('"Brand Creator Platform" <info@borderxmedia.com>');
   });
 
   it("escapes HTML special characters from user-supplied fields before embedding them in the email body", async () => {

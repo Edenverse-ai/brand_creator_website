@@ -155,4 +155,19 @@ describe("GET /api/pear", () => {
 
     consoleErrorSpy.mockRestore();
   });
+
+  it("logs the Prisma error code alongside the name when present (consistency with contact/route.ts's storeContactMessage)", async () => {
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const prismaError = Object.assign(new Error("connection reset"), { code: "P1001" });
+    pearBrandFindMany.mockRejectedValue(prismaError);
+
+    await GET(getRequest() as never);
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      "pear: failed to list stores",
+      expect.objectContaining({ name: "Error", code: "P1001" })
+    );
+
+    consoleErrorSpy.mockRestore();
+  });
 });

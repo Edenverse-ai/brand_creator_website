@@ -82,9 +82,17 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     // Field-for-field port of PearService.get_all_stores' own catch: log and return
     // an empty array rather than a 5xx, so a transient DB blip degrades the pear
-    // directory to "no stores shown" instead of breaking the page.
+    // directory to "no stores shown" instead of breaking the page. Same
+    // name/code-only logging discipline as contact/route.ts's storeContactMessage —
+    // never log error.message (Prisma validation/known-request errors embed the
+    // full attempted query/data).
+    const code =
+      error && typeof error === "object" && "code" in error
+        ? (error as { code: unknown }).code
+        : undefined;
     console.error("pear: failed to list stores", {
       name: error instanceof Error ? error.name : typeof error,
+      ...(code === undefined ? {} : { code }),
     });
     return NextResponse.json([]);
   }
