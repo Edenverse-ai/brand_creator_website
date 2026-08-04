@@ -7,7 +7,8 @@ console.log(`
 [e2e:explore] stack ready.
   web:      http://localhost:12001
   api:      http://localhost:8001
-  pg:       postgres://e2e:e2e@localhost:54329/brand_creator_e2e
+  pg:       postgres://postgres:postgres@localhost:54329/postgres
+  studio:   http://localhost:54323
   test login (gated by E2E_EXPLORE=1):
     GET http://localhost:12001/api/test/login?role=brand
     GET http://localhost:12001/api/test/login?role=creator

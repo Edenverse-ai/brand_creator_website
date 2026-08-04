@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { execSync } from "node:child_process";
 
-const TEST_DB = "postgres://e2e:e2e@localhost:54329/brand_creator_e2e";
+const TEST_DB = "postgres://postgres:postgres@localhost:54329/postgres";
 let prisma: PrismaClient;
 
 // NOTE: Schema corrections applied vs task template:
@@ -11,7 +11,11 @@ let prisma: PrismaClient;
 // - campaigns.id is @db.Uuid — stable ID uses UUID-format: "00000000-0000-0000-0000-e2e000000001"
 describe.runIf(process.env.E2E_DB === "1")("seed.e2e.ts", () => {
   beforeAll(async () => {
+    // schema.prisma's datasource declares directUrl = env("DIRECT_URL"), which
+    // `prisma migrate deploy` uses instead of DATABASE_URL — without setting it
+    // too, migrate deploy falls back to .env's production DIRECT_URL.
     process.env.DATABASE_URL = TEST_DB;
+    process.env.DIRECT_URL = TEST_DB;
     execSync("npx prisma migrate deploy", { stdio: "inherit", env: process.env });
     execSync("npx tsx prisma/seed.e2e.ts", { stdio: "inherit", env: process.env });
     prisma = new PrismaClient({ datasources: { db: { url: TEST_DB } } });

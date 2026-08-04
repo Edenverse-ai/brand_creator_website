@@ -96,6 +96,13 @@ module.exports = [
       "test-results/**",
       "coverage/**",
       ".netlify/**",
+      // Supabase CLI's own generated/runtime state (mirrors supabase/.gitignore)
+      // — includes Deno edge-function scaffolding outside this repo's tsconfig.
+      "supabase/.temp/**",
+      "supabase/.branches/**",
+      // Claude Code session/worktree scratch space — may contain build output
+      // (e.g. .next/) from unrelated concurrent sessions sharing this checkout.
+      ".claude/**",
     ],
   },
 ];

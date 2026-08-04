@@ -17,6 +17,11 @@ ENV HUSKY=0
 # DATABASE_URL needed by Prisma generate and Next.js build
 ARG DATABASE_URL
 ENV DATABASE_URL=${DATABASE_URL}
+# NEXT_PUBLIC_* vars are inlined into the client bundle at build time — the
+# campaign product-photo upload flow (src/lib/campaign-image-upload.ts) reads
+# this in the browser to build the public object URL after a presigned upload.
+ARG NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
 RUN npx prisma generate && npm run build
 
 FROM node:20-alpine AS runner

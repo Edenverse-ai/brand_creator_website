@@ -40,9 +40,9 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 !.env.example
-# .env.e2e-dev intentionally committed: only contains constants already in
-# docker/compose.e2e.yml (e2e-only DB creds + JWT signed with the public
-# PGRST_JWT_SECRET in that compose file).
+# .env.e2e-dev intentionally committed: only contains constants — the
+# Supabase CLI's fixed local-dev Postgres creds and service_role JWT, which
+# are identical on every default `supabase init` project (see supabase/config.toml).
 !.env.e2e-dev
 # Bare 'env' file (no dot) — some local workflows use this; ensure it's never committed
 env

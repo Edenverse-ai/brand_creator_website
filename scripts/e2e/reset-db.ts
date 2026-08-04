@@ -1,10 +1,10 @@
 #!/usr/bin/env tsx
 import { PrismaClient } from "@prisma/client";
 import { resetDb } from "../../e2e/_helpers/resetDb";
-import { assertTestDatabaseUrl } from "./up";
+import { assertTestDatabaseUrl } from "./lib/assertTestDatabaseUrl";
 
 async function main() {
-  const url = "postgres://e2e:e2e@localhost:54329/brand_creator_e2e";
+  const url = "postgres://postgres:postgres@localhost:54329/postgres";
   process.env.DATABASE_URL = url;
   assertTestDatabaseUrl(url);
   const prisma = new PrismaClient({ datasources: { db: { url } } });

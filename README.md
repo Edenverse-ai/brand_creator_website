@@ -8,20 +8,20 @@ The web app is the primary surface; the FastAPI service is an optional sidecar t
 
 ## Tech Stack
 
-| Layer       | Tech                                                 |
-| ----------- | ---------------------------------------------------- |
-| Web         | Next.js 15 (App Router), React, TypeScript, Tailwind |
-| ORM / DB    | Prisma · Postgres 16                                 |
-| Sidecar API | FastAPI (Python 3.11+)                               |
-| Storage     | Supabase Storage (real in prod, stubbed in e2e)      |
-| E2E         | Playwright · Docker Compose                          |
-| Hosting     | Netlify                                              |
+| Layer       | Tech                                                                         |
+| ----------- | ---------------------------------------------------------------------------- |
+| Web         | Next.js 15 (App Router), React, TypeScript, Tailwind                         |
+| ORM / DB    | Prisma · Postgres                                                            |
+| Sidecar API | FastAPI (Python 3.11+)                                                       |
+| Storage     | Supabase Storage (same official stack in prod and e2e, via the Supabase CLI) |
+| E2E         | Playwright · Supabase CLI · Docker Compose (api + web)                       |
+| Hosting     | Netlify                                                                      |
 
 ---
 
 ## Quickstart (E2E stack)
 
-The recommended local path. Spins up Postgres + Supabase stub + FastAPI + Next.js in containers, runs migrations, seeds deterministic users.
+The recommended local path. Boots the official Supabase CLI (real Postgres + Storage + Auth + REST, not a stub) plus FastAPI + Next.js in containers, runs migrations, seeds deterministic users. Requires Docker and will fetch the Supabase CLI via `npx` on first run.
 
 ```bash
 git clone https://github.com/borderxais/brand_creator_website.git
@@ -32,16 +32,17 @@ npm run e2e:up
 
 Then open the app:
 
-| Surface               | URL                                                    |
-| --------------------- | ------------------------------------------------------ |
-| Web                   | http://localhost:12001                                 |
-| Login as brand        | http://localhost:12001/api/test/login?role=brand       |
-| Login as creator      | http://localhost:12001/api/test/login?role=creator     |
-| Login as admin        | http://localhost:12001/api/test/login?role=admin       |
-| Backend API           | http://localhost:8001                                  |
-| API health            | http://localhost:8001/health                           |
-| Supabase storage stub | http://localhost:54330/status                          |
-| Postgres              | `postgres://e2e:e2e@localhost:54329/brand_creator_e2e` |
+| Surface          | URL                                                     |
+| ---------------- | ------------------------------------------------------- |
+| Web              | http://localhost:12001                                  |
+| Login as brand   | http://localhost:12001/api/test/login?role=brand        |
+| Login as creator | http://localhost:12001/api/test/login?role=creator      |
+| Login as admin   | http://localhost:12001/api/test/login?role=admin        |
+| Backend API      | http://localhost:8001                                   |
+| API health       | http://localhost:8001/health                            |
+| Supabase Studio  | http://localhost:54323                                  |
+| Supabase API     | http://localhost:54321                                  |
+| Postgres         | `postgres://postgres:postgres@localhost:54329/postgres` |
 
 Seeded users (password `e2e-password` for all):
 
@@ -66,7 +67,8 @@ src/            Next.js App Router (pages, components, API routes, lib)
 backend/        FastAPI sidecar (Python)
 prisma/         schema, migrations, seed scripts (incl. seed.e2e.ts)
 e2e/            Playwright specs + fixtures (asBrand/asCreator/asAdmin)
-docker/         compose.e2e.yml + Dockerfile.web
+supabase/       Supabase CLI config (supabase/config.toml)
+docker/         compose.e2e.yml (api + web) + Dockerfile.web
 scripts/        e2e/* harness scripts, harness/* pre-push checks
 docs/           canonical reference; start at docs/README.md
 tests/          unit / integration tests (vitest)

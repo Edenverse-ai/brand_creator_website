@@ -52,6 +52,5 @@ Plus a deterministic campaign and sample (UUIDs in seed.e2e.ts).
 
 ## Known limitations
 
-- First-time stack boot takes 5–15 minutes (image pulls + builds).
-- Schema drift: legacy `campaigns` lowercase table created via SQL patch in `up.ts` (was originally added outside Prisma migrations).
-- Supabase storage stub fidelity may diverge from prod.
+- First-time stack boot takes 5–15 minutes (Supabase CLI + api/web image pulls and builds).
+- `api` and `web` run with `network_mode: host` in `docker/compose.e2e.yml` (not bridge + port mapping) — required so presigned Supabase Storage URLs minted server-side resolve identically for the container and the host-side Playwright browser. Supported on Linux (CI) and OrbStack.
