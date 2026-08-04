@@ -1,7 +1,6 @@
 "use client";
 
-import { Search, Filter } from "lucide-react";
-import { FaInstagram, FaYoutube, FaTiktok } from "react-icons/fa";
+import { Search, Filter, Instagram, Youtube, Video } from "lucide-react";
 
 const creators = [
   {
@@ -158,9 +157,9 @@ const categories = [
 ];
 
 const platformIcons = {
-  instagram: FaInstagram,
-  youtube: FaYoutube,
-  tiktok: FaTiktok,
+  instagram: Instagram,
+  youtube: Youtube,
+  tiktok: Video,
 };
 
 export default function CreatorsPage() {
@@ -206,6 +205,7 @@ export default function CreatorsPage() {
           >
             <div className="p-6">
               <div className="flex items-center">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={creator.avatar}
                   alt={creator.name}
@@ -252,6 +252,7 @@ export default function CreatorsPage() {
                 <p className="text-sm font-medium text-gray-900 mb-2">Recent Posts</p>
                 <div className="grid grid-cols-3 gap-2">
                   {creator.recentPosts.map((post, index) => (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       key={index}
                       src={post}

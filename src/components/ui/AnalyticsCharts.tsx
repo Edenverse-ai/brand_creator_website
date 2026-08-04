@@ -1,113 +1,65 @@
 "use client";
 
-import { Line } from "react-chartjs-2";
 import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
   Tooltip,
   Legend,
-  Filler,
-} from "chart.js";
-
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-  Filler
-);
+  ResponsiveContainer,
+} from "recharts";
 
 // Mock data
-const earningsData = {
-  labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
-  datasets: [
-    {
-      label: "Monthly Earnings",
-      data: [2200, 2800, 2500, 3100, 2900, 3250],
-      fill: true,
-      borderColor: "rgb(147, 51, 234)", // Purple (600)
-      backgroundColor: "rgba(147, 51, 234, 0.1)",
-      tension: 0.4,
-    },
-    {
-      label: "Engagement Rate",
-      data: [3.2, 3.8, 3.5, 4.2, 4.5, 4.8],
-      fill: true,
-      borderColor: "rgb(34, 197, 94)", // Green (600)
-      backgroundColor: "rgba(34, 197, 94, 0.1)",
-      tension: 0.4,
-      yAxisID: "y1",
-    },
-  ],
-};
-
-const options = {
-  responsive: true,
-  interaction: {
-    mode: "index" as const,
-    intersect: false,
-  },
-  plugins: {
-    legend: {
-      position: "top" as const,
-      labels: {
-        usePointStyle: true,
-        boxWidth: 6,
-      },
-    },
-    title: {
-      display: false,
-    },
-  },
-  scales: {
-    x: {
-      grid: {
-        display: false,
-      },
-      ticks: {
-        font: {
-          size: 12,
-        },
-      },
-    },
-    y: {
-      type: "linear" as const,
-      display: true,
-      position: "left" as const,
-      title: {
-        display: true,
-        text: "Earnings ($)",
-      },
-      grid: {
-        color: "rgba(0, 0, 0, 0.05)",
-      },
-    },
-    y1: {
-      type: "linear" as const,
-      display: true,
-      position: "right" as const,
-      title: {
-        display: true,
-        text: "Engagement Rate (%)",
-      },
-      grid: {
-        drawOnChartArea: false,
-      },
-    },
-  },
-};
+const earningsData = [
+  { month: "Jan", earnings: 2200, engagement: 3.2 },
+  { month: "Feb", earnings: 2800, engagement: 3.8 },
+  { month: "Mar", earnings: 2500, engagement: 3.5 },
+  { month: "Apr", earnings: 3100, engagement: 4.2 },
+  { month: "May", earnings: 2900, engagement: 4.5 },
+  { month: "Jun", earnings: 3250, engagement: 4.8 },
+];
 
 export default function AnalyticsCharts() {
   return (
     <div className="w-full h-[300px]">
-      <Line data={earningsData} options={options} />
+      <ResponsiveContainer width="100%" height="100%">
+        <AreaChart data={earningsData}>
+          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0, 0, 0, 0.05)" />
+          <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+          <YAxis
+            yAxisId="left"
+            orientation="left"
+            label={{ value: "Earnings ($)", angle: -90, position: "insideLeft" }}
+          />
+          <YAxis
+            yAxisId="right"
+            orientation="right"
+            label={{ value: "Engagement Rate (%)", angle: -90, position: "insideRight" }}
+          />
+          <Tooltip />
+          <Legend verticalAlign="top" align="center" iconType="circle" iconSize={6} />
+          <Area
+            yAxisId="left"
+            type="monotone"
+            dataKey="earnings"
+            name="Monthly Earnings"
+            stroke="rgb(147, 51, 234)"
+            fill="rgb(147, 51, 234)"
+            fillOpacity={0.1}
+          />
+          <Area
+            yAxisId="right"
+            type="monotone"
+            dataKey="engagement"
+            name="Engagement Rate"
+            stroke="rgb(34, 197, 94)"
+            fill="rgb(34, 197, 94)"
+            fillOpacity={0.1}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
     </div>
   );
 }

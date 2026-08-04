@@ -1,5 +1,3 @@
-import axios from "axios";
-
 interface TikTokCreatorResponse {
   code: number;
   message: string;
@@ -39,31 +37,29 @@ export async function getPublicAccountInsights(
   try {
     const url = "https://business-api.tiktok.com/open_api/v1.3/tto/tcm/creator/public/";
 
-    const headers = {
-      "Access-Token": access_token,
-    };
-
-    const params = {
+    const params = new URLSearchParams({
       tto_tcm_account_id,
       handle_name,
-    };
-
-    const response = await axios.get<TikTokCreatorResponse>(url, {
-      headers,
-      params,
     });
 
-    return response.data;
-  } catch (error) {
-    if (axios.isAxiosError(error) && error.response) {
-      console.error("TikTok API error:", error.response.data);
+    const response = await fetch(`${url}?${params.toString()}`, {
+      headers: {
+        "Access-Token": access_token,
+      },
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => null);
+      console.error("TikTok API error:", errorBody);
       return {
-        code: error.response.status,
-        message: `API Error: ${error.message}`,
+        code: response.status,
+        message: `API Error: ${response.status} ${response.statusText}`,
         request_id: "error",
       };
     }
 
+    return (await response.json()) as TikTokCreatorResponse;
+  } catch (error) {
     console.error("Error fetching TikTok creator data:", error);
     return {
       code: 500,

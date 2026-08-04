@@ -1,7 +1,6 @@
 "use client";
 
-import { Search, Filter } from "lucide-react";
-import { FaInstagram, FaYoutube, FaTiktok } from "react-icons/fa";
+import { Search, Filter, Instagram, Youtube, Video } from "lucide-react";
 
 const partneredCreators = [
   {
@@ -84,9 +83,9 @@ const categories = [
 ];
 
 const platformIcons = {
-  instagram: FaInstagram,
-  youtube: FaYoutube,
-  tiktok: FaTiktok,
+  instagram: Instagram,
+  youtube: Youtube,
+  tiktok: Video,
 };
 
 export default function PartneredCreators() {
@@ -133,6 +132,7 @@ export default function PartneredCreators() {
               <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
                 {/* Creator Info */}
                 <div className="flex items-center">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={creator.avatar}
                     alt={creator.name}
@@ -218,6 +218,7 @@ export default function PartneredCreators() {
                 <h4 className="text-sm font-medium text-gray-900 mb-3">Recent Campaign Posts</h4>
                 <div className="grid grid-cols-3 gap-4">
                   {creator.recentPosts.map((post, index) => (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       key={index}
                       src={post}
