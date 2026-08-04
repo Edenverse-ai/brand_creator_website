@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { createId } from "@paralleldrive/cuid2";
+import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -19,13 +20,81 @@ import {
   uploadToBucket,
 } from "@/lib/supabase-admin";
 
-export async function POST(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-  const creatorId = session.user.id;
+const JsonBody = z.object({
+  prompt: z.string(),
+  taskId: z.string().min(1),
+  portrait_path: z.string().optional(),
+  voice_path: z.string().optional(),
+});
 
+function isOwnedPath(path: string, sessionUserId: string): boolean {
+  return path.startsWith(`${sessionUserId}/`);
+}
+
+/**
+ * Native JSON path: portrait/voice bytes were already uploaded direct-to-storage via
+ * POST /api/ai-videos/tasks/upload-url, so this only validates ownership of the given
+ * paths and writes the AiVideoTask row — same shape the multipart branch below produces.
+ */
+async function handleJsonTaskCreate(
+  request: NextRequest,
+  sessionUserId: string
+): Promise<NextResponse> {
+  const parsed = JsonBody.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+  }
+
+  const promptResult = promptSchema.safeParse(parsed.data.prompt);
+  if (!promptResult.success) {
+    return NextResponse.json({ error: "Prompt required" }, { status: 400 });
+  }
+  const prompt = promptResult.data;
+
+  const { taskId } = parsed.data;
+  const portraitPath = parsed.data.portrait_path?.trim() || "";
+  const voicePath = parsed.data.voice_path?.trim() || "";
+
+  if (!portraitPath) {
+    return NextResponse.json({ error: "Portrait image required" }, { status: 400 });
+  }
+
+  const pathsToCheck = voicePath ? [portraitPath, voicePath] : [portraitPath];
+  if (pathsToCheck.some((path) => !isOwnedPath(path, sessionUserId))) {
+    return NextResponse.json(
+      { error: "Storage path does not belong to the current session" },
+      { status: 403 }
+    );
+  }
+
+  try {
+    const task = await prisma.aiVideoTask.create({
+      data: {
+        id: taskId,
+        creatorId: sessionUserId,
+        prompt,
+        portraitPath,
+        voicePath: voicePath || null,
+      },
+      select: { id: true, status: true },
+    });
+
+    return NextResponse.json({ id: task.id, status: task.status });
+  } catch (error) {
+    await deleteFromBucket(voicePath ? [portraitPath, voicePath] : [portraitPath]);
+    console.error("[ai-videos/tasks] JSON path db insert error", error);
+    return NextResponse.json({ error: "Failed to create task" }, { status: 500 });
+  }
+}
+
+/**
+ * Legacy multipart path: unchanged, kept byte-for-byte as a rollback lever until every
+ * caller has moved to the JSON + presigned-upload path above.
+ */
+async function handleMultipartTaskCreate(
+  request: NextRequest,
+  creatorId: string
+): Promise<NextResponse> {
   let formData: FormData;
   try {
     formData = await request.formData();
@@ -98,4 +167,19 @@ export async function POST(request: NextRequest) {
     console.error("[ai-videos/tasks] db insert error", error);
     return NextResponse.json({ error: "Failed to create task" }, { status: 500 });
   }
+}
+
+export async function POST(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const creatorId = session.user.id;
+
+  const contentType = request.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    return handleJsonTaskCreate(request, creatorId);
+  }
+
+  return handleMultipartTaskCreate(request, creatorId);
 }
