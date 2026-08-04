@@ -9,7 +9,11 @@ import {
   fetchUsersByIds,
   buildSingularApplication,
 } from "@/lib/campaigns/serialize";
-import { combineTierRequirement, finalizeCampaignWriteData } from "@/lib/campaigns/write";
+import {
+  combineTierRequirement,
+  finalizeCampaignWriteData,
+  campaignWriteErrorResponse,
+} from "@/lib/campaigns/write";
 import { isValidUuid } from "@/lib/campaigns/validation";
 
 /**
@@ -25,6 +29,13 @@ import { isValidUuid } from "@/lib/campaigns/validation";
  * This adds one: resolve the caller's own BrandProfile, then require
  * `campaigns.findFirst({ id: campaignId, brand_id: brandProfile.id })` to match before
  * returning anything — 404 if the campaign doesn't belong to the caller's brand.
+ *
+ * RESPONSE SHAPE: `brand` is always `null` here, never the caller's `BrandProfile` row —
+ * `BrandService.get_brand_campaign` (brand_service.py:134-238) never sets
+ * `campaign["brand"]`; only the *list* function (`get_brand_campaigns`, :110-119) does.
+ * `CampaignWithApplications.brand: dict | None = None` is a declared field, so it still
+ * serializes as a literal `null`, matching the same list-vs-singular asymmetry already
+ * applied to `applications` enrichment (see serialize.ts).
  */
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
@@ -40,6 +51,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const brandProfile = await prisma.brandProfile.findUnique({
       where: { userId: session.user.id },
+      select: { id: true },
     });
     if (!brandProfile) {
       return NextResponse.json({ error: "Brand profile not found" }, { status: 404 });
@@ -59,7 +71,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     );
     const applications = claims.map((claim) => buildSingularApplication(claim, creators, users));
 
-    return NextResponse.json(serializeBrandCampaign(campaign, applications, brandProfile));
+    return NextResponse.json(serializeBrandCampaign(campaign, applications, null));
   } catch (error) {
     console.error(
       `GET /api/brand/campaigns/${campaignId} failed:`,
@@ -78,9 +90,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
  * allowing the update, replacing what used to be only a role check with no ownership
  * pre-check.
  *
- * `brand_id` is stripped from the update payload the same way
- * `CampaignService.update_campaign` does (`k != "brand_id"`) — ownership is enforced by the
- * WHERE clause / pre-check, never by a client-supplied brand_id.
+ * SECURITY FIX: same allowlist as POST (`finalizeCampaignWriteData`) — `brand_id` is always
+ * dropped internally (ownership is enforced by the WHERE clause above, never by a
+ * client-supplied `brand_id`), and any other key outside `CampaignCreate`'s field set is
+ * rejected with a 422 instead of silently reaching Prisma. `CampaignCreate.title` has no
+ * default, so Python 422s an update that omits it too (`PUT` is full-resource-replacement
+ * semantics here, not a partial `PATCH`) — enforced the same way create is.
+ *
+ * NOTE (live-caller consequence, not fixed here): `src/app/brandportal/campaigns/[id]/
+ * edit/page.tsx` sends `product_photo_url`/`budgetUnit` as top-level body keys, neither of
+ * which is a `campaigns` column — that request already 422'd against the real Python
+ * backend and would otherwise 500 against this port; with the allowlist it now gets a clean
+ * 422 instead. The edit form itself needs a separate fix to stop sending non-column keys —
+ * out of scope for this port.
  */
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
@@ -133,10 +155,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       ...(combinedTier !== undefined ? { creator_tier_requirement: combinedTier } : {}),
     };
 
-    const writeData = finalizeCampaignWriteData(payload, ["brand_id"]);
+    const outcome = finalizeCampaignWriteData(payload);
+    if (!outcome.ok) {
+      const { status, body: errorBody } = campaignWriteErrorResponse(outcome, "update");
+      return NextResponse.json(errorBody, { status });
+    }
+
     await prisma.campaigns.update({
       where: { id: campaignId },
-      data: writeData as Prisma.campaignsUpdateInput,
+      data: outcome.data as Prisma.campaignsUpdateInput,
     });
 
     return NextResponse.json({

@@ -192,6 +192,43 @@ describe("GET /api/brand/campaigns", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ error: "Failed to fetch campaigns", campaigns: [] });
   });
+
+  it.each(["start_date", "startDate", "end_date", "endDate"])(
+    "MINOR FIX: a malformed %s does NOT trigger the phantom-filter mask — Python's own try/except ValueError around strptime skips the crashing .gte()/.lte() call, so the query proceeds and returns real campaigns",
+    async (param) => {
+      authedBrand();
+      (prisma.campaigns.findMany as any).mockResolvedValue([
+        {
+          id: "c1",
+          brand_id: "brand-1",
+          title: "Real Campaign",
+          deadline: null,
+          created_at: new Date(),
+        },
+      ]);
+      (prisma.campaignclaims.findMany as any).mockResolvedValue([]);
+
+      const res = await GET(getReq(`http://localhost/api/brand/campaigns?${param}=notadate`));
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(Array.isArray(body)).toBe(true);
+      expect(body[0].title).toBe("Real Campaign");
+      expect(prisma.campaigns.findMany).toHaveBeenCalledWith({ where: { brand_id: "brand-1" } });
+    }
+  );
+
+  it("a calendar-invalid but shape-matching start_date (Feb 30) also does not trigger the mask", async () => {
+    authedBrand();
+    (prisma.campaigns.findMany as any).mockResolvedValue([]);
+    (prisma.campaignclaims.findMany as any).mockResolvedValue([]);
+
+    const res = await GET(getReq("http://localhost/api/brand/campaigns?start_date=2026-02-30"));
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual([]);
+    expect(prisma.campaigns.findMany).toHaveBeenCalled();
+  });
 });
 
 describe("POST /api/brand/campaigns", () => {
@@ -214,13 +251,59 @@ describe("POST /api/brand/campaigns", () => {
     expect(await res.json()).toEqual({ error: "Brand profile not found" });
   });
 
-  it("returns 400 when title is missing", async () => {
+  it("returns 422 with an error+details envelope when title is missing (restores Python's status/shape)", async () => {
     authedBrand();
 
     const res = await POST(jsonPost({ brief: "no title here" }));
 
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.error).toBe("Failed to create campaign");
+    expect(body.details).toBeDefined();
+    expect(prisma.campaigns.create).not.toHaveBeenCalled();
+  });
+
+  it("CRITICAL FIX: returns 422 and never writes when the body contains an unknown/unbounded field (e.g. id)", async () => {
+    authedBrand();
+
+    const res = await POST(
+      jsonPost({ title: "Anything", id: "00000000-0000-4000-8000-000000000001" })
+    );
+
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.error).toBe("Failed to create campaign");
+    expect(prisma.campaigns.create).not.toHaveBeenCalled();
+  });
+
+  it("CRITICAL FIX: returns 422 and never writes when the body tries to forge created_at", async () => {
+    authedBrand();
+
+    const res = await POST(jsonPost({ title: "x", created_at: "1970-01-01T00:00:00.000Z" }));
+
+    expect(res.status).toBe(422);
+    expect(prisma.campaigns.create).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for a malformed deadline instead of a generic 500", async () => {
+    authedBrand();
+
+    const res = await POST(jsonPost({ title: "Campaign", deadline: "garbage" }));
+
     expect(res.status).toBe(400);
     expect(prisma.campaigns.create).not.toHaveBeenCalled();
+  });
+
+  it("SECURITY: a client-supplied brand_id in the body is ignored — the resolved BrandProfile.id always wins (mirrors the existing PUT test)", async () => {
+    authedBrand();
+    (prisma.campaigns.create as any).mockResolvedValue({ id: "new-campaign-id" });
+
+    const res = await POST(jsonPost({ title: "Campaign", brand_id: "attacker-controlled-brand" }));
+
+    expect(res.status).toBe(200);
+    expect(prisma.campaigns.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ brand_id: "brand-1" }) })
+    );
   });
 
   describe("JSON branch", () => {

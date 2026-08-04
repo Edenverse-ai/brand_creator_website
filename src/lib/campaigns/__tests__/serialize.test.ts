@@ -164,16 +164,20 @@ describe("buildListApplication", () => {
     expect(result.id).toBe("claim-1");
   });
 
-  it("omits the creator key entirely (not null) when creator_id does not resolve", () => {
+  it("sets creator to null (a present key, not omitted) when creator_id does not resolve", () => {
+    // CampaignApplication.creator: dict | None = None (models/campaign.py:104) is a declared
+    // field — FastAPI's response_model serializes it as a literal null, the same
+    // present-as-null rule already applied to brand_name.
     const claim = makeClaim({ creator_id: "missing-creator" });
     const result = buildListApplication(claim, new Map());
-    expect("creator" in result).toBe(false);
+    expect("creator" in result).toBe(true);
+    expect(result.creator).toBeNull();
   });
 
-  it("omits the creator key when creator_id is null", () => {
+  it("sets creator to null when creator_id is null", () => {
     const claim = makeClaim({ creator_id: null });
     const result = buildListApplication(claim, new Map());
-    expect("creator" in result).toBe(false);
+    expect(result.creator).toBeNull();
   });
 
   it("never enriches with username/email/image at list level", () => {
@@ -214,9 +218,10 @@ describe("buildSingularApplication", () => {
     expect(result.creator).not.toHaveProperty("user");
   });
 
-  it("omits the creator key entirely when creator_id does not resolve to a CreatorProfile", () => {
+  it("sets creator to null (a present key, not omitted) when creator_id does not resolve to a CreatorProfile", () => {
     const claim = makeClaim({ creator_id: "missing" });
     const result = buildSingularApplication(claim, new Map(), new Map());
-    expect("creator" in result).toBe(false);
+    expect("creator" in result).toBe(true);
+    expect(result.creator).toBeNull();
   });
 });

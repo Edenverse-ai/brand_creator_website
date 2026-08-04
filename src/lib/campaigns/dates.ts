@@ -40,3 +40,24 @@ export function formatDateOnly(value: Date | null | undefined): string | null {
   if (!value) return null;
   return value.toISOString().slice(0, 10);
 }
+
+/**
+ * Mirrors Python's `datetime.strptime(value, "%Y-%m-%d")` — format AND calendar validity
+ * (rejects e.g. "2026-02-30"), unlike `isDateOnlyString` above which only checks shape.
+ *
+ * Purpose-built for `GET /api/brand/campaigns`'s phantom `start_date`/`end_date` filter
+ * (`brand_service.py:39-51`): Python wraps its `strptime` call in its own `try/except
+ * ValueError`, and only calls `.gte("start_date", …)` / `.lte("end_date", …)` — the calls
+ * that actually reference the nonexistent columns and crash — when `strptime` *succeeds*. A
+ * malformed value never reaches those calls, so the filter is silently skipped and the query
+ * proceeds (returning real campaigns), unlike a well-formed one, which does crash. This is
+ * the one date helper in this domain that is NOT part of the deadline read/write hazard.
+ */
+export function isValidCalendarDateOnly(value: string): boolean {
+  if (!isDateOnlyString(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
+  );
+}

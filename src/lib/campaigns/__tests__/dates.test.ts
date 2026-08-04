@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { isDateOnlyString, dateOnlyStringToUtcDate, formatDateOnly } from "../dates";
+import {
+  isDateOnlyString,
+  dateOnlyStringToUtcDate,
+  formatDateOnly,
+  isValidCalendarDateOnly,
+} from "../dates";
 
 describe("isDateOnlyString", () => {
   it("accepts a YYYY-MM-DD string", () => {
@@ -45,5 +50,37 @@ describe("formatDateOnly (read boundary)", () => {
     const original = "2026-08-04";
     const written = dateOnlyStringToUtcDate(original);
     expect(formatDateOnly(written)).toBe(original);
+  });
+});
+
+describe("isValidCalendarDateOnly (mirrors Python's strptime success/failure)", () => {
+  it("accepts a real calendar date", () => {
+    expect(isValidCalendarDateOnly("2026-01-15")).toBe(true);
+    expect(isValidCalendarDateOnly("2026-12-31")).toBe(true);
+  });
+
+  it("accepts a leap-day date in a leap year", () => {
+    expect(isValidCalendarDateOnly("2028-02-29")).toBe(true);
+  });
+
+  it("rejects a leap-day date in a non-leap year (strptime would raise ValueError)", () => {
+    expect(isValidCalendarDateOnly("2026-02-29")).toBe(false);
+  });
+
+  it("rejects a calendar-invalid day-of-month (Feb 30 does not exist)", () => {
+    expect(isValidCalendarDateOnly("2026-02-30")).toBe(false);
+  });
+
+  it("rejects an out-of-range month", () => {
+    expect(isValidCalendarDateOnly("2026-13-01")).toBe(false);
+  });
+
+  it("rejects a non-date-shaped string", () => {
+    expect(isValidCalendarDateOnly("notadate")).toBe(false);
+    expect(isValidCalendarDateOnly("")).toBe(false);
+  });
+
+  it("rejects a full ISO datetime string (not the bare YYYY-MM-DD shape strptime('%Y-%m-%d') expects)", () => {
+    expect(isValidCalendarDateOnly("2026-12-31T00:00:00.000Z")).toBe(false);
   });
 });

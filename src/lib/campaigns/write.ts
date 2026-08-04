@@ -6,7 +6,62 @@
  * (`backend/app/main/services/campaign_service.py`) apply identically before writing.
  */
 
-import { dateOnlyStringToUtcDate } from "./dates";
+import { dateOnlyStringToUtcDate, isDateOnlyString } from "./dates";
+
+/**
+ * Exact field set of Python's `CampaignCreate` (backend/app/main/models/campaign.py:51-90),
+ * minus `brand_id`. `CampaignCreate.model_config = ConfigDict(extra="forbid")` — FastAPI
+ * 422s any request body containing a key outside this set. `brand_id` is deliberately
+ * excluded from the allowlist itself (not merely "allowed but ignored"): every caller of
+ * `finalizeCampaignWriteData` resolves the real `brand_id` from the session-derived
+ * `BrandProfile`, never from client input, and this function strips any client-supplied
+ * `brand_id` unconditionally before the allowlist check even runs (see below) — so it can
+ * never trip a false "unknown field" rejection, matching Python's actual behavior (Python
+ * accepts `brand_id` as a known field and then ignores/overwrites its value; it does not
+ * reject a request merely for including it).
+ *
+ * Field-by-field re-derivation from the Pydantic model (verified 2026-08-05, see
+ * task-4e-report.md "Post-review fixes" for the full derivation table).
+ */
+export const CAMPAIGN_WRITABLE_FIELDS = [
+  "title",
+  "brief",
+  "requirements",
+  "budget_range",
+  "budget_unit",
+  "commission",
+  "platform",
+  "deadline",
+  "max_creators",
+  "is_open",
+  "sample_video_url",
+  "industry_category",
+  "primary_promotion_objectives",
+  "ad_placement",
+  "campaign_execution_mode",
+  "creator_profile_preferences_gender",
+  "creator_profile_preference_ethnicity",
+  "creator_profile_preference_content_niche",
+  "preferred_creator_location",
+  "language_requirement_for_creators",
+  "creator_tier_requirement",
+  "send_to_creator",
+  "approved_by_brand",
+  "kpi_reference_target",
+  "prohibited_content_warnings",
+  "posting_requirements",
+  "product_photo",
+  "script_required",
+  "product_name",
+  "product_highlight",
+  "product_price",
+  "product_sold_number",
+  "paid_promotion_type",
+  "video_buyout_budget_range",
+  "base_fee_budget_range",
+] as const;
+
+const WRITABLE_FIELD_SET: ReadonlySet<string> = new Set(CAMPAIGN_WRITABLE_FIELDS);
 
 /**
  * Fields with a non-null Pydantic default on `CampaignCreate`. Pydantic only substitutes a
@@ -72,9 +127,11 @@ export function stringifyArrayFields(data: Record<string, unknown>): Record<stri
 }
 
 /**
- * Mirrors: `{k: v for k, v in campaign_data.items() if v is not None and v != ""}`
- * (plus `k != "brand_id"` on update only, passed via `excludeKeys`). Note Python's `v is
- * not None` keeps `False`/`0` — only `None` and the exact empty string `""` are dropped.
+ * Mirrors: `{k: v for k, v in campaign_data.items() if v is not None and v != ""}`.
+ * Note Python's `v is not None` keeps `False`/`0` — only `None` and the exact empty string
+ * `""` are dropped. `excludeKeys` is a general-purpose escape hatch for callers outside this
+ * module; `finalizeCampaignWriteData` below no longer uses it for `brand_id` (that is now
+ * stripped unconditionally, earlier in the pipeline — see `CAMPAIGN_WRITABLE_FIELDS`).
  */
 export function stripEmptyAndNull(
   data: Record<string, unknown>,
@@ -119,23 +176,90 @@ export function combineTierRequirement(
   return undefined;
 }
 
+export type CampaignWriteOutcome =
+  | { ok: true; data: Record<string, unknown> }
+  | { ok: false; kind: "unknown_fields"; fields: string[] }
+  | { ok: false; kind: "missing_title" }
+  | { ok: false; kind: "invalid_deadline"; value: string };
+
 /**
  * Full write-boundary pipeline for a normalized campaign payload, in the same order Python
- * applies it: Pydantic defaults -> array-field JSON.stringify -> strip null/empty (and
- * `brand_id` on update) -> convert a surviving `deadline` string to a UTC Date for Prisma
- * (the deadline hazard, dates.ts). `excludeKeys` should be `["brand_id"]` for update calls
- * only (campaign_service.py's `update_campaign` explicitly strips `brand_id` before writing
- * — ownership is enforced by the WHERE clause, not by trusting a client-supplied brand_id).
+ * validates/applies it:
+ *
+ *  1. Strip a client-supplied `brand_id` unconditionally (never trusted — see the allowlist
+ *     doc comment above).
+ *  2. Reject any remaining key outside `CAMPAIGN_WRITABLE_FIELDS` — mirrors `CampaignCreate`'s
+ *     `extra="forbid"` (Pydantic 422). Returned as a structured outcome rather than silently
+ *     stripped, so a caller (any route) can produce a real 422 instead of letting an
+ *     unbounded write reach Prisma — `campaignsUpdateInput` has no field-level ACL of its
+ *     own, so this is the only enforcement point (CRITICAL fix, see task-4e-report.md
+ *     "Post-review fixes").
+ *  3. Reject a missing/empty `title` — `CampaignCreate.title: str` has no default, so Pydantic
+ *     422s a request that omits it; this applies to both create AND update (Python reuses
+ *     the same model for `PUT`, which is full-resource-replacement semantics, not partial
+ *     PATCH).
+ *  4. Pydantic defaults -> array-field `JSON.stringify` -> strip null/empty.
+ *  5. If a `deadline` string survives, validate it is genuinely "YYYY-MM-DD"
+ *     (`isDateOnlyString`) before converting to a UTC `Date` for Prisma — a malformed value
+ *     used to reach `new Date(...)` unchecked, producing an Invalid Date that only surfaced
+ *     as a generic Prisma throw at the write itself.
  */
-export function finalizeCampaignWriteData(
-  data: Record<string, unknown>,
-  excludeKeys: readonly string[] = []
-): Record<string, unknown> {
-  const defaulted = applyCampaignCreateDefaults(data);
+export function finalizeCampaignWriteData(data: Record<string, unknown>): CampaignWriteOutcome {
+  const { brand_id: _clientSuppliedBrandId, ...withoutBrandId } = data;
+
+  const unknownFields = Object.keys(withoutBrandId).filter((key) => !WRITABLE_FIELD_SET.has(key));
+  if (unknownFields.length > 0) {
+    return { ok: false, kind: "unknown_fields", fields: unknownFields };
+  }
+
+  if (typeof withoutBrandId.title !== "string" || withoutBrandId.title === "") {
+    return { ok: false, kind: "missing_title" };
+  }
+
+  const defaulted = applyCampaignCreateDefaults(withoutBrandId);
   const stringified = stringifyArrayFields(defaulted);
-  const stripped = stripEmptyAndNull(stringified, excludeKeys);
+  const stripped = stripEmptyAndNull(stringified);
+
   if (typeof stripped.deadline === "string") {
+    if (!isDateOnlyString(stripped.deadline)) {
+      return { ok: false, kind: "invalid_deadline", value: stripped.deadline };
+    }
     stripped.deadline = dateOnlyStringToUtcDate(stripped.deadline);
   }
-  return stripped;
+
+  return { ok: true, data: stripped };
+}
+
+/**
+ * Maps a `finalizeCampaignWriteData` failure onto an HTTP status + body. Shared by both
+ * POST /api/brand/campaigns and PUT /api/brand/campaigns/[id] so the two routes stay
+ * consistent. `action` only changes the human-readable message, matching each route's own
+ * pre-existing "Failed to create/update campaign" wording.
+ */
+export function campaignWriteErrorResponse(
+  outcome: Extract<CampaignWriteOutcome, { ok: false }>,
+  action: "create" | "update"
+): { status: number; body: Record<string, unknown> } {
+  if (outcome.kind === "invalid_deadline") {
+    return { status: 400, body: { error: "Invalid campaign deadline format" } };
+  }
+  if (outcome.kind === "missing_title") {
+    return {
+      status: 422,
+      body: {
+        error: `Failed to ${action} campaign`,
+        details: { message: "title is required", field: "title" },
+      },
+    };
+  }
+  return {
+    status: 422,
+    body: {
+      error: `Failed to ${action} campaign`,
+      details: {
+        message: `Unexpected field(s): ${outcome.fields.join(", ")}`,
+        fields: outcome.fields,
+      },
+    },
+  };
 }

@@ -13,7 +13,9 @@ import {
   CAMPAIGN_ARRAY_FIELDS,
   combineTierRequirement,
   finalizeCampaignWriteData,
+  campaignWriteErrorResponse,
 } from "@/lib/campaigns/write";
+import { isValidCalendarDateOnly } from "@/lib/campaigns/dates";
 
 /**
  * Multipart branch of campaign creation (`src/app/brandportal/campaigns/new/page.tsx`
@@ -150,14 +152,22 @@ function buildJsonCreatePayload(data: Record<string, unknown>): Record<string, u
  * PHANTOM FILTER COLUMNS (confirmed against prisma/schema.prisma and
  * prisma/migrations/20260507000000_add_campaigns_legacy/migration.sql — neither
  * `start_date`/`end_date` nor `status` exist as columns on `campaigns`): today, supplying
- * any of `status`/`start_date`/`end_date` makes `get_brand_campaigns`'s
- * `.eq("status", ...)` / `.gte("start_date", ...)` / `.lte("end_date", ...)` fail at
- * `.execute()` time with an "undefined column" error from Postgrest. That exception
- * propagates as an uncaught-by-the-route HTTPException(500), which this route's own
- * `!response.ok` branch then masks to HTTP 200 with `{ error: "API Error: 500",
- * campaigns: [] }` (`response.status === 500 ? 200 : response.status`). This is reproduced
- * exactly below rather than silently treating the filter as a no-op (a real behavior
- * change) or inventing the missing columns (out of scope; no migration was written).
+ * `status` makes `get_brand_campaigns`'s `.eq("status", ...)` fail at `.execute()` time
+ * with an "undefined column" error from Postgrest — there is no guard around it, so ANY
+ * value crashes. That exception propagates as an uncaught-by-the-route HTTPException(500),
+ * which this route's own `!response.ok` branch then masks to HTTP 200 with
+ * `{ error: "API Error: 500", campaigns: [] }` (`response.status === 500 ? 200 :
+ * response.status`). Reproduced exactly below rather than silently treating the filter as a
+ * no-op (a real behavior change) or inventing the missing columns (out of scope).
+ *
+ * `start_date`/`end_date` are different: `brand_service.py:39-51` wraps its
+ * `datetime.strptime(value, "%Y-%m-%d")` parse in its own `try/except ValueError`, and only
+ * calls `.gte("start_date", …)` / `.lte("end_date", …)` (the calls that reference the
+ * nonexistent columns) when the parse *succeeds*. A malformed value — `?start_date=notadate`
+ * — never reaches those calls, so Python silently skips the filter and the query proceeds,
+ * returning the brand's real campaigns. Only a validly-formatted date crashes. Matched via
+ * `isValidCalendarDateOnly` (dates.ts), not mere presence of the param.
+ *
  * `search` also nominally ORs against a `description` column that likewise does not exist
  * (`c.get("description", "")` always yields `""` in Python), so it is implemented here as a
  * title-only filter — functionally identical to the Python source's OR-against-empty-string.
@@ -188,7 +198,10 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get("end_date") || searchParams.get("endDate");
     const status = searchParams.get("status");
 
-    if (status || startDate || endDate) {
+    const startDateCrashes = startDate !== null && isValidCalendarDateOnly(startDate);
+    const endDateCrashes = endDate !== null && isValidCalendarDateOnly(endDate);
+
+    if (status || startDateCrashes || endDateCrashes) {
       return NextResponse.json({ error: "API Error: 500", campaigns: [] }, { status: 200 });
     }
 
@@ -236,6 +249,14 @@ export async function GET(request: NextRequest) {
  * the fallback has been unreachable dead code even in the live proxy
  * (phase-4-port-reference.md §1.2, §6.1). Porting it would change today's actual behavior,
  * not preserve it.
+ *
+ * SECURITY FIX: the write payload is allowlisted to exactly `CampaignCreate`'s own field set
+ * (`finalizeCampaignWriteData`, src/lib/campaigns/write.ts) before it ever reaches Prisma —
+ * `CampaignCreate` is `extra="forbid"`, so Python 422s any unlisted key, but this route
+ * previously had no equivalent guard and `campaignsCreateInput` has no field-level ACL of
+ * its own. Any client-supplied `brand_id` is unconditionally ignored (never allowlisted,
+ * always overridden below by the resolved `brandProfile.id`) regardless of the allowlist
+ * outcome.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -274,13 +295,17 @@ export async function POST(request: NextRequest) {
       payload = buildJsonCreatePayload(data as Record<string, unknown>);
     }
 
-    if (!payload.title || typeof payload.title !== "string") {
-      return NextResponse.json({ error: "Failed to create campaign" }, { status: 400 });
+    const outcome = finalizeCampaignWriteData(payload);
+    if (!outcome.ok) {
+      const { status, body } = campaignWriteErrorResponse(outcome, "create");
+      return NextResponse.json(body, { status });
     }
 
-    const writeData = finalizeCampaignWriteData(payload);
     const created = await prisma.campaigns.create({
-      data: { ...writeData, brand_id: brandProfile.id } as unknown as Prisma.campaignsCreateInput,
+      data: {
+        ...outcome.data,
+        brand_id: brandProfile.id,
+      } as unknown as Prisma.campaignsCreateInput,
       select: { id: true },
     });
 

@@ -120,7 +120,24 @@ describe("GET /api/brand/campaigns/[id]", () => {
       image: "pic.jpg",
     });
     expect(body.brand_name).toBeNull();
-    expect(body.brand).toEqual(BRAND_PROFILE);
+  });
+
+  it("FIX: brand is always null, never the caller's BrandProfile (BrandService.get_brand_campaign never sets campaign['brand'] — only the list function does)", async () => {
+    authedBrand();
+    (prisma.brandProfile.findUnique as any).mockResolvedValue(BRAND_PROFILE);
+    (prisma.campaigns.findFirst as any).mockResolvedValue({
+      id: VALID_CAMPAIGN_ID,
+      brand_id: "brand-1",
+      title: "Campaign",
+      deadline: null,
+      created_at: new Date(),
+    });
+    (prisma.campaignclaims.findMany as any).mockResolvedValue([]);
+
+    const res = await GET(getReq(), ctx(VALID_CAMPAIGN_ID));
+    const body = await res.json();
+
+    expect(body.brand).toBeNull();
   });
 
   it("returns 500 'Internal server error' on an unexpected Prisma error, never the raw error text", async () => {
@@ -215,6 +232,68 @@ describe("PUT /api/brand/campaigns/[id]", () => {
 
     const data = (prisma.campaigns.update as any).mock.calls[0][0].data;
     expect(data.creator_tier_requirement).toBe("raw-string-value");
+  });
+
+  it("CRITICAL FIX: returns 422 and never writes when the body contains an unknown/unbounded field (e.g. id)", async () => {
+    authedBrand();
+    (prisma.brandProfile.findUnique as any).mockResolvedValue({ id: "brand-1" });
+    (prisma.campaigns.findFirst as any).mockResolvedValue({ id: VALID_CAMPAIGN_ID });
+
+    const res = await PUT(
+      jsonReq("PUT", { title: "Anything", id: "00000000-0000-4000-8000-000000000001" }),
+      ctx(VALID_CAMPAIGN_ID)
+    );
+
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.error).toBe("Failed to update campaign");
+    expect(prisma.campaigns.update).not.toHaveBeenCalled();
+  });
+
+  it("returns 422 with an error+details envelope when title is missing", async () => {
+    authedBrand();
+    (prisma.brandProfile.findUnique as any).mockResolvedValue({ id: "brand-1" });
+    (prisma.campaigns.findFirst as any).mockResolvedValue({ id: VALID_CAMPAIGN_ID });
+
+    const res = await PUT(jsonReq("PUT", { brief: "no title" }), ctx(VALID_CAMPAIGN_ID));
+
+    expect(res.status).toBe(422);
+    const body = await res.json();
+    expect(body.error).toBe("Failed to update campaign");
+    expect(body.details).toBeDefined();
+    expect(prisma.campaigns.update).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for a malformed deadline instead of a generic 500", async () => {
+    authedBrand();
+    (prisma.brandProfile.findUnique as any).mockResolvedValue({ id: "brand-1" });
+    (prisma.campaigns.findFirst as any).mockResolvedValue({ id: VALID_CAMPAIGN_ID });
+
+    const res = await PUT(
+      jsonReq("PUT", { title: "Updated", deadline: "garbage" }),
+      ctx(VALID_CAMPAIGN_ID)
+    );
+
+    expect(res.status).toBe(400);
+    expect(prisma.campaigns.update).not.toHaveBeenCalled();
+  });
+
+  it("NOTE (live-caller consequence): rejects the exact non-column keys the brandportal edit form sends today (product_photo_url, budgetUnit) with a clean 422", async () => {
+    authedBrand();
+    (prisma.brandProfile.findUnique as any).mockResolvedValue({ id: "brand-1" });
+    (prisma.campaigns.findFirst as any).mockResolvedValue({ id: VALID_CAMPAIGN_ID });
+
+    const res = await PUT(
+      jsonReq("PUT", {
+        title: "Updated",
+        product_photo_url: "https://example.com/photo.jpg",
+        budgetUnit: "total",
+      }),
+      ctx(VALID_CAMPAIGN_ID)
+    );
+
+    expect(res.status).toBe(422);
+    expect(prisma.campaigns.update).not.toHaveBeenCalled();
   });
 
   it("returns the frozen CampaignMutationResponse shape on success", async () => {

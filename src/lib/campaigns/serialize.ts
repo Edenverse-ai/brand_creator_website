@@ -92,24 +92,30 @@ export async function fetchUsersByIds(ids: Array<string | null>): Promise<UserLo
 
 /**
  * List-mode application shape (`BrandService.get_brand_campaigns`): raw `campaignclaims`
- * row + a raw `CreatorProfile` row under `creator` IFF `creator_id` resolves — no
+ * row + a raw `CreatorProfile` row under `creator` IFF `creator_id` resolves. `creator` is
+ * always a *present* key, `null` when unresolved — `CampaignApplication.creator: dict |
+ * None = None` (models/campaign.py:104) is a declared field, so FastAPI's response_model
+ * serializes it as a literal `null` when the source dict never set it, the same
+ * present-as-null rule already applied to `brand_name` elsewhere in this file. No
  * username/email/image enrichment at this level (that only happens in the singular by-id
- * lookup below). The `creator` key is entirely absent, not null, when it doesn't resolve.
+ * lookup below).
  */
 export function buildListApplication(
   claim: campaignclaims,
   creators: CreatorLookup
 ): Record<string, unknown> {
   const creator = claim.creator_id ? creators.get(claim.creator_id) : undefined;
-  return creator ? { ...claim, creator } : { ...claim };
+  return { ...claim, creator: creator ?? null };
 }
 
 /**
  * Singular-mode application shape (`BrandService.get_brand_campaign`): raw `campaignclaims`
- * row + `creator` (raw `CreatorProfile` row) IFF `creator_id` resolves, further enriched
- * with `username`/`email`/`image` (renamed from `User.name`/`email`/`image`) and a nested
- * `user` sub-object IFF that creator's `userId` also resolves to a `User` row. Each
- * enrichment layer is additive-only — a failed inner lookup still yields the outer shape.
+ * row + `creator` (raw `CreatorProfile` row, or `null` when unresolved — see
+ * `buildListApplication` above for why `null` and not an omitted key) IFF `creator_id`
+ * resolves, further enriched with `username`/`email`/`image` (renamed from
+ * `User.name`/`email`/`image`) and a nested `user` sub-object IFF that creator's `userId`
+ * also resolves to a `User` row. Each enrichment layer is additive-only — a failed inner
+ * lookup still yields the outer shape.
  */
 export function buildSingularApplication(
   claim: campaignclaims,
@@ -117,7 +123,7 @@ export function buildSingularApplication(
   users: UserLookup
 ): Record<string, unknown> {
   const creatorRow = claim.creator_id ? creators.get(claim.creator_id) : undefined;
-  if (!creatorRow) return { ...claim };
+  if (!creatorRow) return { ...claim, creator: null };
 
   const user = creatorRow.userId ? users.get(creatorRow.userId) : undefined;
   const creator = user
