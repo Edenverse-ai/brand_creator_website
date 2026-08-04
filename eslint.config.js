@@ -95,6 +95,7 @@ module.exports = [
       "playwright-report/**",
       "test-results/**",
       "coverage/**",
+      ".netlify/**",
     ],
   },
 ];
