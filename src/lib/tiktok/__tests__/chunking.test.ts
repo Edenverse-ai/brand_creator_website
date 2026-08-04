@@ -49,6 +49,12 @@ describe("computeChunkPlan", () => {
     expect(() => computeChunkPlan(-1)).toThrow(RangeError);
   });
 
+  it("rejects a non-integer video size (a fractional byte count is nonsensical)", () => {
+    expect(() => computeChunkPlan(1024.5)).toThrow(RangeError);
+    expect(() => computeChunkPlan(Number.NaN)).toThrow(RangeError);
+    expect(() => computeChunkPlan(Number.POSITIVE_INFINITY)).toThrow(RangeError);
+  });
+
   it("throws VideoTooLargeError once the chunk count would exceed TikTok's 1000-chunk cap", () => {
     // (MAX_CHUNK_COUNT * DEFAULT_CHUNK_BYTES) + 1 still floors to exactly
     // MAX_CHUNK_COUNT chunks (the +1 byte is a fraction of one more chunk, which

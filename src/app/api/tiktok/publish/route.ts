@@ -7,6 +7,8 @@ import { fetchVideoSize } from "@/lib/tiktok/video-size";
 import { initFileUpload, initPullFromUrl } from "@/lib/tiktok/init";
 import { dispatchBackgroundUpload } from "@/lib/tiktok/background-dispatch";
 import { isPullFromUrlEnabled } from "@/lib/tiktok/flags";
+import { assertPublicVideoUrl } from "@/lib/tiktok/public-url-guard";
+import { assertSourceTargetUrl } from "@/lib/tiktok/relay-url-guard";
 import { TIKTOK_MESSAGES, publicMessageFor, logDetailsFor } from "@/lib/tiktok/errors";
 
 /**
@@ -69,6 +71,15 @@ async function processViaFileUploadRelay(
   sourceUrl: string
 ): Promise<VideoResult> {
   const id = video.id ?? null;
+
+  // POST-REVIEW FIX: the background relay's own allowlist (relay-url-guard.ts)
+  // only accepts sourceUrl on our configured Supabase host -- checking that
+  // HERE, before burning a TikTok init call and a dispatch, means a
+  // video_url that could never be relayed fails fast with a clear per-video
+  // error instead of dispatching a job that's guaranteed to be silently
+  // rejected downstream with no caller-visible trace beyond function logs.
+  assertSourceTargetUrl(sourceUrl);
+
   const videoSize = await fetchVideoSize(sourceUrl);
   const init = await initFileUpload(accessToken, video, privacyLevel, videoSize);
 
@@ -95,6 +106,12 @@ async function processVideo(accessToken: string, video: VideoInput): Promise<Vid
     let sourceUrl: string | null = null;
     let sourceIsSignedSupabaseUrl = false;
     if (video.video_url) {
+      // POST-REVIEW FIX (IMPORTANT 4): this must run before ANY fetch touches
+      // video.video_url (fetchVideoSize below, for the FILE_UPLOAD strategy) --
+      // previously nothing stood between a caller-supplied video_url and that
+      // fetch, letting an authenticated caller use the differing fixed error
+      // messages as a reachability oracle against internal network targets.
+      assertPublicVideoUrl(video.video_url);
       sourceUrl = video.video_url;
     } else if (video.video_path) {
       sourceUrl = await resolveSignedVideoUrl(video.video_path);

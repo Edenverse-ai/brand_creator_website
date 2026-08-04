@@ -9,6 +9,11 @@ function okSourceResponse(bytes: number) {
   return new Response(new ArrayBuffer(bytes), { status: 200 });
 }
 
+/** A source that correctly honors the Range header (the well-behaved case). */
+function partialSourceResponse(bytes: number) {
+  return new Response(new ArrayBuffer(bytes), { status: 206 });
+}
+
 describe("runChunkedUpload", () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
@@ -16,13 +21,10 @@ describe("runChunkedUpload", () => {
 
   it("uploads a single-chunk job as one GET + one PUT with a matching Content-Range", async () => {
     const videoSize = 50 * 1024 * 1024;
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValue(okSourceResponse(videoSize))
-      .mockImplementation((url, init) => {
-        if (init?.method === "PUT") return Promise.resolve(new Response(null, { status: 200 }));
-        return Promise.resolve(okSourceResponse(videoSize));
-      });
+    const fetchMock = vi.fn((url, init) => {
+      if (init?.method === "PUT") return Promise.resolve(new Response(null, { status: 200 }));
+      return Promise.resolve(okSourceResponse(videoSize));
+    });
     vi.stubGlobal("fetch", fetchMock);
 
     await runChunkedUpload({
@@ -61,7 +63,9 @@ describe("runChunkedUpload", () => {
       const range = (init?.headers as Record<string, string>)?.Range ?? "";
       calls.push(`GET ${range}`);
       const [start, end] = range.replace("bytes=", "").split("-").map(Number);
-      return Promise.resolve(okSourceResponse(end - start + 1));
+      // A well-behaved, Range-respecting source: 206 with exactly the
+      // requested slice.
+      return Promise.resolve(partialSourceResponse(end - start + 1));
     });
     vi.stubGlobal("fetch", fetchMock);
 
@@ -113,13 +117,11 @@ describe("runChunkedUpload", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("accepts a 206 Partial Content source response", async () => {
+  it("accepts a 200 (whole-object) source response for a single-chunk job", async () => {
     const videoSize = 50 * 1024 * 1024;
     const fetchMock = vi
       .fn()
-      .mockImplementationOnce(() =>
-        Promise.resolve(new Response(new ArrayBuffer(videoSize), { status: 206 }))
-      )
+      .mockImplementationOnce(() => Promise.resolve(okSourceResponse(videoSize)))
       .mockImplementationOnce(() => Promise.resolve(new Response(null, { status: 200 })));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -134,6 +136,72 @@ describe("runChunkedUpload", () => {
     ).resolves.toBeUndefined();
   });
 
+  it("accepts a 206 Partial Content source response", async () => {
+    const videoSize = 50 * 1024 * 1024;
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(() => Promise.resolve(partialSourceResponse(videoSize)))
+      .mockImplementationOnce(() => Promise.resolve(new Response(null, { status: 200 })));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      runChunkedUpload({
+        uploadUrl: UPLOAD_URL,
+        sourceUrl: SOURCE_URL,
+        videoSize,
+        chunkSize: videoSize,
+        totalChunkCount: 1,
+      })
+    ).resolves.toBeUndefined();
+  });
+
+  it("throws ChunkFetchError and stops when a multi-chunk source ignores Range and returns 200 with the whole object (CRITICAL 2 regression case)", async () => {
+    const videoSize = 72 * 1024 * 1024;
+    // A Range-ignoring source: always 200 with the FULL object, regardless of
+    // which chunk was requested.
+    const fetchMock = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      if (init?.method === "PUT") return Promise.resolve(new Response(null, { status: 200 }));
+      return Promise.resolve(okSourceResponse(videoSize));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      runChunkedUpload({
+        uploadUrl: UPLOAD_URL,
+        sourceUrl: SOURCE_URL,
+        videoSize,
+        chunkSize: 10 * 1024 * 1024,
+        totalChunkCount: 7,
+      })
+    ).rejects.toThrow(ChunkFetchError);
+
+    // Fails loudly on the very first chunk instead of relaying the wrong
+    // (whole-object) bytes as if they were a 10MB slice.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("throws ChunkFetchError when the fetched byte count doesn't match the requested range, even with an acceptable status (CRITICAL 2 regression case)", async () => {
+    const videoSize = 50 * 1024 * 1024;
+    // Correct status (206), but a short body -- e.g. a truncated/proxy-mangled
+    // response.
+    const fetchMock = vi.fn().mockResolvedValue(partialSourceResponse(videoSize - 1024));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      runChunkedUpload({
+        uploadUrl: UPLOAD_URL,
+        sourceUrl: SOURCE_URL,
+        videoSize,
+        chunkSize: videoSize,
+        totalChunkCount: 1,
+      })
+    ).rejects.toThrow(ChunkFetchError);
+
+    // Never attempted the PUT with a Content-Length that wouldn't match the
+    // actual body.
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("throws ChunkPutError and stops when TikTok rejects a chunk", async () => {
     const videoSize = 72 * 1024 * 1024;
     let putCount = 0;
@@ -142,7 +210,7 @@ describe("runChunkedUpload", () => {
         putCount += 1;
         return Promise.resolve(new Response("server error", { status: 500 }));
       }
-      return Promise.resolve(okSourceResponse(10 * 1024 * 1024));
+      return Promise.resolve(partialSourceResponse(10 * 1024 * 1024));
     });
     vi.stubGlobal("fetch", fetchMock);
 

@@ -1,7 +1,7 @@
 import type { Context, Config } from "@netlify/functions";
 import { runChunkedUpload, type ChunkedUploadJob } from "../../src/lib/tiktok/relay";
-import { isValidRelayAuthHeader } from "../../src/lib/tiktok/relay-auth";
-import { assertRelayTargetUrl } from "../../src/lib/tiktok/relay-url-guard";
+import { isValidRelayAuth } from "../../src/lib/tiktok/relay-auth";
+import { assertSourceTargetUrl, assertUploadTargetUrl } from "../../src/lib/tiktok/relay-url-guard";
 
 /**
  * Background function (Netlify's `*-background` naming convention: up to a
@@ -21,6 +21,12 @@ import { assertRelayTargetUrl } from "../../src/lib/tiktok/relay-url-guard";
  * failure is only visible in this function's own logs (Netlify function logs)
  * and via whatever generic status TikTok reports for an incomplete upload --
  * see the task report's "concerns" section.
+ *
+ * POST-REVIEW FIX: the payload is parsed and shape-validated BEFORE the auth
+ * check now, not after -- isValidRelayAuth (relay-auth.ts) verifies a
+ * signature that covers this exact payload, so the payload has to exist
+ * first. The URL allowlist check (relay-url-guard.ts) still runs last, as
+ * defense-in-depth on top of (not instead of) the signature check.
  */
 
 function isChunkedUploadJob(value: unknown): value is ChunkedUploadJob & { publishId: string } {
@@ -41,20 +47,27 @@ export default async (req: Request, _context: Context) => {
     return new Response("Method not allowed", { status: 405 });
   }
 
-  // Only POST /api/tiktok/publish may invoke this function -- see relay-auth.ts
-  // for why (this function is otherwise an open fetch-from-A-PUT-to-B relay).
-  if (!isValidRelayAuthHeader(req.headers.get("x-relay-auth"))) {
-    return new Response("Unauthorized", { status: 401 });
-  }
-
   const payload: unknown = await req.json().catch(() => null);
   if (!isChunkedUploadJob(payload)) {
     return new Response("Bad request", { status: 400 });
   }
 
+  // Only POST /api/tiktok/publish may invoke this function, and only for the
+  // exact payload + a fresh timestamp it signed -- see relay-auth.ts for why
+  // (this function is otherwise an open fetch-from-A-PUT-to-B relay).
+  if (
+    !isValidRelayAuth(
+      payload,
+      req.headers.get("x-relay-timestamp"),
+      req.headers.get("x-relay-signature")
+    )
+  ) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+
   try {
-    assertRelayTargetUrl(payload.uploadUrl);
-    assertRelayTargetUrl(payload.sourceUrl);
+    assertUploadTargetUrl(payload.uploadUrl);
+    assertSourceTargetUrl(payload.sourceUrl);
   } catch {
     return new Response("Bad request", { status: 400 });
   }

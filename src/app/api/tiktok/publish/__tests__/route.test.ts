@@ -15,8 +15,13 @@ import { POST } from "../route";
 
 const TIKTOK_INIT_URL = "https://open.tiktokapis.com/v2/post/publish/video/init/";
 const SECRET_ACCESS_TOKEN = "SECRET_ACCESS_TOKEN_xyz789";
-const SIGNED_URL_SECRET =
-  "https://loesykbqlhynbjmqxfxc.supabase.co/storage/v1/object/sign/aivideogenerated/vid.mp4?token=SUPER_SECRET_SIGNED_TOKEN";
+
+// The relay's URL allowlist (relay-url-guard.ts, post-review CRITICAL 1 fix)
+// only accepts sourceUrl on this exact configured host -- every FILE_UPLOAD
+// happy-path test below resolves through it, matching what
+// resolveSignedVideoUrl ACTUALLY returns in production.
+const SUPABASE_HOST = "loesykbqlhynbjmqxfxc.supabase.co";
+const SIGNED_URL_SECRET = `https://${SUPABASE_HOST}/storage/v1/object/sign/aivideogenerated/vid.mp4?token=SUPER_SECRET_SIGNED_TOKEN`;
 
 function jsonRequest(body: unknown) {
   return new Request("http://localhost/api/tiktok/publish", {
@@ -73,6 +78,7 @@ describe("POST /api/tiktok/publish", () => {
     vi.clearAllMocks();
     vi.unstubAllGlobals();
     process.env.NEXTAUTH_SECRET = "test-nextauth-secret";
+    process.env.SUPABASE_URL = `https://${SUPABASE_HOST}`;
     delete process.env.TIKTOK_PULL_FROM_URL_ENABLED;
   });
 
@@ -114,14 +120,16 @@ describe("POST /api/tiktok/publish", () => {
 
   it("init success: returns 202 with an ok/publish_id envelope and dispatches the background relay", async () => {
     (getServerSession as any).mockResolvedValue({ user: { id: "user-1" } });
-    const sourceUrl = "https://cdn.example.com/vid.mp4";
-    const fetchMock = buildFetchMock({ sourceUrl });
+    (resolveSignedVideoUrl as any).mockResolvedValue(SIGNED_URL_SECRET);
+    const fetchMock = buildFetchMock({ sourceUrl: SIGNED_URL_SECRET });
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await POST(
       jsonRequest({
         access_token: SECRET_ACCESS_TOKEN,
-        videos: [{ id: "vid-1", video_url: sourceUrl, privacy_level: "SELF_ONLY" }],
+        videos: [
+          { id: "vid-1", video_path: "user-1/task-1/output.mp4", privacy_level: "SELF_ONLY" },
+        ],
       }) as never
     );
 
@@ -151,9 +159,9 @@ describe("POST /api/tiktok/publish", () => {
 
   it("init failure: isolates the failure to that video's result (fixed message, no raw TikTok payload echoed)", async () => {
     (getServerSession as any).mockResolvedValue({ user: { id: "user-1" } });
-    const sourceUrl = "https://cdn.example.com/vid.mp4";
+    (resolveSignedVideoUrl as any).mockResolvedValue(SIGNED_URL_SECRET);
     const fetchMock = buildFetchMock({
-      sourceUrl,
+      sourceUrl: SIGNED_URL_SECRET,
       initStatus: 400,
       initBody: { error: { code: "invalid_param", message: "bad privacy_level for this account" } },
     });
@@ -162,7 +170,9 @@ describe("POST /api/tiktok/publish", () => {
     const res = await POST(
       jsonRequest({
         access_token: SECRET_ACCESS_TOKEN,
-        videos: [{ id: "vid-1", video_url: sourceUrl, privacy_level: "SELF_ONLY" }],
+        videos: [
+          { id: "vid-1", video_path: "user-1/task-1/output.mp4", privacy_level: "SELF_ONLY" },
+        ],
       }) as never
     );
 
@@ -175,15 +185,15 @@ describe("POST /api/tiktok/publish", () => {
 
   it("per-video error isolation: one bad video does not abort a good one in the same request", async () => {
     (getServerSession as any).mockResolvedValue({ user: { id: "user-1" } });
-    const sourceUrl = "https://cdn.example.com/good.mp4";
-    const fetchMock = buildFetchMock({ sourceUrl });
+    (resolveSignedVideoUrl as any).mockResolvedValue(SIGNED_URL_SECRET);
+    const fetchMock = buildFetchMock({ sourceUrl: SIGNED_URL_SECRET });
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await POST(
       jsonRequest({
         access_token: SECRET_ACCESS_TOKEN,
         videos: [
-          { id: "good-1", video_url: sourceUrl, privacy_level: "SELF_ONLY" },
+          { id: "good-1", video_path: "user-1/task-1/good.mp4", privacy_level: "SELF_ONLY" },
           { id: "bad-1", privacy_level: "SELF_ONLY" }, // no video_url or video_path
         ],
       }) as never
@@ -210,7 +220,7 @@ describe("POST /api/tiktok/publish", () => {
     const res = await POST(
       jsonRequest({
         access_token: SECRET_ACCESS_TOKEN,
-        videos: [{ id: "vid-1", video_url: "https://cdn.example.com/x.mp4" }],
+        videos: [{ id: "vid-1", video_path: "user-1/task-1/x.mp4" }],
       }) as never
     );
 
@@ -223,9 +233,8 @@ describe("POST /api/tiktok/publish", () => {
 
   it("resolves video_path via a signed Supabase URL when video_url is absent", async () => {
     (getServerSession as any).mockResolvedValue({ user: { id: "user-1" } });
-    const signedUrl = "https://cdn.example.com/signed/path.mp4?token=abc";
-    (resolveSignedVideoUrl as any).mockResolvedValue(signedUrl);
-    const fetchMock = buildFetchMock({ sourceUrl: signedUrl });
+    (resolveSignedVideoUrl as any).mockResolvedValue(SIGNED_URL_SECRET);
+    const fetchMock = buildFetchMock({ sourceUrl: SIGNED_URL_SECRET });
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await POST(
@@ -244,15 +253,17 @@ describe("POST /api/tiktok/publish", () => {
 
   it("isolates a background-dispatch failure (missing NEXTAUTH_SECRET) to that video's result", async () => {
     (getServerSession as any).mockResolvedValue({ user: { id: "user-1" } });
+    (resolveSignedVideoUrl as any).mockResolvedValue(SIGNED_URL_SECRET);
     delete process.env.NEXTAUTH_SECRET;
-    const sourceUrl = "https://cdn.example.com/vid.mp4";
-    const fetchMock = buildFetchMock({ sourceUrl });
+    const fetchMock = buildFetchMock({ sourceUrl: SIGNED_URL_SECRET });
     vi.stubGlobal("fetch", fetchMock);
 
     const res = await POST(
       jsonRequest({
         access_token: SECRET_ACCESS_TOKEN,
-        videos: [{ id: "vid-1", video_url: sourceUrl, privacy_level: "SELF_ONLY" }],
+        videos: [
+          { id: "vid-1", video_path: "user-1/task-1/output.mp4", privacy_level: "SELF_ONLY" },
+        ],
       }) as never
     );
 
@@ -306,6 +317,106 @@ describe("POST /api/tiktok/publish", () => {
     logSpy.mockRestore();
   });
 
+  describe("post-review: SSRF guards on caller-supplied video_url", () => {
+    it("rejects an internal-target video_url before any network call is made (IMPORTANT 4)", async () => {
+      (getServerSession as any).mockResolvedValue({ user: { id: "user-1" } });
+      const fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+
+      const res = await POST(
+        jsonRequest({
+          access_token: SECRET_ACCESS_TOKEN,
+          videos: [
+            {
+              id: "vid-1",
+              video_url: "https://169.254.169.254/latest/meta-data/",
+              privacy_level: "SELF_ONLY",
+            },
+          ],
+        }) as never
+      );
+
+      const body = await res.json();
+      expect(body.results).toEqual([
+        { id: "vid-1", status: "error", error: "video_url is not allowed" },
+      ]);
+      // No reachability oracle: the route never even attempted to reach it.
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it("rejects a legitimate-looking but non-Supabase video_url for the FILE_UPLOAD strategy specifically, before any network call", async () => {
+      (getServerSession as any).mockResolvedValue({ user: { id: "user-1" } });
+      const fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+
+      const res = await POST(
+        jsonRequest({
+          access_token: SECRET_ACCESS_TOKEN,
+          videos: [
+            {
+              id: "vid-1",
+              video_url: "https://some-cdn.example.com/video.mp4",
+              privacy_level: "SELF_ONLY",
+            },
+          ],
+        }) as never
+      );
+
+      const body = await res.json();
+      expect(body.results).toEqual([
+        {
+          id: "vid-1",
+          status: "error",
+          error: "video_url is not supported for direct upload; use video_path instead",
+        },
+      ]);
+      // Rejected before fetchVideoSize/init -- no TikTok init call, no size probe.
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("post-review: accepts the live client's camelCase field names (IMPORTANT 3)", () => {
+    it("processes a camelCase body (videoPath/privacyLevel) identically to snake_case, not as a bogus 'missing privacy_level' error", async () => {
+      (getServerSession as any).mockResolvedValue({ user: { id: "user-1" } });
+      (resolveSignedVideoUrl as any).mockResolvedValue(SIGNED_URL_SECRET);
+      const fetchMock = buildFetchMock({ sourceUrl: SIGNED_URL_SECRET });
+      vi.stubGlobal("fetch", fetchMock);
+
+      const res = await POST(
+        jsonRequest({
+          access_token: SECRET_ACCESS_TOKEN,
+          videos: [
+            {
+              id: "vid-1",
+              videoPath: "user-1/task-1/output.mp4",
+              privacyLevel: "SELF_ONLY",
+              brandContent: true,
+              brandOrganic: false,
+              disableComment: false,
+              disableDuet: true,
+              disableStitch: true,
+            },
+          ],
+        }) as never
+      );
+
+      const body = await res.json();
+      expect(body.results).toEqual([{ id: "vid-1", status: "ok", publish_id: "pub-1" }]);
+      expect(resolveSignedVideoUrl).toHaveBeenCalledWith("user-1/task-1/output.mp4");
+
+      const initCall = fetchMock.mock.calls.find(([u]) => String(u) === TIKTOK_INIT_URL);
+      const initBody = JSON.parse((initCall![1] as RequestInit).body as string);
+      expect(initBody.post_info).toMatchObject({
+        privacy_level: "SELF_ONLY",
+        brand_content_toggle: true,
+        brand_organic_toggle: false,
+        disable_comment: false,
+        disable_duet: true,
+        disable_stitch: true,
+      });
+    });
+  });
+
   describe("TIKTOK_PULL_FROM_URL_ENABLED=true (inert by default -- Part B)", () => {
     it("uses source=PULL_FROM_URL and skips the relay entirely for a caller-supplied video_url", async () => {
       (getServerSession as any).mockResolvedValue({ user: { id: "user-1" } });
@@ -344,9 +455,7 @@ describe("POST /api/tiktok/publish", () => {
     it("rewrites a video_path-derived signed URL onto the verified /media prefix before calling TikTok", async () => {
       (getServerSession as any).mockResolvedValue({ user: { id: "user-1" } });
       process.env.TIKTOK_PULL_FROM_URL_ENABLED = "true";
-      process.env.SUPABASE_URL = "https://loesykbqlhynbjmqxfxc.supabase.co";
-      const signedUrl =
-        "https://loesykbqlhynbjmqxfxc.supabase.co/storage/v1/object/sign/aivideogenerated/x.mp4?token=abc";
+      const signedUrl = `https://${SUPABASE_HOST}/storage/v1/object/sign/aivideogenerated/x.mp4?token=abc`;
       (resolveSignedVideoUrl as any).mockResolvedValue(signedUrl);
 
       const fetchMock = vi.fn(async (url: unknown, _init?: RequestInit) => {
@@ -377,8 +486,6 @@ describe("POST /api/tiktok/publish", () => {
         source: "PULL_FROM_URL",
         video_url: "https://cricher.ai/media/object/sign/aivideogenerated/x.mp4?token=abc",
       });
-
-      delete process.env.SUPABASE_URL;
     });
   });
 });

@@ -15,12 +15,32 @@
 # Same-domain proxy for TikTok's PULL_FROM_URL source (Task 3.1). Bytes flow
 # Netlify CDN -> Supabase Storage directly -- no function, no timeout. This is
 # infrastructure for the PULL_FROM_URL path (src/lib/tiktok/flags.ts,
-# TIKTOK_PULL_FROM_URL_ENABLED), which stays OFF until the owner verifies this
-# prefix in the TikTok developer console -- see .superpowers/sdd/task-3-report.md
-# for the exact steps. Safe to deploy inert: nothing links to /media/* until
-# that flag is on.
+# TIKTOK_PULL_FROM_URL_ENABLED); see .superpowers/sdd/task-3-report.md for the
+# owner steps to enable it.
+#
+# POST-REVIEW FIX (IMPORTANT 5): this redirect is LIVE the moment this
+# deploys, regardless of the feature flag -- the flag only gates whether
+# TikTok is ever TOLD this URL exists, not whether the proxy itself is
+# reachable ("safe to deploy inert" in the original comment here was wrong).
+# The path is now scoped to exactly the one signed-URL-fetch shape this
+# system produces (object/sign/aivideogenerated/*) instead of the entire
+# Storage REST surface for every bucket -- no bucket listing, no other
+# buckets, no upload endpoints reachable through it.
+#
+# Residual, accepted tradeoff: this is still a same-origin proxy, so a
+# same-origin request (e.g. an <img> tag anywhere a logged-in user's browser
+# renders it) attaches this site's cookies, including the NextAuth session
+# cookie, and Netlify's redirect proxying forwards the original request's
+# headers -- including Cookie -- to Supabase. Supabase has no notion of that
+# cookie and authorizes solely via the `?token=` query parameter already in
+# the signed URL, so this isn't an authorization bypass, but it is a
+# session-cookie disclosure to a third-party origin that a plain TOML
+# redirect has no mechanism to strip. Narrowing the path (above) shrinks the
+# blast radius; it doesn't eliminate this characteristic of same-origin
+# proxying. Revisit with an Edge Function (which CAN rewrite/strip headers)
+# if this needs to be fully closed.
 [[redirects]]
   force = true
-  from = "/media/*"
-  to = "https://loesykbqlhynbjmqxfxc.supabase.co/storage/v1/:splat"
+  from = "/media/object/sign/aivideogenerated/*"
+  to = "https://loesykbqlhynbjmqxfxc.supabase.co/storage/v1/object/sign/aivideogenerated/:splat"
   status = 200

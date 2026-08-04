@@ -59,7 +59,7 @@ export class VideoTooLargeError extends Error {
  * in this module's header.
  */
 export function computeChunkPlan(videoSize: number): ChunkPlan {
-  if (!Number.isFinite(videoSize) || videoSize <= 0) {
+  if (!Number.isInteger(videoSize) || videoSize <= 0) {
     throw new RangeError(`videoSize must be a positive integer, got ${videoSize}`);
   }
 

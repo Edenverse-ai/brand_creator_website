@@ -1,3 +1,6 @@
+import { UnsafeVideoUrlError } from "./public-url-guard";
+import { UnsafeRelayTargetError } from "./relay-url-guard";
+
 /**
  * Fixed, caller-safe error messages + typed error classes for the TikTok publish
  * routes and background relay.
@@ -12,6 +15,8 @@
 export const TIKTOK_MESSAGES = {
   missingPrivacyLevel: "Missing privacy_level for TikTok upload",
   missingVideoSource: "Missing video_url or video_path",
+  unsafeVideoUrl: "video_url is not allowed",
+  sourceNotRelayable: "video_url is not supported for direct upload; use video_path instead",
   signFailed: "Failed to sign video URL",
   sizeUnknown: "Unable to determine video size",
   initFailed: "TikTok init failed",
@@ -65,6 +70,8 @@ export class TikTokStatusFetchError extends Error {
 
 /** Maps a caught error to one of the fixed, caller-safe TIKTOK_MESSAGES strings. */
 export function publicMessageFor(error: unknown): string {
+  if (error instanceof UnsafeVideoUrlError) return TIKTOK_MESSAGES.unsafeVideoUrl;
+  if (error instanceof UnsafeRelayTargetError) return TIKTOK_MESSAGES.sourceNotRelayable;
   if (error instanceof TikTokSignError) return TIKTOK_MESSAGES.signFailed;
   if (error instanceof TikTokVideoSizeError) return TIKTOK_MESSAGES.sizeUnknown;
   if (error instanceof TikTokInitError) return TIKTOK_MESSAGES.initFailed;

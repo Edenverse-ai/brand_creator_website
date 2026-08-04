@@ -1,6 +1,6 @@
 import "server-only";
 import { fetchWithTimeout } from "./fetch-with-timeout";
-import { buildRelayAuthHeader } from "./relay-auth";
+import { buildRelayAuthHeaders } from "./relay-auth";
 import { TikTokDispatchError } from "./errors";
 
 export interface BackgroundUploadJob {
@@ -39,9 +39,11 @@ function backgroundFunctionBaseUrl(): string {
  * this call -- like everything else touching it -- must never be logged.
  */
 export async function dispatchBackgroundUpload(job: BackgroundUploadJob): Promise<void> {
-  let authHeader: string;
+  let authHeaders: ReturnType<typeof buildRelayAuthHeaders>;
   try {
-    authHeader = buildRelayAuthHeader();
+    // Signs this exact payload + a fresh timestamp (relay-auth.ts) -- not a
+    // static token, so it can't be replayed for a different job.
+    authHeaders = buildRelayAuthHeaders(job);
   } catch (error) {
     throw new TikTokDispatchError(error);
   }
@@ -54,7 +56,7 @@ export async function dispatchBackgroundUpload(job: BackgroundUploadJob): Promis
       url,
       {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-relay-auth": authHeader },
+        headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify(job),
       },
       DISPATCH_TIMEOUT_MS
