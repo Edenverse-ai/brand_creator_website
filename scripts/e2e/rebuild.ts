@@ -2,7 +2,7 @@
 import { execSync } from "node:child_process";
 
 const COMPOSE = "docker compose -p brand-creator-e2e -f docker/compose.e2e.yml";
-const REBUILDABLE = ["web", "api", "supabase", "pg"] as const;
+const REBUILDABLE = ["web", "api"] as const;
 type Service = (typeof REBUILDABLE)[number];
 
 function parseService(argv: readonly string[]): Service | null {

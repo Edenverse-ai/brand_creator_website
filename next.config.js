@@ -42,11 +42,11 @@ const nextConfig = {
         protocol: "https",
         hostname: "*.supabase.co",
       },
-      // Local Supabase Storage proxy (e2e/dev). Used by `npm run dev:e2e`.
+      // Local Supabase CLI storage gateway (e2e/dev). Used by `npm run dev:e2e`.
       {
         protocol: "http",
         hostname: "localhost",
-        port: "54331",
+        port: "54321",
       },
     ],
     formats: ["image/avif", "image/webp"],

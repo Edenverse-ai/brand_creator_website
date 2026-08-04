@@ -62,7 +62,7 @@
   <header>
     <div>
       <h1>E2E Stack Dashboard</h1>
-      <div class="sub">brand-creator-e2e · local docker compose · <span id="now"></span></div>
+      <div class="sub">brand-creator-e2e · supabase CLI + docker compose (api, web) · <span id="now"></span></div>
     </div>
     <button id="refresh">Refresh status</button>
   </header>
@@ -86,7 +86,8 @@
         <tr><td>Creator AI Video</td><td><a href="http://localhost:12001/creatorportal/ai-video" target="_blank">/creatorportal/ai-video</a></td></tr>
         <tr><td>Backend API root</td><td><a href="http://localhost:8001/" target="_blank">http://localhost:8001/</a></td></tr>
         <tr><td>API health</td><td><a href="http://localhost:8001/health" target="_blank">http://localhost:8001/health</a></td></tr>
-        <tr><td>Supabase storage stub</td><td><a href="http://localhost:54330/status" target="_blank">http://localhost:54330/status</a></td></tr>
+        <tr><td>Supabase API (Kong)</td><td><a href="http://localhost:54321/rest/v1/" target="_blank">http://localhost:54321/rest/v1/</a></td></tr>
+        <tr><td>Supabase Studio</td><td><a href="http://localhost:54323/" target="_blank">http://localhost:54323/</a></td></tr>
       </tbody>
     </table>
   </div>
@@ -110,10 +111,10 @@
       <tbody>
         <tr><th>Host</th><td><code>localhost</code></td></tr>
         <tr><th>Port</th><td><code>54329</code></td></tr>
-        <tr><th>User</th><td><code>e2e</code></td></tr>
-        <tr><th>Password</th><td><code>e2e</code></td></tr>
-        <tr><th>Database</th><td><code>brand_creator_e2e</code></td></tr>
-        <tr><th>Connection</th><td><code>postgres://e2e:e2e@localhost:54329/brand_creator_e2e</code></td></tr>
+        <tr><th>User</th><td><code>postgres</code></td></tr>
+        <tr><th>Password</th><td><code>postgres</code></td></tr>
+        <tr><th>Database</th><td><code>postgres</code></td></tr>
+        <tr><th>Connection</th><td><code>postgres://postgres:postgres@localhost:54329/postgres</code></td></tr>
       </tbody>
     </table>
   </div>
@@ -129,8 +130,10 @@
     <div class="cmd"><code>npm run e2e</code><span class="desc">Legacy fast path: dev webServer, no compose. Smoke only.</span></div>
   </div>
 
-  <h2>Direct docker compose</h2>
-  <div class="card"><pre>docker compose -f docker/compose.e2e.yml up -d
+  <h2>Direct CLI / docker compose</h2>
+  <div class="card"><pre>npx supabase status
+npx supabase stop --no-backup
+docker compose -f docker/compose.e2e.yml up -d
 docker compose -f docker/compose.e2e.yml ps
 docker compose -f docker/compose.e2e.yml logs -f web
 docker compose -f docker/compose.e2e.yml logs -f api
@@ -141,10 +144,11 @@ docker compose -f docker/compose.e2e.yml down -v</pre></div>
 
 <script>
   const services = [
-    { name: "web (Next.js)",      url: "http://localhost:12001/",       port: "12001 → 3000",  container: "brand-creator-e2e-web-1" },
-    { name: "api (FastAPI)",      url: "http://localhost:8001/health",  port: "8001 → 8000",   container: "brand-creator-e2e-api-1" },
-    { name: "supabase storage",   url: "http://localhost:54330/status", port: "54330 → 5000",  container: "brand-creator-e2e-supabase-1" },
-    { name: "postgres",           url: null,                            port: "54329 → 5432",  container: "brand-creator-e2e-pg-1", note: "TCP only — browser cannot probe; use psql or e2e:up" },
+    { name: "web (Next.js)",      url: "http://localhost:12001/",         port: "12001 (host network)", container: "brand-creator-e2e-web-1" },
+    { name: "api (FastAPI)",      url: "http://localhost:8001/health",    port: "8001 (host network)",  container: "brand-creator-e2e-api-1" },
+    { name: "supabase (Kong)",    url: "http://localhost:54321/rest/v1/", port: "54321",                 container: "supabase_kong_brand_creator_website" },
+    { name: "supabase Studio",    url: "http://localhost:54323/",         port: "54323",                 container: "supabase_studio_brand_creator_website" },
+    { name: "postgres",           url: null,                              port: "54329",                 container: "supabase_db_brand_creator_website", note: "TCP only — browser cannot probe; use npx supabase status or e2e:up" },
   ];
 
   const grid = document.getElementById("svcs");

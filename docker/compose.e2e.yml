@@ -1,74 +1,44 @@
 name: brand-creator-e2e
 
+# Postgres + Supabase Storage/Auth/REST are provided by the official Supabase
+# CLI (`npx supabase start`, config in supabase/config.toml) — see
+# scripts/e2e/up.ts / up-infra.ts, which start it alongside this file. This
+# compose file now only builds the two services the CLI doesn't provide: the
+# FastAPI sidecar (still needed pending its own removal in a later phase) and
+# the Next.js app.
+#
+# Both services run with `network_mode: host` rather than bridge+port-mapping.
+# This isn't just convenience: both mint Supabase Storage signed URLs
+# server-side (web: src/lib/supabase-admin.ts for presigned uploads/downloads;
+# api: ai_video_service.py for signed download URLs) that get handed to the
+# browser, which then hits that URL directly. The URL is built from whatever
+# SUPABASE_URL the container used, so the container and the host-side
+# Playwright browser must be able to reach Supabase via the *same*
+# host:port — host networking guarantees that (`localhost:54321` resolves
+# identically on both sides). Bridge networking + `host.docker.internal`
+# can't satisfy this: containers can reach the host that way, but the host
+# browser can't resolve `host.docker.internal` back to itself. Host
+# networking is fully supported on Linux (GitHub Actions runners) and on
+# OrbStack (unlike Docker Desktop, which only partially supports it on Mac).
 services:
-  pg:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: e2e
-      POSTGRES_PASSWORD: e2e
-      POSTGRES_DB: brand_creator_e2e
-    ports: ["54329:5432"]
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U e2e -d brand_creator_e2e"]
-      interval: 2s
-      timeout: 3s
-      retries: 30
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-      - ./init:/docker-entrypoint-initdb.d:ro
-
-  supabase:
-    image: supabase/storage-api:v1.11.13
-    depends_on:
-      pg: { condition: service_healthy }
-    environment:
-      ANON_KEY: e2e-anon-key
-      # Pre-signed JWT for role=service_role using PGRST_JWT_SECRET below.
-      # Generated via: HMAC-SHA256 on header+payload with the same secret.
-      SERVICE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UiLCJpYXQiOjE3MDAwMDAwMDAsImV4cCI6NDAwMDAwMDAwMH0.ioNpxDRMKY2wlaj0A6Jf6bHNoNBFz7YWsVhEj0cOUfo
-      POSTGREST_URL: http://pg:5432
-      PGRST_JWT_SECRET: e2e-jwt-secret-32chars-long-min-len
-      DATABASE_URL: postgres://e2e:e2e@pg:5432/brand_creator_e2e
-      # Tell storage-api's knex pool to put `storage` first on search_path so
-      # unqualified "buckets"/"objects" queries find the storage schema tables.
-      DB_SEARCH_PATH: storage,public
-      DB_INSTALL_ROLES: "false"
-      DB_ALLOW_MIGRATIONS: "true"
-      FILE_SIZE_LIMIT: "209715200"
-      STORAGE_BACKEND: file
-      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
-      TENANT_ID: e2e
-      REGION: local
-      GLOBAL_S3_BUCKET: e2e
-    ports: ["54330:5000"]
-    healthcheck:
-      # Use 0.0.0.0 — alpine containers may not resolve 'localhost' to IPv4
-      test: ["CMD-SHELL", "wget -qO- http://0.0.0.0:5000/status > /dev/null"]
-      interval: 3s
-      timeout: 5s
-      retries: 30
-    volumes:
-      - storage:/var/lib/storage
-
   api:
     build:
       context: ../backend
       dockerfile: Dockerfile
-    depends_on:
-      pg: { condition: service_healthy }
+    network_mode: host
+    # Dockerfile's default CMD binds :8000; override to the port every existing
+    # script/env file in this repo already expects for the FastAPI sidecar.
+    command: ["uvicorn", "app.main.main:app", "--host", "0.0.0.0", "--port", "8001"]
     environment:
-      DATABASE_URL: postgres://e2e:e2e@pg:5432/brand_creator_e2e
-      SUPABASE_URL: http://supabase:5000
-      # Same pre-signed service_role JWT used by the supabase service (PGRST_JWT_SECRET).
-      # The supabase python client validates the key shape at create_client(), so a plain
-      # string like "e2e-service-key" raises "Invalid API key" and leaves the global
-      # supabase = None, which surfaces as 500 "Supabase client not configured".
-      SUPABASE_SERVICE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UiLCJpYXQiOjE3MDAwMDAwMDAsImV4cCI6NDAwMDAwMDAwMH0.ioNpxDRMKY2wlaj0A6Jf6bHNoNBFz7YWsVhEj0cOUfo
+      DATABASE_URL: postgres://postgres:postgres@localhost:54329/postgres
+      SUPABASE_URL: http://localhost:54321
+      # Supabase CLI's fixed local-dev service_role JWT — identical on every
+      # default `supabase init` project (signed with the CLI's well-known
+      # default JWT secret), not a real secret. Printed by `supabase start`.
+      SUPABASE_SERVICE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
       ENV: e2e
-    ports: ["8001:8000"]
     healthcheck:
-      # FastAPI only accepts GET; wget -qO- (GET) not --spider (HEAD); use 0.0.0.0 for IPv4
-      test: ["CMD-SHELL", "wget -qO- http://0.0.0.0:8000/health > /dev/null"]
+      test: ["CMD-SHELL", "wget -qO- http://0.0.0.0:8001/health > /dev/null"]
       interval: 3s
       timeout: 5s
       retries: 30
@@ -78,45 +48,27 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.web
       args:
-        DATABASE_URL: postgres://e2e:e2e@pg:5432/brand_creator_e2e
+        DATABASE_URL: postgres://postgres:postgres@localhost:54329/postgres
+        NEXT_PUBLIC_SUPABASE_URL: http://localhost:54321
+    network_mode: host
+    # Dockerfile's default CMD binds :3000; override to the port every existing
+    # script/env file in this repo already expects for the e2e web app.
+    command: ["npx", "next", "start", "-p", "12001", "-H", "0.0.0.0"]
     depends_on:
       api: { condition: service_healthy }
     environment:
-      DATABASE_URL: postgres://e2e:e2e@pg:5432/brand_creator_e2e
+      DATABASE_URL: postgres://postgres:postgres@localhost:54329/postgres
       NEXTAUTH_URL: http://localhost:12001
       NEXTAUTH_SECRET: e2e-nextauth-secret-not-prod
       NEXT_PUBLIC_API_URL: http://localhost:8001
-      CAMPAIGNS_API_URL: http://api:8000
-      # Path-rewriting proxy: supabase-js prepends `/storage/v1/` which
-      # standalone storage-api does not serve. The `proxy` service strips that
-      # prefix and forwards to supabase:5000.
-      SUPABASE_URL: http://proxy:80
-      # Pre-signed service_role JWT (matches supabase service's PGRST_JWT_SECRET).
-      SUPABASE_SERVICE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoic2VydmljZV9yb2xlIiwiaXNzIjoic3VwYWJhc2UiLCJpYXQiOjE3MDAwMDAwMDAsImV4cCI6NDAwMDAwMDAwMH0.ioNpxDRMKY2wlaj0A6Jf6bHNoNBFz7YWsVhEj0cOUfo
+      CAMPAIGNS_API_URL: http://localhost:8001
+      SUPABASE_URL: http://localhost:54321
+      NEXT_PUBLIC_SUPABASE_URL: http://localhost:54321
+      SUPABASE_SERVICE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
       E2E_EXPLORE: "1"
       NODE_ENV: "test"
-    ports: ["12001:3000"]
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://0.0.0.0:3000/ > /dev/null"]
+      test: ["CMD-SHELL", "wget -qO- http://0.0.0.0:12001/ > /dev/null"]
       interval: 5s
       timeout: 5s
       retries: 60
-
-  # Path-rewriting proxy in front of the standalone supabase/storage-api.
-  # supabase-js calls /storage/v1/object/...; storage-api serves /object/...
-  proxy:
-    image: nginx:alpine
-    depends_on:
-      supabase: { condition: service_healthy }
-    volumes:
-      - ./supabase-proxy.conf:/etc/nginx/conf.d/default.conf:ro
-    ports: ["54331:80"]
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://0.0.0.0:80/storage/v1/ > /dev/null 2>&1 || true"]
-      interval: 3s
-      timeout: 5s
-      retries: 30
-
-volumes:
-  pgdata:
-  storage:
