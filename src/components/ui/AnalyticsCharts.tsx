@@ -31,6 +31,7 @@ export default function AnalyticsCharts() {
           <YAxis
             yAxisId="left"
             orientation="left"
+            domain={["dataMin - 200", "dataMax + 200"]}
             label={{ value: "Earnings ($)", angle: -90, position: "insideLeft" }}
           />
           <YAxis
