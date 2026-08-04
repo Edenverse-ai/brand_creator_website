@@ -21,12 +21,35 @@ import {
 } from "@/lib/supabase-admin";
 import { isOwnedStoragePath } from "@/lib/storage/path-ownership";
 
+// Same charset + cap as the minting route's taskId (src/app/api/ai-videos/tasks/
+// upload-url/route.ts) — taskId becomes both this row's primary key and a storage
+// path segment, so it must stay restricted to cuid2's charset. 32 is a generous
+// ceiling above cuid2's actual 24-character output (matching the "picked, generous
+// ceiling" convention used for id_number in tiktokverification/id-number.ts).
+const TASK_ID_MAX_LENGTH = 32;
+
 const JsonBody = z.object({
   prompt: z.string(),
-  taskId: z.string().min(1),
+  taskId: z
+    .string()
+    .regex(/^[a-z0-9]+$/, "Invalid taskId")
+    .max(TASK_ID_MAX_LENGTH),
   portrait_path: z.string().optional(),
   voice_path: z.string().optional(),
 });
+
+/**
+ * `isOwnedStoragePath` only constrains the FIRST path segment (the owner id) — it
+ * doesn't know about `taskId` at all, so a portrait/voice path under the same
+ * owner's OTHER task folder would still pass it. Require the SECOND segment to
+ * equal the submitted taskId too, so ownership is validated against the specific
+ * task this request is creating, not just "some folder this user owns somewhere."
+ * Same-user-only impact today (no cross-user path gets any closer to passing), but
+ * it closes that gap.
+ */
+function isOwnedTaskPath(path: string, ownerId: string, taskId: string): boolean {
+  return isOwnedStoragePath(path, ownerId) && path.split("/")[1] === taskId;
+}
 
 /**
  * Native JSON path: portrait/voice bytes were already uploaded direct-to-storage via
@@ -57,7 +80,7 @@ async function handleJsonTaskCreate(
   }
 
   const pathsToCheck = voicePath ? [portraitPath, voicePath] : [portraitPath];
-  if (pathsToCheck.some((path) => !isOwnedStoragePath(path, sessionUserId))) {
+  if (pathsToCheck.some((path) => !isOwnedTaskPath(path, sessionUserId, taskId))) {
     return NextResponse.json(
       { error: "Storage path does not belong to the current session" },
       { status: 403 }

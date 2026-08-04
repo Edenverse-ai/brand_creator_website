@@ -50,9 +50,9 @@ function jsonRequest(body: unknown) {
 const OWNER = "user-1";
 const validBody = {
   prompt: "Make a video",
-  taskId: "task-abc",
-  portrait_path: `${OWNER}/task-abc/portrait.jpg`,
-  voice_path: `${OWNER}/task-abc/voice.mp3`,
+  taskId: "taskabc",
+  portrait_path: `${OWNER}/taskabc/portrait.jpg`,
+  voice_path: `${OWNER}/taskabc/voice.mp3`,
 };
 
 describe("POST /api/ai-videos/tasks (JSON path)", () => {
@@ -81,6 +81,26 @@ describe("POST /api/ai-videos/tasks (JSON path)", () => {
     expect(aiVideoTaskCreate).not.toHaveBeenCalled();
   });
 
+  it("returns 400 when taskId contains characters outside [a-z0-9] (aligned with the minting route's charset)", async () => {
+    (getServerSession as any).mockResolvedValue({ user: { id: OWNER } });
+
+    const res = await POST(jsonRequest({ ...validBody, taskId: "task-abc" }) as never);
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "Invalid input" });
+    expect(aiVideoTaskCreate).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when taskId exceeds the 32-character cap", async () => {
+    (getServerSession as any).mockResolvedValue({ user: { id: OWNER } });
+
+    const res = await POST(jsonRequest({ ...validBody, taskId: "a".repeat(33) }) as never);
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "Invalid input" });
+    expect(aiVideoTaskCreate).not.toHaveBeenCalled();
+  });
+
   it("returns 400 'Prompt required' when prompt is blank", async () => {
     (getServerSession as any).mockResolvedValue({ user: { id: OWNER } });
 
@@ -97,8 +117,8 @@ describe("POST /api/ai-videos/tasks (JSON path)", () => {
     const res = await POST(
       jsonRequest({
         prompt: "hi",
-        taskId: "task-abc",
-        voice_path: `${OWNER}/task-abc/voice.mp3`,
+        taskId: "taskabc",
+        voice_path: `${OWNER}/taskabc/voice.mp3`,
       }) as never
     );
 
@@ -111,7 +131,7 @@ describe("POST /api/ai-videos/tasks (JSON path)", () => {
     (getServerSession as any).mockResolvedValue({ user: { id: OWNER } });
 
     const res = await POST(
-      jsonRequest({ ...validBody, portrait_path: "someone-else/task-abc/portrait.jpg" }) as never
+      jsonRequest({ ...validBody, portrait_path: "someone-else/taskabc/portrait.jpg" }) as never
     );
 
     expect(res.status).toBe(403);
@@ -122,7 +142,21 @@ describe("POST /api/ai-videos/tasks (JSON path)", () => {
     (getServerSession as any).mockResolvedValue({ user: { id: OWNER } });
 
     const res = await POST(
-      jsonRequest({ ...validBody, voice_path: "someone-else/task-abc/voice.mp3" }) as never
+      jsonRequest({ ...validBody, voice_path: "someone-else/taskabc/voice.mp3" }) as never
+    );
+
+    expect(res.status).toBe(403);
+    expect(aiVideoTaskCreate).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 when portrait_path's owner segment matches but its task segment does not match the submitted taskId", async () => {
+    (getServerSession as any).mockResolvedValue({ user: { id: OWNER } });
+
+    // isOwnedStoragePath alone would accept this (first segment === OWNER); the
+    // taskId-segment check is what must reject it, since the path actually belongs
+    // to a DIFFERENT task folder this same user owns.
+    const res = await POST(
+      jsonRequest({ ...validBody, portrait_path: `${OWNER}/some-other-task/portrait.jpg` }) as never
     );
 
     expect(res.status).toBe(403);
@@ -137,7 +171,7 @@ describe("POST /api/ai-videos/tasks (JSON path)", () => {
     const res = await POST(
       jsonRequest({
         ...validBody,
-        portrait_path: `${OWNER}/../someone-else/task-abc/portrait.jpg`,
+        portrait_path: `${OWNER}/../someone-else/taskabc/portrait.jpg`,
       }) as never
     );
 
@@ -147,27 +181,27 @@ describe("POST /api/ai-videos/tasks (JSON path)", () => {
 
   it("creates the AiVideoTask row with field parity to the multipart branch and returns { id, status }", async () => {
     (getServerSession as any).mockResolvedValue({ user: { id: OWNER } });
-    aiVideoTaskCreate.mockResolvedValue({ id: "task-abc", status: "QUEUED" });
+    aiVideoTaskCreate.mockResolvedValue({ id: "taskabc", status: "QUEUED" });
 
     const res = await POST(jsonRequest(validBody) as never);
 
     expect(aiVideoTaskCreate).toHaveBeenCalledWith({
       data: {
-        id: "task-abc",
+        id: "taskabc",
         creatorId: OWNER,
         prompt: "Make a video",
-        portraitPath: `${OWNER}/task-abc/portrait.jpg`,
-        voicePath: `${OWNER}/task-abc/voice.mp3`,
+        portraitPath: `${OWNER}/taskabc/portrait.jpg`,
+        voicePath: `${OWNER}/taskabc/voice.mp3`,
       },
       select: { id: true, status: true },
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ id: "task-abc", status: "QUEUED" });
+    expect(await res.json()).toEqual({ id: "taskabc", status: "QUEUED" });
   });
 
   it("stores voicePath as null when voice_path is omitted", async () => {
     (getServerSession as any).mockResolvedValue({ user: { id: OWNER } });
-    aiVideoTaskCreate.mockResolvedValue({ id: "task-abc", status: "QUEUED" });
+    aiVideoTaskCreate.mockResolvedValue({ id: "taskabc", status: "QUEUED" });
     const { voice_path: _voicePath, ...withoutVoice } = validBody;
 
     await POST(jsonRequest(withoutVoice) as never);
@@ -186,8 +220,8 @@ describe("POST /api/ai-videos/tasks (JSON path)", () => {
     expect(res.status).toBe(500);
     expect(await res.json()).toEqual({ error: "Failed to create task" });
     expect(deleteFromBucket).toHaveBeenCalledWith([
-      `${OWNER}/task-abc/portrait.jpg`,
-      `${OWNER}/task-abc/voice.mp3`,
+      `${OWNER}/taskabc/portrait.jpg`,
+      `${OWNER}/taskabc/voice.mp3`,
     ]);
   });
 });
