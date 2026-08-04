@@ -48,7 +48,7 @@
       "eslint --fix --max-warnings=0"
     ],
     "*.{ts,tsx}": [
-      "tsc-files --noEmit"
+      "bash -c 'npx tsc-files --noEmit \"$@\" src/types/next-auth.d.ts' --"
     ],
     "prisma/schema.prisma": [
       "prisma format",
