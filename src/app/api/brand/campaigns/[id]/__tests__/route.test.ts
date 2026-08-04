@@ -278,6 +278,52 @@ describe("PUT /api/brand/campaigns/[id]", () => {
     expect(prisma.campaigns.update).not.toHaveBeenCalled();
   });
 
+  it("returns 400 for a calendar-invalid deadline (Feb 30) instead of silently writing March 2", async () => {
+    // Regression: new Date("2026-02-30T00:00:00.000Z") does not throw, it rolls over to
+    // March 2 — a shape-only guard would let this write the wrong date and return 200.
+    authedBrand();
+    (prisma.brandProfile.findUnique as any).mockResolvedValue({ id: "brand-1" });
+    (prisma.campaigns.findFirst as any).mockResolvedValue({ id: VALID_CAMPAIGN_ID });
+
+    const res = await PUT(
+      jsonReq("PUT", { title: "Updated", deadline: "2026-02-30" }),
+      ctx(VALID_CAMPAIGN_ID)
+    );
+
+    expect(res.status).toBe(400);
+    expect(prisma.campaigns.update).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for an out-of-range month (2026-13-01) instead of a generic 500", async () => {
+    authedBrand();
+    (prisma.brandProfile.findUnique as any).mockResolvedValue({ id: "brand-1" });
+    (prisma.campaigns.findFirst as any).mockResolvedValue({ id: VALID_CAMPAIGN_ID });
+
+    const res = await PUT(
+      jsonReq("PUT", { title: "Updated", deadline: "2026-13-01" }),
+      ctx(VALID_CAMPAIGN_ID)
+    );
+
+    expect(res.status).toBe(400);
+    expect(prisma.campaigns.update).not.toHaveBeenCalled();
+  });
+
+  it("still writes a valid calendar deadline (regression guard: the calendar check does not reject good dates)", async () => {
+    authedBrand();
+    (prisma.brandProfile.findUnique as any).mockResolvedValue({ id: "brand-1" });
+    (prisma.campaigns.findFirst as any).mockResolvedValue({ id: VALID_CAMPAIGN_ID });
+    (prisma.campaigns.update as any).mockResolvedValue({});
+
+    const res = await PUT(
+      jsonReq("PUT", { title: "Updated", deadline: "2026-02-28" }),
+      ctx(VALID_CAMPAIGN_ID)
+    );
+
+    expect(res.status).toBe(200);
+    const data = (prisma.campaigns.update as any).mock.calls[0][0].data;
+    expect(data.deadline.toISOString()).toBe("2026-02-28T00:00:00.000Z");
+  });
+
   it("NOTE (live-caller consequence): rejects the exact non-column keys the brandportal edit form sends today (product_photo_url, budgetUnit) with a clean 422", async () => {
     authedBrand();
     (prisma.brandProfile.findUnique as any).mockResolvedValue({ id: "brand-1" });

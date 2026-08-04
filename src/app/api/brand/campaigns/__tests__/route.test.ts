@@ -294,6 +294,37 @@ describe("POST /api/brand/campaigns", () => {
     expect(prisma.campaigns.create).not.toHaveBeenCalled();
   });
 
+  it("returns 400 for a calendar-invalid deadline (Feb 30) instead of silently writing March 2", async () => {
+    // Regression: new Date("2026-02-30T00:00:00.000Z") does not throw, it rolls over to
+    // March 2 — a shape-only guard would let this write the wrong date and return 200.
+    authedBrand();
+
+    const res = await POST(jsonPost({ title: "Campaign", deadline: "2026-02-30" }));
+
+    expect(res.status).toBe(400);
+    expect(prisma.campaigns.create).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 for an out-of-range month (2026-13-01) instead of a generic 500", async () => {
+    authedBrand();
+
+    const res = await POST(jsonPost({ title: "Campaign", deadline: "2026-13-01" }));
+
+    expect(res.status).toBe(400);
+    expect(prisma.campaigns.create).not.toHaveBeenCalled();
+  });
+
+  it("still writes a valid calendar deadline (regression guard: the calendar check does not reject good dates)", async () => {
+    authedBrand();
+    (prisma.campaigns.create as any).mockResolvedValue({ id: "new-campaign-id" });
+
+    const res = await POST(jsonPost({ title: "Campaign", deadline: "2026-02-28" }));
+
+    expect(res.status).toBe(200);
+    const data = (prisma.campaigns.create as any).mock.calls[0][0].data;
+    expect(data.deadline.toISOString()).toBe("2026-02-28T00:00:00.000Z");
+  });
+
   it("SECURITY: a client-supplied brand_id in the body is ignored — the resolved BrandProfile.id always wins (mirrors the existing PUT test)", async () => {
     authedBrand();
     (prisma.campaigns.create as any).mockResolvedValue({ id: "new-campaign-id" });

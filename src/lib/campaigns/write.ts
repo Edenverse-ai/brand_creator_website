@@ -6,7 +6,7 @@
  * (`backend/app/main/services/campaign_service.py`) apply identically before writing.
  */
 
-import { dateOnlyStringToUtcDate, isDateOnlyString } from "./dates";
+import { dateOnlyStringToUtcDate, isValidCalendarDateOnly } from "./dates";
 
 /**
  * Exact field set of Python's `CampaignCreate` (backend/app/main/models/campaign.py:51-90),
@@ -129,18 +129,15 @@ export function stringifyArrayFields(data: Record<string, unknown>): Record<stri
 /**
  * Mirrors: `{k: v for k, v in campaign_data.items() if v is not None and v != ""}`.
  * Note Python's `v is not None` keeps `False`/`0` — only `None` and the exact empty string
- * `""` are dropped. `excludeKeys` is a general-purpose escape hatch for callers outside this
- * module; `finalizeCampaignWriteData` below no longer uses it for `brand_id` (that is now
- * stripped unconditionally, earlier in the pipeline — see `CAMPAIGN_WRITABLE_FIELDS`).
+ * `""` are dropped. `brand_id` used to be excluded here via a caller-supplied `excludeKeys`
+ * list; it is now stripped unconditionally, earlier in `finalizeCampaignWriteData`'s
+ * pipeline (see `CAMPAIGN_WRITABLE_FIELDS`), so that escape hatch had no remaining callers
+ * and was removed rather than kept unused.
  */
-export function stripEmptyAndNull(
-  data: Record<string, unknown>,
-  excludeKeys: readonly string[] = []
-): Record<string, unknown> {
+export function stripEmptyAndNull(data: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(
     Object.entries(data).filter(
-      ([key, value]) =>
-        value !== null && value !== undefined && value !== "" && !excludeKeys.includes(key)
+      ([, value]) => value !== null && value !== undefined && value !== ""
     )
   );
 }
@@ -199,10 +196,15 @@ export type CampaignWriteOutcome =
  *     the same model for `PUT`, which is full-resource-replacement semantics, not partial
  *     PATCH).
  *  4. Pydantic defaults -> array-field `JSON.stringify` -> strip null/empty.
- *  5. If a `deadline` string survives, validate it is genuinely "YYYY-MM-DD"
- *     (`isDateOnlyString`) before converting to a UTC `Date` for Prisma — a malformed value
- *     used to reach `new Date(...)` unchecked, producing an Invalid Date that only surfaced
- *     as a generic Prisma throw at the write itself.
+ *  5. If a `deadline` string survives, validate it is genuinely a real calendar date in
+ *     "YYYY-MM-DD" shape (`isValidCalendarDateOnly` — format AND calendar validity, not the
+ *     shape-only `isDateOnlyString`) before converting to a UTC `Date` for Prisma. A
+ *     shape-only check is not enough: `new Date("2026-02-30T00:00:00.000Z")` does not throw,
+ *     it silently rolls over to March 2 — so a shape-only guard would let
+ *     `deadline: "2026-02-30"` write the wrong date and return 200 instead of erroring, and
+ *     a value like `"2026-13-01"` (matching \d{4}-\d{2}-\d{2} but not a real month) would
+ *     still produce an Invalid Date that reaches Prisma as a generic throw — exactly the
+ *     failure mode this guard exists to close.
  */
 export function finalizeCampaignWriteData(data: Record<string, unknown>): CampaignWriteOutcome {
   const { brand_id: _clientSuppliedBrandId, ...withoutBrandId } = data;
@@ -221,7 +223,7 @@ export function finalizeCampaignWriteData(data: Record<string, unknown>): Campai
   const stripped = stripEmptyAndNull(stringified);
 
   if (typeof stripped.deadline === "string") {
-    if (!isDateOnlyString(stripped.deadline)) {
+    if (!isValidCalendarDateOnly(stripped.deadline)) {
       return { ok: false, kind: "invalid_deadline", value: stripped.deadline };
     }
     stripped.deadline = dateOnlyStringToUtcDate(stripped.deadline);

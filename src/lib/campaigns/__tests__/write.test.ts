@@ -89,13 +89,6 @@ describe("stripEmptyAndNull", () => {
     const result = stripEmptyAndNull({ is_open: false, max_creators: 0 });
     expect(result).toEqual({ is_open: false, max_creators: 0 });
   });
-
-  it("drops explicitly excluded keys regardless of value", () => {
-    const result = stripEmptyAndNull({ brand_id: "some-brand-id", title: "Campaign" }, [
-      "brand_id",
-    ]);
-    expect(result).toEqual({ title: "Campaign" });
-  });
 });
 
 describe("combineTierRequirement", () => {
@@ -236,7 +229,7 @@ describe("finalizeCampaignWriteData (full write pipeline)", () => {
     });
   });
 
-  describe("invalid-deadline rejection (wires up isDateOnlyString as a real guard)", () => {
+  describe("invalid-deadline rejection (wires up isValidCalendarDateOnly, not the shape-only isDateOnlyString, as a real guard)", () => {
     it("rejects a non-date-shaped deadline instead of letting an Invalid Date reach Prisma", () => {
       const outcome = finalizeCampaignWriteData({ title: "Campaign", deadline: "garbage" });
       expect(outcome).toEqual({ ok: false, kind: "invalid_deadline", value: "garbage" });
@@ -250,8 +243,26 @@ describe("finalizeCampaignWriteData (full write pipeline)", () => {
       expect(outcome.ok).toBe(false);
     });
 
-    it("accepts a well-formed YYYY-MM-DD deadline", () => {
+    it("rejects Feb 30 (shape-matching but calendar-invalid) — a shape-only guard would silently roll this over to March 2 instead of erroring", () => {
+      const outcome = finalizeCampaignWriteData({ title: "Campaign", deadline: "2026-02-30" });
+      expect(outcome).toEqual({ ok: false, kind: "invalid_deadline", value: "2026-02-30" });
+    });
+
+    it("rejects an out-of-range month (2026-13-01) — matches \\d{4}-\\d{2}-\\d{2} but is not a real calendar date", () => {
+      const outcome = finalizeCampaignWriteData({ title: "Campaign", deadline: "2026-13-01" });
+      expect(outcome).toEqual({ ok: false, kind: "invalid_deadline", value: "2026-13-01" });
+    });
+
+    it("accepts a well-formed, calendar-valid YYYY-MM-DD deadline and converts it to the exact UTC Date", () => {
       const outcome = finalizeCampaignWriteData({ title: "Campaign", deadline: "2026-12-31" });
+      expect(outcome.ok).toBe(true);
+      if (outcome.ok) {
+        expect(outcome.data.deadline).toEqual(new Date("2026-12-31T00:00:00.000Z"));
+      }
+    });
+
+    it("accepts a valid leap-day deadline (2028-02-29)", () => {
+      const outcome = finalizeCampaignWriteData({ title: "Campaign", deadline: "2028-02-29" });
       expect(outcome.ok).toBe(true);
     });
   });
