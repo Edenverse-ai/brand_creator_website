@@ -298,12 +298,20 @@ async function handleJsonSubmission(request: NextRequest): Promise<NextResponse>
   try {
     dateOfBirth = formatDateOfBirth(body.date_of_birth);
   } catch (error) {
-    console.error("tiktokverification: date_of_birth parse failed", error);
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json(
-      { detail: `Failed to save verification data: ${message}` },
-      { status: 500 }
-    );
+    // formatDateOfBirth's thrown Error embeds the caller-submitted date_of_birth
+    // value verbatim (e.g. "time data '1998-05-12' does not match format
+    // '%m/%d/%y'") — the same PII-leak shape saveVerification's catch above guards
+    // against, and the same fix: a fixed caller-facing message, with only the
+    // error's name/code (never its message) logged.
+    const errorCode =
+      error && typeof error === "object" && "code" in error
+        ? (error as { code: unknown }).code
+        : undefined;
+    console.error("tiktokverification: date_of_birth parse failed", {
+      name: error instanceof Error ? error.name : typeof error,
+      ...(errorCode === undefined ? {} : { code: errorCode }),
+    });
+    return NextResponse.json({ detail: "Failed to save verification data" }, { status: 500 });
   }
 
   const record = buildVerificationRecord(body, paths, dateOfBirth);

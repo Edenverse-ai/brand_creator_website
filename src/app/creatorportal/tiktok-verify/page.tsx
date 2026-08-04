@@ -9,6 +9,10 @@ import {
   getFileExtension,
   FileUploadInfo,
 } from "./uploadHelper";
+import {
+  isAllowedTikTokVerifyExtension,
+  describeUnsupportedTikTokVerifyExtension,
+} from "@/lib/tiktok-verify-upload";
 
 export default function TikTokVerify() {
   const router = useRouter();
@@ -77,19 +81,36 @@ export default function TikTokVerify() {
   // Handle file uploads
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, files } = e.target;
-    if (files && files.length > 0) {
-      setFormData({
-        ...formData,
-        [name]: files[0],
-      });
+    if (!files || files.length === 0) return;
 
-      // Clear error when field is edited
-      if (formErrors[name]) {
-        setFormErrors({
-          ...formErrors,
-          [name]: "",
-        });
-      }
+    const file = files[0];
+    const extension = getFileExtension(file.name);
+
+    // Pre-flight check: reject a file the server's allowlist would reject anyway,
+    // immediately and with an accurate message — not after a round trip to
+    // /api/tiktokverification/upload-urls. `accept` on each <input type="file"> below
+    // is only a file-picker hint (drag-and-drop ignores it entirely, and some pickers
+    // let users override it), so this is the real client-side gate.
+    if (!isAllowedTikTokVerifyExtension(extension)) {
+      setFormErrors({
+        ...formErrors,
+        [name]: describeUnsupportedTikTokVerifyExtension(file.name, extension),
+      });
+      e.target.value = "";
+      return;
+    }
+
+    setFormData({
+      ...formData,
+      [name]: file,
+    });
+
+    // Clear error when field is edited
+    if (formErrors[name]) {
+      setFormErrors({
+        ...formErrors,
+        [name]: "",
+      });
     }
   };
 

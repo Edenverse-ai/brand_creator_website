@@ -68,6 +68,30 @@ describe("POST /api/ai-videos/tasks/upload-url", () => {
     expect(createSignedUpload).not.toHaveBeenCalled();
   });
 
+  it("returns 400 when taskId exceeds the 32-character cap (same cap the consuming route, POST /api/ai-videos/tasks, enforces)", async () => {
+    (getServerSession as any).mockResolvedValue({ user: { id: "user-1" } });
+
+    const res = await POST(
+      jsonRequest({ kind: "portrait", ext: "jpg", taskId: "a".repeat(33) }) as never
+    );
+
+    expect(res.status).toBe(400);
+    expect(createSignedUpload).not.toHaveBeenCalled();
+  });
+
+  it("accepts a taskId at exactly the 32-character cap", async () => {
+    (getServerSession as any).mockResolvedValue({ user: { id: "user-1" } });
+    const taskId = "a".repeat(32);
+
+    const res = await POST(jsonRequest({ kind: "portrait", ext: "jpg", taskId }) as never);
+
+    expect(res.status).toBe(200);
+    expect(createSignedUpload).toHaveBeenCalledWith(
+      "ai-video-tasks",
+      `user-1/${taskId}/portrait.jpg`
+    );
+  });
+
   it("mints a fresh taskId and follows the {creatorId}/{taskId}/{kind}.{ext} path convention", async () => {
     (getServerSession as any).mockResolvedValue({ user: { id: "user-1" } });
     (createId as any).mockReturnValue("generatedtaskid1");

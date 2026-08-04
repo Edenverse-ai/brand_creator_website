@@ -1,10 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import {
+  TIKTOK_VERIFY_ALLOWED_EXTENSIONS,
+  TIKTOK_VERIFY_ALLOWED_EXTENSIONS_LABEL,
+} from "@/lib/tiktok-verify-upload";
 
 vi.mock("../logic", () => ({ generateUploadUrls: vi.fn() }));
 
 const isRateLimited = vi.fn();
 vi.mock("@/lib/rate-limiter", () => ({
-  tiktokVerificationLimiter: { isRateLimited: (...args: unknown[]) => isRateLimited(...args) },
+  tiktokVerificationUploadUrlsLimiter: {
+    isRateLimited: (...args: unknown[]) => isRateLimited(...args),
+  },
 }));
 
 import { generateUploadUrls } from "../logic";
@@ -119,7 +125,7 @@ describe("POST /api/tiktokverification/upload-urls", () => {
     expect(generateUploadUrls).not.toHaveBeenCalled();
   });
 
-  it("rejects an extension outside the allowlist instead of minting a signed URL for it", async () => {
+  it("rejects an extension outside the allowlist instead of minting a signed URL for it, naming the rejected extension and what's accepted", async () => {
     // Attack this closes: {"id_number":"VICTIM-ID","files":[{"key":"id_front_file","extension":"html"}]}
     // previously minted a signed URL to write arbitrary content into the
     // identity-document bucket, since extension was only `z.string().min(1)`.
@@ -132,6 +138,30 @@ describe("POST /api/tiktokverification/upload-urls", () => {
 
     expect(res.status).toBe(400);
     expect(generateUploadUrls).not.toHaveBeenCalled();
+    // Regression guard for Task 2.3 FIX 2: this used to fall through to the generic
+    // "Missing id_number or files array" message, which named neither the real
+    // problem (the extension) nor the actual field.
+    expect(await res.json()).toEqual({
+      error: `Unsupported file extension "html". Accepted extensions: ${TIKTOK_VERIFY_ALLOWED_EXTENSIONS_LABEL}.`,
+    });
+  });
+
+  it("identifies the correct file when a later entry (not the first) has the invalid extension", async () => {
+    const res = await POST(
+      jsonRequest({
+        id_number: "TEST123",
+        files: [
+          { key: "id_front_file", extension: "png" },
+          { key: "handheld_id_file", extension: "exe" },
+        ],
+      }) as never
+    );
+
+    expect(res.status).toBe(400);
+    expect(generateUploadUrls).not.toHaveBeenCalled();
+    expect(await res.json()).toEqual({
+      error: `Unsupported file extension "exe". Accepted extensions: ${TIKTOK_VERIFY_ALLOWED_EXTENSIONS_LABEL}.`,
+    });
   });
 
   it("rejects an extension containing extra path segments (isOwnedStoragePath only constrains the first segment)", async () => {
@@ -149,10 +179,10 @@ describe("POST /api/tiktokverification/upload-urls", () => {
     expect(generateUploadUrls).not.toHaveBeenCalled();
   });
 
-  it("accepts every extension in the documented allowlist (images, pdf, video)", async () => {
+  it("accepts every extension in the shared allowlist (images, pdf, video) — proves the route and TIKTOK_VERIFY_ALLOWED_EXTENSIONS can't drift apart", async () => {
     (generateUploadUrls as any).mockResolvedValue({});
 
-    for (const extension of ["jpg", "jpeg", "png", "gif", "pdf", "mp4", "mov"]) {
+    for (const extension of TIKTOK_VERIFY_ALLOWED_EXTENSIONS) {
       const res = await POST(
         jsonRequest({
           id_number: "TEST123",

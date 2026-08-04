@@ -78,3 +78,14 @@ export const loginAttemptsLimiter = new RateLimiter(15 * 60 * 1000, 10); // 10 a
 // casual/single-container abuse; it does not guarantee a hard ceiling across the
 // deployment. Treat it as defense-in-depth, not a promise.
 export const tiktokVerificationLimiter = new RateLimiter(60 * 60 * 1000, 5); // 5 submissions per hour per warm container
+
+// Companion to tiktokVerificationLimiter, dedicated to the presigned-upload-URL
+// minting route (POST /api/tiktokverification/upload-urls). Split into its own
+// instance — that route used to share tiktokVerificationLimiter's budget with the
+// submission route above (same key namespace, one combined per-IP counter), which
+// left a legitimate applicant only ~2.5 full attempts per hour: mint (1) -> submit ->
+// a validation error -> correct it -> mint (2) -> submit hits the 6th call -> 429.
+// Same per-IP shape (5/hr) and message as its sibling; the `files.max(5)` array cap
+// on that route already bounds the per-request fan-out abuse this budget defends
+// against, so giving it its own budget doesn't reopen that hole.
+export const tiktokVerificationUploadUrlsLimiter = new RateLimiter(60 * 60 * 1000, 5); // 5 mint calls per hour per warm container

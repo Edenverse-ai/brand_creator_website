@@ -163,15 +163,20 @@ describe("POST /api/ai-videos/tasks (JSON path)", () => {
     expect(aiVideoTaskCreate).not.toHaveBeenCalled();
   });
 
-  it("returns 403 for a path-traversal payload that string-prefix-matches the owner (security regression guard)", async () => {
+  it("returns 403 for a path-traversal payload whose owner and taskId segments both match (isOwnedStoragePath must be the rejecting layer)", async () => {
     (getServerSession as any).mockResolvedValue({ user: { id: OWNER } });
 
-    // Starts with "user-1/" so a naive startsWith(ownerId + "/") check would incorrectly
-    // accept this; it must be rejected by structural validation instead.
+    // Both isOwnedTaskPath's checks are individually satisfiable by this path's non-".."
+    // segments (segment 0 is the real owner, segment 1 is the real taskId) — only
+    // isOwnedStoragePath's OWN ".." segment rejection can reject it. A payload like
+    // `${OWNER}/../someone-else/...` would NOT prove this: its second segment ("..")
+    // already fails isOwnedTaskPath's taskId-segment check on its own, so that payload
+    // would still return 403 even if isOwnedStoragePath's traversal defense were
+    // silently removed, masking a regression instead of catching one.
     const res = await POST(
       jsonRequest({
         ...validBody,
-        portrait_path: `${OWNER}/../someone-else/taskabc/portrait.jpg`,
+        portrait_path: `${OWNER}/${validBody.taskId}/../portrait.jpg`,
       }) as never
     );
 

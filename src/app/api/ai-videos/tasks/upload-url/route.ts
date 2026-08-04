@@ -11,6 +11,13 @@ import { AI_VIDEO_TASK_BUCKET } from "@/lib/supabase-admin";
 const PORTRAIT_EXTS = ["jpg", "png", "webp"] as const;
 const VOICE_EXTS = ["mp3", "wav", "m4a"] as const;
 
+// Same charset + cap as the consuming route's taskId (src/app/api/ai-videos/tasks/
+// route.ts's TASK_ID_MAX_LENGTH). Without this cap, this minting route could
+// successfully mint an upload URL for a caller-supplied taskId longer than 32
+// characters, only for POST /api/ai-videos/tasks to then reject that same taskId
+// with a 400 — a mint that can never be consumed.
+const TASK_ID_MAX_LENGTH = 32;
+
 const Body = z
   .object({
     kind: z.enum(["portrait", "voice"]),
@@ -21,6 +28,7 @@ const Body = z
     taskId: z
       .string()
       .regex(/^[a-z0-9]+$/, "Invalid taskId")
+      .max(TASK_ID_MAX_LENGTH)
       .optional(),
   })
   .refine(

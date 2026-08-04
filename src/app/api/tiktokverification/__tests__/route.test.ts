@@ -341,13 +341,26 @@ describe("POST /api/tiktokverification (JSON path-based submission)", () => {
     expect(body.data.date_of_birth).toBe("1998-05-01");
   });
 
-  it("returns 500 when date_of_birth doesn't match mm/dd/yy", async () => {
+  it("returns 500 with the fixed, non-leaking message when date_of_birth doesn't match mm/dd/yy", async () => {
     const res = await POST(jsonRequest({ ...VALID_BODY, date_of_birth: "1998-05-12" }) as never);
 
     expect(res.status).toBe(500);
     const body = await res.json();
-    expect(body.detail).toMatch(/^Failed to save verification data:/);
+    expect(body.detail).toBe("Failed to save verification data");
     expect(influencerVerificationsCreate).not.toHaveBeenCalled();
+  });
+
+  it("never echoes the underlying date parse error (which embeds the submitted date_of_birth) to the caller", async () => {
+    // formatDateOfBirth's thrown Error is "time data '1998-05-12' does not match
+    // format '%m/%d/%y'" — the submitted value itself, verbatim. Same PII-leak shape
+    // as the "never echoes the underlying error message" test below, for the other
+    // catch site.
+    const res = await POST(jsonRequest({ ...VALID_BODY, date_of_birth: "1998-05-12" }) as never);
+
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.detail).toBe("Failed to save verification data");
+    expect(JSON.stringify(body)).not.toMatch(/1998-05-12|does not match format/);
   });
 
   it("returns 500 when date_of_birth is a calendar-invalid date", async () => {
