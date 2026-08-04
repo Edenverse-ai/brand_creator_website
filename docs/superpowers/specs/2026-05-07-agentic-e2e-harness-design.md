@@ -1,5 +1,7 @@
 # Agentic E2E Harness Design
 
+> **Superseded by Phase 6** (`docs/superpowers/plans/2026-08-04-infra-simplification.md`, `.superpowers/sdd/phase-6-report.md`): the hand-rolled `pg` + `supabase` (storage-api) + nginx proxy stack this design describes was replaced by the official Supabase CLI (`supabase/config.toml`, `npx supabase start`). Ports (54330/54331) and credentials (`e2e:e2e`/`brand_creator_e2e`) below no longer apply — current values are `54321` (Supabase API) / `54329` (Postgres, `postgres:postgres`). Left unmodified below as a historical record.
+
 **Date:** 2026-05-07
 **Status:** Approved (design)
 **Owner:** Platform / DX

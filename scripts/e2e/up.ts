@@ -2,6 +2,13 @@
 import { execSync } from "node:child_process";
 import { PrismaClient } from "@prisma/client";
 import { waitForHttp } from "./lib/wait";
+import { assertTestDatabaseUrl } from "./lib/assertTestDatabaseUrl";
+import { grantServiceRole } from "./grant-service-role";
+
+// Re-exported for backward compatibility: tests/harness-e2e/up-guardrail.test.ts
+// and other scripts in this directory import it from here. Canonical home is
+// ./lib/assertTestDatabaseUrl.ts.
+export { assertTestDatabaseUrl };
 
 const COMPOSE = "docker compose -p brand-creator-e2e -f docker/compose.e2e.yml";
 const SUPABASE_URL = "http://localhost:54321";
@@ -10,15 +17,6 @@ const SUPABASE_URL = "http://localhost:54321";
 // secret), not a real secret. Printed by `supabase start` / `supabase status`.
 const SUPABASE_SERVICE_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU";
-
-export function assertTestDatabaseUrl(url: string | undefined): void {
-  if (!url) throw new Error("DATABASE_URL must be set");
-  if (!url.includes(":54329/")) {
-    throw new Error(
-      `refusing to operate against non-test DATABASE_URL: ${url}. Expected port :54329`
-    );
-  }
-}
 
 async function main() {
   const dbUrl = "postgres://postgres:postgres@localhost:54329/postgres";
@@ -53,30 +51,12 @@ async function main() {
     stdio: "inherit",
   });
 
-  // All app tables are created by Prisma (as the `postgres` role), not through
-  // Supabase's own migration flow, so the CLI's default posture — new tables
-  // are NOT auto-exposed to Data API roles without explicit GRANTs — leaves
-  // service_role unable to query them via PostgREST (used by the FastAPI
-  // sidecar's supabase-py client, e.g. app/main/services/brand_service.py).
-  // `auto_expose_new_tables = true` in config.toml would restore the old
-  // auto-grant behavior, but that flag is explicitly deprecated for removal
-  // on 2026-10-30 — so grant service_role directly instead, which keeps
-  // working regardless of CLI version. Scoped to service_role only (the only
-  // role this app's Supabase/PostgREST code paths ever use — anon/authenticated
-  // are never used, so are deliberately not granted broad table access, e.g.
-  // to User.password). Safe to run from the host: DATABASE_URL is guarded by
-  // assertTestDatabaseUrl above.
+  // See grant-service-role.ts for why this is needed (CLI doesn't
+  // auto-expose Prisma-managed tables to PostgREST) and why it's scoped to
+  // service_role only. Idempotent/order-independent — safe to share with
+  // up-infra.ts and the standalone `npm run dev:grant` entry point.
   console.log("[e2e:up] granting service_role access to Prisma-managed tables…");
-  const prisma = new PrismaClient({ datasources: { db: { url: dbUrl } } });
-  await prisma.$executeRawUnsafe(`GRANT USAGE ON SCHEMA public TO service_role`);
-  await prisma.$executeRawUnsafe(`GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role`);
-  await prisma.$executeRawUnsafe(`GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO service_role`);
-  await prisma.$executeRawUnsafe(
-    `ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON TABLES TO service_role`
-  );
-  await prisma.$executeRawUnsafe(
-    `ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT ALL ON SEQUENCES TO service_role`
-  );
+  await grantServiceRole(dbUrl);
 
   console.log("[e2e:up] creating storage buckets…");
   execSync("node scripts/studio-create-buckets.js", {
@@ -86,8 +66,10 @@ async function main() {
 
   // studio-create-buckets.js's ai-video-tasks default (30MB) is a shared,
   // prod-affecting default — bump it locally to match OUTPUT_MAX_BYTES
-  // (src/lib/ai-video-task.ts) without touching that shared script.
+  // (src/lib/ai-video-task.ts) without touching that shared script. Safe to
+  // run from the host: DATABASE_URL is guarded by assertTestDatabaseUrl above.
   console.log("[e2e:up] raising ai-video-tasks bucket limit to match OUTPUT_MAX_BYTES…");
+  const prisma = new PrismaClient({ datasources: { db: { url: dbUrl } } });
   await prisma.$executeRawUnsafe(
     `UPDATE storage.buckets SET file_size_limit = 209715200 WHERE id = 'ai-video-tasks'`
   );

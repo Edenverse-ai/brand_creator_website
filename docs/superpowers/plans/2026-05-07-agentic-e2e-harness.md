@@ -1,5 +1,7 @@
 # Agentic E2E Harness Implementation Plan
 
+> **Superseded by Phase 6** (`docs/superpowers/plans/2026-08-04-infra-simplification.md`, `.superpowers/sdd/phase-6-report.md`): the hand-rolled `pg` + `supabase` (storage-api) + nginx proxy stack this plan describes was replaced by the official Supabase CLI (`supabase/config.toml`, `npx supabase start`). Ports (54330/54331) and credentials (`e2e:e2e`/`brand_creator_e2e`) below no longer apply — current values are `54321` (Supabase API) / `54329` (Postgres, `postgres:postgres`). Left unmodified below as a historical record.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Stand up a Playwright-based E2E harness an LLM agent can drive: docker-compose stack boot, deterministic DB seed, role-scoped storageState auth, agent-friendly TDD/explore/debug wrappers.
