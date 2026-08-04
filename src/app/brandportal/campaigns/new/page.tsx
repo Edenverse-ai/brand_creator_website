@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Calendar } from "lucide-react";
 import Link from "next/link";
+import { validateCampaignImageFile, uploadCampaignImage } from "@/lib/campaign-image-upload";
 
 interface Platform {
   id: string;
@@ -245,41 +246,26 @@ export default function NewCampaign() {
       return;
     }
 
-    // Validate file size if photo is provided
-    if (formData.product_photo && formData.product_photo.size > 5 * 1024 * 1024) {
-      setFormError("Product photo must be less than 5MB");
-      setIsLoading(false);
-      return;
+    // Validate file if photo is provided. The upload now goes straight from the browser to
+    // storage, so this client-side check is the only enforcement point left (previously the
+    // Python relay also validated MIME type and size server-side).
+    if (formData.product_photo) {
+      const photoValidation = validateCampaignImageFile(formData.product_photo);
+      if (!photoValidation.ok) {
+        setFormError(photoValidation.error);
+        setIsLoading(false);
+        return;
+      }
     }
 
     try {
       let productPhotoUrl = null;
 
-      // Step 1: Upload product photo if provided
+      // Step 1: Upload product photo if provided (direct-to-storage via presigned URL)
       if (formData.product_photo) {
         console.log("Uploading product photo...");
 
-        // Generate a temporary campaign ID for the upload
-        const tempCampaignId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-        const photoFormData = new FormData();
-        photoFormData.append("file", formData.product_photo);
-        photoFormData.append("brand_id", session?.user?.id || "unknown");
-        photoFormData.append("campaign_id", tempCampaignId);
-
-        // Updated to use the consolidated upload endpoint
-        const uploadResponse = await fetch("/api/campaigns/upload", {
-          method: "POST",
-          body: photoFormData,
-        });
-
-        if (!uploadResponse.ok) {
-          const uploadError = await uploadResponse.json();
-          throw new Error(uploadError.error || "Failed to upload product photo");
-        }
-
-        const uploadData = await uploadResponse.json();
-        productPhotoUrl = uploadData.url;
+        productPhotoUrl = await uploadCampaignImage(formData.product_photo);
         console.log("Product photo uploaded successfully:", productPhotoUrl);
       }
 

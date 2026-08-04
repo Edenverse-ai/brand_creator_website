@@ -9,6 +9,7 @@ import {
   getFileExtension,
   FileUploadInfo,
 } from "./uploadHelper";
+import { resolveTikTokVerifyFileSelection } from "@/lib/tiktok-verify-upload";
 
 export default function TikTokVerify() {
   const router = useRouter();
@@ -77,19 +78,35 @@ export default function TikTokVerify() {
   // Handle file uploads
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, files } = e.target;
-    if (files && files.length > 0) {
-      setFormData({
-        ...formData,
-        [name]: files[0],
-      });
+    if (!files || files.length === 0) return;
 
-      // Clear error when field is edited
-      if (formErrors[name]) {
-        setFormErrors({
-          ...formErrors,
-          [name]: "",
-        });
-      }
+    const file = files[0];
+    const extension = getFileExtension(file.name);
+
+    // Pre-flight check: reject a file the server's allowlist would reject anyway,
+    // immediately and with an accurate message — not after a round trip to
+    // /api/tiktokverification/upload-urls. `accept` on each <input type="file"> below
+    // is only a file-picker hint (drag-and-drop ignores it entirely, and some pickers
+    // let users override it), so this is the real client-side gate.
+    //
+    // resolveTikTokVerifyFileSelection returns `file: null` on rejection — always
+    // write that into formData below (never skip it). Otherwise a user replacing an
+    // already-selected valid file with a rejected one keeps the OLD file silently in
+    // form state while the input looks empty, and unknowingly resubmits it believing
+    // the swap happened.
+    const { file: resolvedFile, error } = resolveTikTokVerifyFileSelection(file, extension);
+
+    setFormData({
+      ...formData,
+      [name]: resolvedFile,
+    });
+    setFormErrors({
+      ...formErrors,
+      [name]: error,
+    });
+
+    if (!resolvedFile) {
+      e.target.value = "";
     }
   };
 

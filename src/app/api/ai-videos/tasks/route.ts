@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { createId } from "@paralleldrive/cuid2";
+import { z } from "zod";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
@@ -18,14 +19,102 @@ import {
   deleteFromBucket,
   uploadToBucket,
 } from "@/lib/supabase-admin";
+import { isOwnedStoragePath } from "@/lib/storage/path-ownership";
 
-export async function POST(request: NextRequest) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+// Same charset + cap as the minting route's taskId (src/app/api/ai-videos/tasks/
+// upload-url/route.ts) — taskId becomes both this row's primary key and a storage
+// path segment, so it must stay restricted to cuid2's charset. 32 is a generous
+// ceiling above cuid2's actual 24-character output (matching the "picked, generous
+// ceiling" convention used for id_number in tiktokverification/id-number.ts).
+const TASK_ID_MAX_LENGTH = 32;
+
+const JsonBody = z.object({
+  prompt: z.string(),
+  taskId: z
+    .string()
+    .regex(/^[a-z0-9]+$/, "Invalid taskId")
+    .max(TASK_ID_MAX_LENGTH),
+  portrait_path: z.string().optional(),
+  voice_path: z.string().optional(),
+});
+
+/**
+ * `isOwnedStoragePath` only constrains the FIRST path segment (the owner id) — it
+ * doesn't know about `taskId` at all, so a portrait/voice path under the same
+ * owner's OTHER task folder would still pass it. Require the SECOND segment to
+ * equal the submitted taskId too, so ownership is validated against the specific
+ * task this request is creating, not just "some folder this user owns somewhere."
+ * Same-user-only impact today (no cross-user path gets any closer to passing), but
+ * it closes that gap.
+ */
+function isOwnedTaskPath(path: string, ownerId: string, taskId: string): boolean {
+  return isOwnedStoragePath(path, ownerId) && path.split("/")[1] === taskId;
+}
+
+/**
+ * Native JSON path: portrait/voice bytes were already uploaded direct-to-storage via
+ * POST /api/ai-videos/tasks/upload-url, so this only validates ownership of the given
+ * paths and writes the AiVideoTask row — same shape the multipart branch below produces.
+ */
+async function handleJsonTaskCreate(
+  request: NextRequest,
+  sessionUserId: string
+): Promise<NextResponse> {
+  const parsed = JsonBody.safeParse(await request.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid input" }, { status: 400 });
   }
-  const creatorId = session.user.id;
 
+  const promptResult = promptSchema.safeParse(parsed.data.prompt);
+  if (!promptResult.success) {
+    return NextResponse.json({ error: "Prompt required" }, { status: 400 });
+  }
+  const prompt = promptResult.data;
+
+  const { taskId } = parsed.data;
+  const portraitPath = parsed.data.portrait_path?.trim() || "";
+  const voicePath = parsed.data.voice_path?.trim() || "";
+
+  if (!portraitPath) {
+    return NextResponse.json({ error: "Portrait image required" }, { status: 400 });
+  }
+
+  const pathsToCheck = voicePath ? [portraitPath, voicePath] : [portraitPath];
+  if (pathsToCheck.some((path) => !isOwnedTaskPath(path, sessionUserId, taskId))) {
+    return NextResponse.json(
+      { error: "Storage path does not belong to the current session" },
+      { status: 403 }
+    );
+  }
+
+  try {
+    const task = await prisma.aiVideoTask.create({
+      data: {
+        id: taskId,
+        creatorId: sessionUserId,
+        prompt,
+        portraitPath,
+        voicePath: voicePath || null,
+      },
+      select: { id: true, status: true },
+    });
+
+    return NextResponse.json({ id: task.id, status: task.status });
+  } catch (error) {
+    await deleteFromBucket(voicePath ? [portraitPath, voicePath] : [portraitPath]);
+    console.error("[ai-videos/tasks] JSON path db insert error", error);
+    return NextResponse.json({ error: "Failed to create task" }, { status: 500 });
+  }
+}
+
+/**
+ * Legacy multipart path: unchanged, kept byte-for-byte as a rollback lever until every
+ * caller has moved to the JSON + presigned-upload path above.
+ */
+async function handleMultipartTaskCreate(
+  request: NextRequest,
+  creatorId: string
+): Promise<NextResponse> {
   let formData: FormData;
   try {
     formData = await request.formData();
@@ -98,4 +187,19 @@ export async function POST(request: NextRequest) {
     console.error("[ai-videos/tasks] db insert error", error);
     return NextResponse.json({ error: "Failed to create task" }, { status: 500 });
   }
+}
+
+export async function POST(request: NextRequest) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const creatorId = session.user.id;
+
+  const contentType = request.headers.get("content-type") ?? "";
+  if (contentType.includes("application/json")) {
+    return handleJsonTaskCreate(request, creatorId);
+  }
+
+  return handleMultipartTaskCreate(request, creatorId);
 }

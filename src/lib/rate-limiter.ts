@@ -68,3 +68,24 @@ export class RateLimiter {
 // Create singleton instances for different operations
 export const emailVerificationLimiter = new RateLimiter(60 * 60 * 1000, 5); // 5 requests per hour
 export const loginAttemptsLimiter = new RateLimiter(15 * 60 * 1000, 10); // 10 attempts per 15 minutes
+// Public, unauthenticated, DB-writing endpoint (POST /api/tiktokverification) — stands in
+// for the session guard other mutating routes get, per the infra-simplification plan's
+// Global Constraints ("intentionally public" routes get zod + rate limiting instead).
+// CAVEAT: this class backs its counts with a plain in-memory Map (see above), so on
+// Netlify's Lambda-backed functions this is a best-effort PER-INSTANCE throttle, not a
+// global cap — each warm container keeps its own counts, and a cold start (or a
+// request routed to a different container) resets them. It raises the bar against
+// casual/single-container abuse; it does not guarantee a hard ceiling across the
+// deployment. Treat it as defense-in-depth, not a promise.
+export const tiktokVerificationLimiter = new RateLimiter(60 * 60 * 1000, 5); // 5 submissions per hour per warm container
+
+// Companion to tiktokVerificationLimiter, dedicated to the presigned-upload-URL
+// minting route (POST /api/tiktokverification/upload-urls). Split into its own
+// instance — that route used to share tiktokVerificationLimiter's budget with the
+// submission route above (same key namespace, one combined per-IP counter), which
+// left a legitimate applicant only ~2.5 full attempts per hour: mint (1) -> submit ->
+// a validation error -> correct it -> mint (2) -> submit hits the 6th call -> 429.
+// Same per-IP shape (5/hr) and message as its sibling; the `files.max(5)` array cap
+// on that route already bounds the per-request fan-out abuse this budget defends
+// against, so giving it its own budget doesn't reopen that hole.
+export const tiktokVerificationUploadUrlsLimiter = new RateLimiter(60 * 60 * 1000, 5); // 5 mint calls per hour per warm container

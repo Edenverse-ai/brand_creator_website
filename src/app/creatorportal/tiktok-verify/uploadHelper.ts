@@ -1,5 +1,10 @@
 // Helper functions for direct file uploads to Supabase
 
+import {
+  isAllowedTikTokVerifyExtension,
+  describeUnsupportedTikTokVerifyExtension,
+} from "@/lib/tiktok-verify-upload";
+
 export interface FileUploadInfo {
   key: string;
   extension: string;
@@ -31,6 +36,18 @@ export async function generateUploadUrls(
   idNumber: string,
   files: FileUploadInfo[]
 ): Promise<UploadUrlsResponse> {
+  // Safety net: page.tsx's handleFileChange already rejects an unsupported file at
+  // selection time for immediate UX feedback, but re-check here too — right before
+  // the network call that used to be the ONLY place this was enforced — so any
+  // caller that reaches this function some other way still fails fast locally
+  // instead of discovering the rejection only after a round trip to the server.
+  const unsupported = files.find((f) => !isAllowedTikTokVerifyExtension(f.extension));
+  if (unsupported) {
+    throw new Error(
+      describeUnsupportedTikTokVerifyExtension(unsupported.file.name, unsupported.extension)
+    );
+  }
+
   const response = await fetch("/api/tiktokverification/upload-urls", {
     method: "POST",
     headers: {

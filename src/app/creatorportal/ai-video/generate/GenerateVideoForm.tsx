@@ -4,11 +4,49 @@ import { FormEvent, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { FileAudio, FileImage, Loader2, Sparkles } from "lucide-react";
+import {
+  PORTRAIT_MAX_BYTES,
+  PORTRAIT_MIME_TO_EXT,
+  VOICE_MAX_BYTES,
+  VOICE_MIME_TO_EXT,
+  type PortraitMime,
+  type VoiceMime,
+} from "@/lib/ai-video-task";
 
 type SubmissionState =
   | { type: "idle" }
   | { type: "success"; taskId: string }
   | { type: "error"; message: string };
+
+type UploadUrlResponse = { uploadUrl: string; path: string; token: string; taskId: string };
+
+async function requestUploadUrl(args: {
+  kind: "portrait" | "voice";
+  ext: string;
+  taskId?: string;
+}): Promise<UploadUrlResponse> {
+  const response = await fetch("/api/ai-videos/tasks/upload-url", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(args),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(data.error || "Failed to prepare file upload.");
+  }
+  return data as UploadUrlResponse;
+}
+
+async function putFile(uploadUrl: string, file: File): Promise<void> {
+  const response = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: { "Content-Type": file.type },
+    body: file,
+  });
+  if (!response.ok) {
+    throw new Error("Failed to upload file. Please try again.");
+  }
+}
 
 export default function GenerateVideoForm() {
   const { status: sessionStatus } = useSession();
@@ -42,19 +80,55 @@ export default function GenerateVideoForm() {
       setStatus({ type: "error", message: "Please upload a portrait reference image." });
       return;
     }
-
-    const formData = new FormData();
-    formData.append("prompt", prompt.trim());
-    formData.append("portrait", portrait);
-    if (voice) formData.append("voice", voice);
+    if (!(portrait.type in PORTRAIT_MIME_TO_EXT)) {
+      setStatus({ type: "error", message: "Unsupported portrait file type." });
+      return;
+    }
+    if (portrait.size > PORTRAIT_MAX_BYTES) {
+      setStatus({ type: "error", message: "Portrait file exceeds the 10 MB size limit." });
+      return;
+    }
+    if (voice) {
+      if (!(voice.type in VOICE_MIME_TO_EXT)) {
+        setStatus({ type: "error", message: "Unsupported voice file type." });
+        return;
+      }
+      if (voice.size > VOICE_MAX_BYTES) {
+        setStatus({ type: "error", message: "Voice file exceeds the 25 MB size limit." });
+        return;
+      }
+    }
 
     setIsSubmitting(true);
     setStatus({ type: "idle" });
 
     try {
+      const portraitUpload = await requestUploadUrl({
+        kind: "portrait",
+        ext: PORTRAIT_MIME_TO_EXT[portrait.type as PortraitMime],
+      });
+      await putFile(portraitUpload.uploadUrl, portrait);
+
+      let voicePath: string | undefined;
+      if (voice) {
+        const voiceUpload = await requestUploadUrl({
+          kind: "voice",
+          ext: VOICE_MIME_TO_EXT[voice.type as VoiceMime],
+          taskId: portraitUpload.taskId,
+        });
+        await putFile(voiceUpload.uploadUrl, voice);
+        voicePath = voiceUpload.path;
+      }
+
       const response = await fetch("/api/ai-videos/tasks", {
         method: "POST",
-        body: formData,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: prompt.trim(),
+          taskId: portraitUpload.taskId,
+          portrait_path: portraitUpload.path,
+          ...(voicePath ? { voice_path: voicePath } : {}),
+        }),
       });
       const data = await response.json();
       if (!response.ok) {
