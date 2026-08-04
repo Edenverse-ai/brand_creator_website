@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { generateUploadUrls } from "./logic";
+import { idNumberSchema, findIdNumberCharacterMessage } from "../id-number";
 
 const FileInfoSchema = z.object({
   key: z.string().min(1),
@@ -8,7 +9,7 @@ const FileInfoSchema = z.object({
 });
 
 const Body = z.object({
-  id_number: z.string().min(1),
+  id_number: idNumberSchema,
   files: z.array(FileInfoSchema),
 });
 
@@ -24,7 +25,9 @@ const Body = z.object({
 export async function POST(request: NextRequest) {
   const parsed = Body.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ error: "Missing id_number or files array" }, { status: 400 });
+    const message =
+      findIdNumberCharacterMessage(parsed.error) ?? "Missing id_number or files array";
+    return NextResponse.json({ error: message }, { status: 400 });
   }
 
   try {

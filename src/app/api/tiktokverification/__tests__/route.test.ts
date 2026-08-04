@@ -112,6 +112,51 @@ describe("POST /api/tiktokverification (JSON path-based submission)", () => {
     expect(influencerVerificationsCreate).not.toHaveBeenCalled();
   });
 
+  it("returns 400 with the disallowed-characters message (not the foreign-path message) when id_number contains a slash", async () => {
+    const res = await POST(jsonRequest({ ...VALID_BODY, id_number: "TEST/123" }) as never);
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      detail: "id_number contains characters that are not allowed (/, \\, %, or ..)",
+    });
+    expect(influencerVerificationsFindFirst).not.toHaveBeenCalled();
+    expect(influencerVerificationsCreate).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 with the disallowed-characters message when id_number contains a percent sign", async () => {
+    const res = await POST(jsonRequest({ ...VALID_BODY, id_number: "TEST%123" }) as never);
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      detail: "id_number contains characters that are not allowed (/, \\, %, or ..)",
+    });
+    expect(influencerVerificationsCreate).not.toHaveBeenCalled();
+  });
+
+  it("accepts a real-world id_number with hyphen, space, and period and flows normally", async () => {
+    const res = await POST(
+      jsonRequest({
+        ...VALID_BODY,
+        id_number: "AB-123 456.7",
+        file_paths: {
+          id_front_file: "AB-123 456.7/id_front.png",
+          handheld_id_file: "AB-123 456.7/id_handheld.png",
+          backend_ss_file: "AB-123 456.7/backend_ss.png",
+          signed_auth_file: "AB-123 456.7/authorization.pdf",
+        },
+      }) as never
+    );
+
+    expect(res.status).toBe(200);
+    expect(influencerVerificationsFindFirst).toHaveBeenCalledWith({
+      where: { id_number: "AB-123 456.7" },
+      select: { id: true },
+    });
+    expect(influencerVerificationsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ id_number: "AB-123 456.7" }) })
+    );
+  });
+
   it("accepts empty-string text fields (Pydantic str accepts them too)", async () => {
     const res = await POST(jsonRequest({ ...VALID_BODY, account_intro: "" }) as never);
 

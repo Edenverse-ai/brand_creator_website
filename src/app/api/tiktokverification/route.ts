@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { tiktokVerificationLimiter } from "@/lib/rate-limiter";
 import { isOwnedStoragePath } from "@/lib/storage/path-ownership";
+import { idNumberSchema, findIdNumberCharacterMessage } from "./id-number";
 
 // Legacy multipart proxy target — kept as a rollback lever, NOT ported (presigned
 // upload-urls + the JSON path below replace it; see Task 2.3 of the infra-simplification
@@ -28,7 +29,7 @@ const SubmissionBody = z.object({
   gender: z.string(),
   nationality: z.string(),
   stage_name: z.string().nullish(),
-  id_number: z.string(),
+  id_number: idNumberSchema,
   date_of_birth: z.string(),
   account_intro: z.string(),
   overseas_platform_url: z.string(),
@@ -252,7 +253,8 @@ async function handleJsonSubmission(request: NextRequest): Promise<NextResponse>
 
   const parsed = SubmissionBody.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
-    return NextResponse.json({ detail: "Invalid input" }, { status: 400 });
+    const detail = findIdNumberCharacterMessage(parsed.error) ?? "Invalid input";
+    return NextResponse.json({ detail }, { status: 400 });
   }
   const body = parsed.data;
 

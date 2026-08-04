@@ -28,6 +28,52 @@ describe("POST /api/tiktokverification/upload-urls", () => {
     expect(generateUploadUrls).not.toHaveBeenCalled();
   });
 
+  it("returns 400 with the disallowed-characters message when id_number contains a slash", async () => {
+    const res = await POST(
+      jsonRequest({
+        id_number: "TEST/123",
+        files: [{ key: "id_front_file", extension: "png" }],
+      }) as never
+    );
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "id_number contains characters that are not allowed (/, \\, %, or ..)",
+    });
+    expect(generateUploadUrls).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 with the disallowed-characters message when id_number contains a percent sign", async () => {
+    const res = await POST(
+      jsonRequest({
+        id_number: "TEST%123",
+        files: [{ key: "id_front_file", extension: "png" }],
+      }) as never
+    );
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({
+      error: "id_number contains characters that are not allowed (/, \\, %, or ..)",
+    });
+    expect(generateUploadUrls).not.toHaveBeenCalled();
+  });
+
+  it("accepts a real-world id_number with hyphen, space, and period", async () => {
+    (generateUploadUrls as any).mockResolvedValue({});
+
+    const res = await POST(
+      jsonRequest({
+        id_number: "AB-123 456.7",
+        files: [{ key: "id_front_file", extension: "png" }],
+      }) as never
+    );
+
+    expect(generateUploadUrls).toHaveBeenCalledWith("AB-123 456.7", [
+      { key: "id_front_file", extension: "png" },
+    ]);
+    expect(res.status).toBe(200);
+  });
+
   it("returns 400 when files is missing", async () => {
     const res = await POST(jsonRequest({ id_number: "TEST123" }) as never);
 
