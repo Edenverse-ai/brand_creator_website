@@ -49,6 +49,28 @@ describe("idNumberSchema", () => {
       expect(result.error.issues[0]?.message).toBe(INVALID_CHARS_MESSAGE);
     }
   });
+
+  const ALPHANUMERIC_REQUIRED_MESSAGE = "id_number must contain at least one letter or digit";
+
+  it.each([
+    ["a single period", "."],
+    ["a single hyphen", "-"],
+    ["only punctuation", "--__  -"],
+  ])(
+    "rejects id_number that is %s (allowed characters but no letter or digit) with a clear 400-shaped message",
+    (_label, value) => {
+      const result = idNumberSchema.safeParse(value);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.error.issues[0]?.message).toBe(ALPHANUMERIC_REQUIRED_MESSAGE);
+      }
+    }
+  );
+
+  it("still accepts id_number values that mix punctuation with at least one alphanumeric character", () => {
+    expect(idNumberSchema.safeParse("A.").success).toBe(true);
+    expect(idNumberSchema.safeParse("-1").success).toBe(true);
+  });
 });
 
 describe("findIdNumberCharacterMessage", () => {
@@ -58,6 +80,17 @@ describe("findIdNumberCharacterMessage", () => {
     expect(parsed.success).toBe(false);
     if (!parsed.success) {
       expect(findIdNumberCharacterMessage(parsed.error)).toBe(INVALID_CHARS_MESSAGE);
+    }
+  });
+
+  it('returns the alphanumeric-required message when id_number is punctuation-only (e.g. ".")', () => {
+    const Body = z.object({ id_number: idNumberSchema, other: z.string() });
+    const parsed = Body.safeParse({ id_number: ".", other: "x" });
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      expect(findIdNumberCharacterMessage(parsed.error)).toBe(
+        "id_number must contain at least one letter or digit"
+      );
     }
   });
 

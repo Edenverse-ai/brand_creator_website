@@ -36,24 +36,46 @@ const ID_NUMBER_ALLOWED_CHARS = /^[A-Za-z0-9\- _.]+$/;
 const ID_NUMBER_INVALID_CHARS_MESSAGE =
   "id_number contains characters that are not allowed (/, \\, %, or ..)";
 
+// Guards against id_number values built entirely from the allowed punctuation
+// (e.g. ".", "--", "  "). Those pass the character-class + ".." checks above but
+// then fail downstream in the storage layer instead: as the first path segment of
+// every uploaded file's path, a purely-punctuation id_number like "." collides with
+// isOwnedStoragePath's own "no segment may literally be '.'" rule, so
+// generateUploadUrls' defense-in-depth check (upload-urls/logic.ts) throws and the
+// caller sees an opaque 500 instead of a clear 400 at the input boundary.
+const ID_NUMBER_REQUIRES_ALPHANUMERIC = /[A-Za-z0-9]/;
+const ID_NUMBER_ALPHANUMERIC_REQUIRED_MESSAGE =
+  "id_number must contain at least one letter or digit";
+
 export const idNumberSchema = z
   .string()
   .trim()
   .min(1, "id_number is required")
   .max(ID_NUMBER_MAX_LENGTH, `id_number must be ${ID_NUMBER_MAX_LENGTH} characters or fewer`)
-  .refine((value) => ID_NUMBER_ALLOWED_CHARS.test(value) && !value.includes(".."), {
-    message: ID_NUMBER_INVALID_CHARS_MESSAGE,
+  .superRefine((value, ctx) => {
+    if (!ID_NUMBER_ALLOWED_CHARS.test(value) || value.includes("..")) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: ID_NUMBER_INVALID_CHARS_MESSAGE });
+      return;
+    }
+    if (!ID_NUMBER_REQUIRES_ALPHANUMERIC.test(value)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: ID_NUMBER_ALPHANUMERIC_REQUIRED_MESSAGE,
+      });
+    }
   });
 
 /**
- * Picks out idNumberSchema's own disallowed-characters message from a failed parse
- * of a body that embeds it — but only that specific failure (zod issue `code:
- * "custom"`, from the `.refine()` above), not zod's generic type-check message for
- * an absent/wrong-type `id_number` (e.g. "expected string, received undefined").
- * That distinction matters: callers use this to upgrade their generic "field
- * missing" message to something that names the problem when id_number was actually
- * present but invalid, while leaving the pre-existing generic message alone when
- * id_number was simply never provided (a different, already-covered failure mode).
+ * Picks out idNumberSchema's own custom validation message (either the
+ * disallowed-characters message or the alphanumeric-required message) from a failed
+ * parse of a body that embeds it — but only those specific failures (zod issue
+ * `code: "custom"`, from the `.superRefine()` above), not zod's generic type-check
+ * message for an absent/wrong-type `id_number` (e.g. "expected string, received
+ * undefined"). That distinction matters: callers use this to upgrade their generic
+ * "field missing" message to something that names the problem when id_number was
+ * actually present but invalid, while leaving the pre-existing generic message alone
+ * when id_number was simply never provided (a different, already-covered failure
+ * mode).
  */
 export function findIdNumberCharacterMessage(error: z.ZodError): string | undefined {
   return error.issues.find((issue) => issue.path[0] === "id_number" && issue.code === "custom")

@@ -207,24 +207,43 @@ async function checkIdExists(idNumber: string): Promise<boolean> {
  * Field-for-field port of the insert + response tail of
  * create_verification_with_paths: writes the row, then echoes the same record back
  * as `data` (not a re-read of the inserted row) — identical to what Python does.
+ *
+ * `record.date_of_birth` is the "YYYY-MM-DD" string from `formatDateOfBirth` (kept
+ * that way in the response, matching Python's `dob.isoformat()`), but the Prisma
+ * column is `date_of_birth DateTime @db.Date` (prisma/schema.prisma) — Prisma 6
+ * types `DateTime` inputs as `Date | string` but actually requires a full ISO-8601
+ * datetime string at runtime, so a date-only string throws
+ * `PrismaClientValidationError: premature end of input. Expected ISO-8601 DateTime.`
+ * on every single submission. Convert to a UTC-midnight `Date` for the write only;
+ * the response keeps echoing the original string `record`.
  */
 async function saveVerification(
   record: ReturnType<typeof buildVerificationRecord>
 ): Promise<NextResponse> {
   try {
-    await prisma.influencer_verifications.create({ data: record });
+    await prisma.influencer_verifications.create({
+      data: { ...record, date_of_birth: new Date(`${record.date_of_birth}T00:00:00.000Z`) },
+    });
     return NextResponse.json({
       success: true,
       message: "Verification submitted successfully",
       data: record,
     });
   } catch (error) {
-    console.error("tiktokverification: failed to save verification", error);
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json(
-      { detail: `Failed to save verification data: ${message}` },
-      { status: 500 }
-    );
+    // PrismaClientValidationError.message embeds the entire attempted `data` object
+    // (passport name, real name, id number, date of birth, agent email, and every
+    // document storage path) — never forward it to the caller or write it to logs.
+    // Only the error's class name / Prisma error code identify the failure without
+    // disclosing applicant PII.
+    const errorCode =
+      error && typeof error === "object" && "code" in error
+        ? (error as { code: unknown }).code
+        : undefined;
+    console.error("tiktokverification: failed to save verification", {
+      name: error instanceof Error ? error.name : typeof error,
+      ...(errorCode === undefined ? {} : { code: errorCode }),
+    });
+    return NextResponse.json({ detail: "Failed to save verification data" }, { status: 500 });
   }
 }
 

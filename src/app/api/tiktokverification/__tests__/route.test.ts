@@ -317,9 +317,15 @@ describe("POST /api/tiktokverification (JSON path-based submission)", () => {
     const res = await POST(jsonRequest({ ...VALID_BODY, date_of_birth: input }) as never);
 
     expect(res.status).toBe(200);
+    // create() gets a real UTC-midnight Date (Prisma's DateTime @db.Date column
+    // requires it); the response still echoes the "YYYY-MM-DD" string.
     expect(influencerVerificationsCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ date_of_birth: expected }) })
+      expect.objectContaining({
+        data: expect.objectContaining({ date_of_birth: new Date(`${expected}T00:00:00.000Z`) }),
+      })
     );
+    const body = await res.json();
+    expect(body.data.date_of_birth).toBe(expected);
   });
 
   it("parses a 1-digit month/day (strptime %m/%d accept unpadded single digits too)", async () => {
@@ -327,8 +333,12 @@ describe("POST /api/tiktokverification (JSON path-based submission)", () => {
 
     expect(res.status).toBe(200);
     expect(influencerVerificationsCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ data: expect.objectContaining({ date_of_birth: "1998-05-01" }) })
+      expect.objectContaining({
+        data: expect.objectContaining({ date_of_birth: new Date("1998-05-01T00:00:00.000Z") }),
+      })
     );
+    const body = await res.json();
+    expect(body.data.date_of_birth).toBe("1998-05-01");
   });
 
   it("returns 500 when date_of_birth doesn't match mm/dd/yy", async () => {
@@ -350,13 +360,38 @@ describe("POST /api/tiktokverification (JSON path-based submission)", () => {
   it("creates the influencer_verifications row with the field-for-field mapped data and returns the frozen response shape", async () => {
     const res = await POST(jsonRequest(VALID_BODY) as never);
 
-    expect(influencerVerificationsCreate).toHaveBeenCalledWith({ data: EXPECTED_RECORD });
+    // Prisma's `date_of_birth DateTime @db.Date` column requires a real Date at the
+    // write boundary (see the dedicated test below for why) — the create() call
+    // therefore receives EXPECTED_RECORD with date_of_birth swapped for the
+    // equivalent UTC-midnight Date, while every other field stays string-for-string
+    // identical.
+    expect(influencerVerificationsCreate).toHaveBeenCalledWith({
+      data: { ...EXPECTED_RECORD, date_of_birth: new Date("1998-05-12T00:00:00.000Z") },
+    });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       success: true,
       message: "Verification submitted successfully",
       data: EXPECTED_RECORD,
     });
+  });
+
+  it("passes a real Date to Prisma's create() call (not the date-only string) while the response keeps the ISO date string", async () => {
+    // Regression test for the class of bug that slipped past both typecheck (Prisma
+    // types DateTime inputs as `Date | string`) and the rest of this suite (Prisma is
+    // mocked wholesale, so a wrong-shaped argument never fails). A date-only string
+    // like "1998-05-12" makes Prisma 6 throw PrismaClientValidationError: "premature
+    // end of input. Expected ISO-8601 DateTime." on every real submission.
+    const res = await POST(jsonRequest(VALID_BODY) as never);
+
+    expect(influencerVerificationsCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ date_of_birth: expect.any(Date) }),
+      })
+    );
+
+    const body = await res.json();
+    expect(body.data.date_of_birth).toBe("1998-05-12");
   });
 
   it("returns 500 when the database insert fails", async () => {
@@ -366,7 +401,22 @@ describe("POST /api/tiktokverification (JSON path-based submission)", () => {
 
     expect(res.status).toBe(500);
     const body = await res.json();
-    expect(body.detail).toBe("Failed to save verification data: db down");
+    expect(body.detail).toBe("Failed to save verification data");
+  });
+
+  it("never echoes the underlying error message (which embeds the full applicant record) to the caller", async () => {
+    influencerVerificationsCreate.mockRejectedValue(
+      new Error(
+        'Invalid `prisma.influencer_verifications.create()` invocation: { data: { passport_name: "Jane Q Public", id_number: "TEST123", ... } }'
+      )
+    );
+
+    const res = await POST(jsonRequest(VALID_BODY) as never);
+
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.detail).toBe("Failed to save verification data");
+    expect(JSON.stringify(body)).not.toMatch(/passport_name|id_number|TEST123/);
   });
 });
 
