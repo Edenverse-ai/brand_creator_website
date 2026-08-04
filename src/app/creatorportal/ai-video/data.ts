@@ -1,20 +1,8 @@
 import { prisma } from "@/lib/prisma";
+import { getAiVideoLibrary, type AiVideoLibraryItemResponse } from "@/lib/ai-video-library";
 import { AiVideoRecord, TikTokBindingInfo, VideoStatus } from "./types";
 
-const PYTHON_API_BASE = process.env.CAMPAIGNS_API_URL || "http://localhost:5000";
 const TIKTOK_TOKEN_ENDPOINT = "https://open.tiktokapis.com/v2/oauth/token/";
-
-type AiVideoLibraryItem = {
-  id: string;
-  creator_id: string;
-  generated_time?: string;
-  created_at?: string;
-  video?: string;
-  video_url?: string;
-  thumbnail_url?: string;
-  tag?: string[] | string;
-  tags?: string[];
-};
 
 type TikTokUserProfile = {
   displayName?: string;
@@ -37,60 +25,41 @@ type TikTokTokenResponse = {
   message?: string;
 };
 
+/**
+ * Ported off the FastAPI proxy (previously `fetch(CAMPAIGNS_API_URL + "/ai-videos/library")`)
+ * onto the native `GET /api/ai-videos/library` port -- see src/lib/ai-video-library.ts and
+ * src/app/api/ai-videos/library/route.ts. Called directly rather than via HTTP self-fetch:
+ * this function already runs server-side inside the Server Component render that resolved
+ * `userId` from the session in the first place, so an HTTP round trip back into our own route
+ * would just add latency and a fragile cookie-forwarding requirement for zero benefit -- see
+ * task-4f-report.md for the full reasoning. A null/absent userId (no session) returns an empty
+ * list without touching the database, matching the route's own 401-if-unauthenticated posture.
+ */
 export async function fetchAiVideos(userId: string | null): Promise<AiVideoRecord[]> {
+  if (!userId) return [];
   try {
-    const baseUrl = PYTHON_API_BASE;
-    const url = new URL("/ai-videos/library", baseUrl);
-    if (userId) {
-      url.searchParams.set("creator_id", userId);
-    }
-
-    const response = await fetch(url.toString(), { cache: "no-store" });
-    if (response.status === 404) {
-      return [];
-    }
-    if (!response.ok) {
-      console.error("Failed to fetch AI videos", await response.text());
-      return [];
-    }
-
-    const responseBody = await response.clone().text();
-    console.log("AI video library response body", responseBody);
-    const payload: AiVideoLibraryItem[] = await response.json();
-    console.log("AI video library payload", payload);
+    const payload = await getAiVideoLibrary(userId);
     return payload.map(mapToRecord);
   } catch (error) {
-    console.error("Unable to load AI videos", error);
+    console.error("Unable to load AI videos", error instanceof Error ? error.name : typeof error);
     return [];
   }
 }
 
-function mapToRecord(item: AiVideoLibraryItem): AiVideoRecord {
-  const generatedAt = item.generated_time ?? item.created_at ?? new Date().toISOString();
+function mapToRecord(item: AiVideoLibraryItemResponse): AiVideoRecord {
   const expiresAt = new Date(
-    new Date(generatedAt).getTime() + 7 * 24 * 60 * 60 * 1000
+    new Date(item.generated_time).getTime() + 7 * 24 * 60 * 60 * 1000
   ).toISOString();
   const status: VideoStatus = new Date(expiresAt).getTime() < Date.now() ? "expired" : "ready";
-  const videoUrl = item.video_url ?? item.video;
-  const tags = Array.isArray(item.tags)
-    ? item.tags
-    : Array.isArray(item.tag)
-      ? item.tag
-      : typeof item.tag === "string"
-        ? item.tag
-            .split(",")
-            .map((tag) => tag.trim())
-            .filter(Boolean)
-        : [];
 
   return {
     id: item.id,
     creatorId: item.creator_id,
-    generatedAt,
+    generatedAt: item.generated_time,
     expiresAt,
-    videoUrl,
+    videoUrl: item.video_url,
     thumbnailUrl: item.thumbnail_url,
-    tags,
+    tags: item.tags,
     status,
   };
 }
