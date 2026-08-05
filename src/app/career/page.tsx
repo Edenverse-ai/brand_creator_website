@@ -158,8 +158,6 @@ function CareerPageContent() {
         body: JSON.stringify(applicationData),
       });
 
-      const result = await response.json();
-
       if (response.ok) {
         // Close modal and reset form
         setShowApplicationModal(false);
