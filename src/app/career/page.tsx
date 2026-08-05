@@ -148,10 +148,6 @@ function CareerPageContent() {
       },
     };
 
-    console.log("=== CAREER APPLICATION SUBMISSION ===");
-    console.log(JSON.stringify(applicationData, null, 2));
-    console.log("=====================================");
-
     try {
       // Send application to backend API
       const response = await fetch("/api/career/apply", {
@@ -185,11 +181,16 @@ function CareerPageContent() {
           "Application submitted successfully! A confirmation email has been sent to your email address."
         );
       } else {
-        console.error("Application submission failed:", result);
+        // Never log `result` or the submitted application: this form carries
+        // passport name, ID number and date of birth.
+        console.error("Application submission failed", { status: response.status });
         alert("Failed to submit application. Please try again.");
       }
     } catch (error) {
-      console.error("Error submitting application:", error);
+      console.error(
+        "Error submitting application:",
+        error instanceof Error ? error.name : "unknown error"
+      );
       alert("An error occurred while submitting your application. Please try again.");
     }
   };
