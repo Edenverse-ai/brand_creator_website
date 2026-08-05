@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { TIKTOK_MESSAGES, publicMessageFor } from "../errors";
+import { TIKTOK_MESSAGES, TikTokInitError, logDetailsFor, publicMessageFor } from "../errors";
 import { UnsafeRelayTargetError } from "../relay-url-guard";
 
 /**
@@ -24,5 +24,50 @@ describe("publicMessageFor / UnsafeRelayTargetError", () => {
   it("the source-hosting message states the real rule (host, not which request field) and never tells the caller to switch to video_path", () => {
     expect(TIKTOK_MESSAGES.sourceNotRelayable).not.toContain("video_path");
     expect(TIKTOK_MESSAGES.sourceNotRelayable.toLowerCase()).toContain("own storage");
+  });
+});
+
+/**
+ * PULL_FROM_URL failed five diagnosis attempts because TikTok's own error code
+ * was never logged -- only { name, status }. logDetailsFor now surfaces
+ * code/log_id/message, with URLs stripped from message because a signed
+ * video_url's `?token=` is a bearer capability.
+ */
+describe("logDetailsFor / TikTokInitError payload", () => {
+  it("surfaces TikTok's error code and log_id", () => {
+    const error = new TikTokInitError(400, {
+      error: {
+        code: "url_ownership_unverified",
+        message: "unverified url",
+        log_id: "20260805-abc",
+      },
+    });
+
+    expect(logDetailsFor(error)).toMatchObject({
+      name: "TikTokInitError",
+      status: 400,
+      tiktokCode: "url_ownership_unverified",
+      tiktokLogId: "20260805-abc",
+    });
+  });
+
+  it("strips any URL out of TikTok's message so signed-URL tokens never reach the logs", () => {
+    const error = new TikTokInitError(400, {
+      error: {
+        code: "invalid_param",
+        message: "video_url https://cricher.ai/media/x.mp4?token=SECRET is invalid",
+      },
+    });
+
+    const details = logDetailsFor(error);
+    expect(details.tiktokMessage).toBe("video_url [url] is invalid");
+    expect(JSON.stringify(details)).not.toContain("SECRET");
+  });
+
+  it("tolerates a non-conforming payload without throwing", () => {
+    expect(logDetailsFor(new TikTokInitError(500, "<html>gateway</html>"))).toEqual({
+      name: "TikTokInitError",
+      status: 500,
+    });
   });
 });
