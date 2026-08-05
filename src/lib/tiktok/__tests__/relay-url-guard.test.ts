@@ -30,6 +30,25 @@ describe("assertUploadTargetUrl", () => {
     ).not.toThrow();
   });
 
+  it("allows the .us TLD TikTok actually issues upload_urls on", () => {
+    // Regression: a live publish returned open-upload.tiktokapis.us and the
+    // .com-only allowlist rejected it at the guard, silently stalling the
+    // upload at uploaded_bytes: 0.
+    expect(() =>
+      assertUploadTargetUrl("https://open-upload.tiktokapis.us/video/?upload_id=abc")
+    ).not.toThrow();
+    expect(() => assertUploadTargetUrl("https://tiktokapis.us/upload/abc")).not.toThrow();
+  });
+
+  it("still rejects lookalikes of the .us domain", () => {
+    expect(() => assertUploadTargetUrl("https://tiktokapis.us.attacker.example/x")).toThrow(
+      UnsafeRelayTargetError
+    );
+    expect(() => assertUploadTargetUrl("https://eviltiktokapis.us/x")).toThrow(
+      UnsafeRelayTargetError
+    );
+  });
+
   it("rejects http (non-https) even on the allowed host", () => {
     expect(() => assertUploadTargetUrl("http://open-upload.tiktokapis.com/upload/abc")).toThrow(
       UnsafeRelayTargetError

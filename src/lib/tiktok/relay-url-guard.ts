@@ -64,12 +64,20 @@ function parseHttpsUrl(rawUrl: string): URL | null {
   return parsed.protocol === "https:" ? parsed : null;
 }
 
+/**
+ * Registrable domains TikTok issues upload_urls under. `.us` is not a typo:
+ * a live publish returned `open-upload.tiktokapis.us`, so restricting this to
+ * `.com` alone silently rejected every real upload at the guard.
+ */
+const TIKTOK_UPLOAD_DOMAINS = ["tiktokapis.com", "tiktokapis.us"] as const;
+
 /** TikTok's upload_url is always issued by TikTok's own init response. */
 export function assertUploadTargetUrl(rawUrl: string): void {
   const parsed = parseHttpsUrl(rawUrl);
   const host = parsed?.hostname.toLowerCase();
   const allowed =
-    host !== undefined && (host === "tiktokapis.com" || host.endsWith(".tiktokapis.com"));
+    host !== undefined &&
+    TIKTOK_UPLOAD_DOMAINS.some((domain) => host === domain || host.endsWith(`.${domain}`));
   if (!allowed) {
     throw new UnsafeRelayTargetError(rawUrl, "upload");
   }
