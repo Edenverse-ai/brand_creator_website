@@ -1,29 +1,25 @@
 # Phase 5 Readiness — FastAPI/ECS Decommission
 
-Status as of **2026-08-05**. Phase 5 is **not complete** and must not be started until the blockers below clear. Nothing on AWS has been deleted.
+Status as of **2026-08-05**. Both code blockers are **cleared**. The only remaining gate is the traffic observation window. Nothing on AWS has been deleted.
 
-## Why it is blocked
+## Blockers — both closed
 
-Removing `backend/` today breaks live paths. Two remain:
+### 1. TikTok publish client — ✅ verified live 2026-08-05
 
-### 1. TikTok publish client — needs a live end-to-end test
+The client was flipped to the native routes in PR #23 and a real publish to a live TikTok account reached `PUBLISH_COMPLETE`.
 
-`src/app/creatorportal/ai-video/post/page.tsx:13` still reads `CAMPAIGNS_API_URL` and posts to the FastAPI `/upload-ai-video` and `/publish-status` endpoints.
+Getting there surfaced two genuine bugs, both now fixed:
 
-Phase 3 shipped native replacements (`POST /api/tiktok/publish`, `POST /api/tiktok/publish-status`) plus a Netlify background function for the byte relay, but deliberately did **not** flip the client. Flipping requires:
+- **`PULL_FROM_URL` fails domain verification.** `cricher.ai` is listed as a verified _Domain_ property in the TikTok console, and TikTok's own UI says that covers all URLs beneath it — but init consistently returned a failure until the flag was turned off. `TIKTOK_PULL_FROM_URL_ENABLED` is therefore **`false`**, and the FILE*UPLOAD relay is the working path. Re-verifying the prefix (as a \_URL prefix* property with a signature file, rather than relying on the Domain one) is the way back to the cheaper design; it is optional, not required.
+- **The SSRF allowlist rejected TikTok's real upload host.** TikTok issued `open-upload.tiktokapis.us` — a `.us` TLD — while the allowlist permitted only `tiktokapis.com`. Every upload was refused by our own guard and stalled at `uploaded_bytes: 0`. Fixed in `relay-url-guard.ts` with regression tests; lookalike hosts are still rejected.
 
-- One real publish against a live TikTok account, including a >64MB video to exercise chunking (the FastAPI implementation always sent a single chunk, which TikTok caps at 64MB — large videos have been failing).
-- Reconciling two client-side shape mismatches, both documented in `.superpowers/sdd/task-3-report.md`:
-  - the client sends camelCase; the new routes accept both spellings, so this is already handled server-side,
-  - the client reads `result.error?.message`, but the new routes return `error` as a plain string (deliberate — the old dict echoed TikTok's raw payload back to the caller).
+Both failures were invisible from the outside because Netlify answers `202` the moment a background function is queued, and all three of the function's rejection paths returned silently. The function now logs which gate refused (hostnames only — the URLs are bearer capabilities). Keep that logging; it turned a multi-attempt guessing exercise into a single decisive run.
 
-### 2. Career applications — needs a product decision
+Still untested: a video over 64MB, which is the only case that exercises the chunking fix. All library fixtures are ~2.6MB.
 
-`src/app/api/career/apply/route.ts` still proxies to FastAPI. It was **not** ported because the Python writes to a `CareerApplications` table that **does not exist**.
+### 2. Career applications — ✅ resolved 2026-08-05
 
-Verified 2026-08-05: the Supabase REST API returns `PGRST205 — Could not find the table 'public.CareerApplications'`, and a read-only `prisma db pull` against `DIRECT_URL` shows the live database contains exactly the same 30 models as `prisma/schema.prisma`. The Python's insert throws and the exception is swallowed, so every career application has only ever produced an email.
-
-Persisting these means storing passport name, ID number, nationality, gender and date of birth. That is a retention decision, not a migration step. Options are laid out in the spawned task "Decide whether to persist career applications".
+Ported email-only in PR #24, per the owner's decision. The `CareerApplications` table never existed (`PGRST205`, confirmed against the live database), the Python's insert always threw and was swallowed, so applications have only ever produced an email. The dead insert is gone; no Prisma model, no migration, and no passport/ID/DOB at rest.
 
 ### Harmless — no action needed
 
@@ -58,6 +54,8 @@ fields @message
 | 2026-08-05 | 24 hours | `GET /campaigns/` ×1, `GET /` ×2                                                           |
 
 The single `GET /campaigns/` hit is attributable to a Netlify deploy preview during Phase 4 work — `/api/campaigns` proxied to FastAPI until PR #18 merged. That proxy is now native Prisma, so this source is gone. **Re-run the query and confirm a clean 7-day window before proceeding**; do not treat the 2026-08-04 reading as still valid.
+
+Since no application code has called FastAPI since PR #24 merged on 2026-08-05, the window should now run clean. **This is the only thing still gating teardown.**
 
 Earliest valid teardown on the original gate: **~2026-08-11**.
 
