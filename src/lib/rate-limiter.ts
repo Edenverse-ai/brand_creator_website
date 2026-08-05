@@ -104,3 +104,17 @@ export const contactFormLimiter = new RateLimiter(60 * 60 * 1000, 5); // 5 submi
 // re-fetches on every keystroke of its search box — a tight budget would 429 a single
 // legitimate user mid-search.
 export const pearBrandsLimiter = new RateLimiter(60 * 1000, 30); // 30 requests per minute per warm container
+
+// GET /api/entertainment-live (list) and GET /api/entertainment-live/[id] (detail)
+// are both public/unauthenticated (porting reference §5.6 — zero auth anywhere in
+// entertainment.py/entertainment_live.py for these two verbs) and now hit Prisma
+// directly instead of proxying through a Python process with its own 10s timeout,
+// so a direct-Prisma-call rate limit is cheap defense-in-depth even though neither
+// route is a "mutating" endpoint (this task's hard requirement only mandates rate
+// limiting for public *mutating* routes — adding it here anyway is a deliberate,
+// documented judgment call, not a strict requirement). Tuned generously (30/min)
+// so a user paging through filters or re-fetching on every search keystroke never
+// trips it; each route gets its own instance (never a shared budget), same as
+// every other limiter in this file.
+export const entertainmentLiveListLimiter = new RateLimiter(60 * 1000, 30); // 30 list requests per minute per warm container
+export const entertainmentLiveDetailLimiter = new RateLimiter(60 * 1000, 30); // 30 detail requests per minute per warm container
