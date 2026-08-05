@@ -103,6 +103,9 @@ module.exports = [
       // Claude Code session/worktree scratch space — may contain build output
       // (e.g. .next/) from unrelated concurrent sessions sharing this checkout.
       ".claude/**",
+      // git worktrees checked out inside the repo carry their own build output;
+      // each is linted on its own branch, never through the parent checkout.
+      ".worktrees/**",
     ],
   },
 ];

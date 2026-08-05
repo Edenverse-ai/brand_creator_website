@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowLeft, CheckCircle, Info, RefreshCw, Upload, X } from "lucide-react";
 import { AiVideoRecord, TikTokBindingInfo } from "../types";
+import { extractErrorMessage } from "./error-message";
 
 type CreatorInfoData = {
   creator_avatar_url?: string;
@@ -167,6 +168,10 @@ export default function AiVideoPostPage({
   const creatorNickname =
     creatorData?.creator_nickname || creatorData?.creator_username || tikTokBinding?.displayName;
   const maxDuration = creatorData?.max_video_post_duration_sec;
+  // Pre-existing (unrelated to this task): privacyOptions is recreated every render, which
+  // exhaustive-deps flags for the useEffect below that reads it. Not touched by this change --
+  // see docs/harness.md's Layer 2 friction note for the accepted in-place suppression convention.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const privacyOptions = creatorData?.privacy_level_options ?? [];
   const disableCommentToggle = Boolean(creatorData?.comment_disabled);
   const disableDuetToggle = Boolean(creatorData?.duet_disabled);
@@ -435,7 +440,7 @@ export default function AiVideoPostPage({
         if (!result?.id) return;
         if (result.status !== "ok") {
           nextStatuses[result.id] = "error";
-          nextDetails[result.id] = result.error?.message || "Upload failed";
+          nextDetails[result.id] = extractErrorMessage(result.error, "Upload failed");
           return;
         }
 
@@ -523,7 +528,7 @@ export default function AiVideoPostPage({
           const videoId = videoEntry.videoId;
           if (result.status !== "ok") {
             nextStatuses[videoId] = "error";
-            nextDetails[videoId] = result.error?.message || "Status check failed";
+            nextDetails[videoId] = extractErrorMessage(result.error, "Status check failed");
             return;
           }
           const status = result.payload?.data?.status;
@@ -684,6 +689,10 @@ export default function AiVideoPostPage({
               </p>
               <div className="flex items-center gap-3 text-sm font-semibold text-slate-900">
                 {creatorData?.creator_avatar_url ? (
+                  // Pre-existing (unrelated to this task): avatar URL is a TikTok-hosted CDN URL
+                  // with a varying host; skip next/image to avoid an allow-list dependency (same
+                  // rationale as AiVideoDashboard.tsx's thumbnail <img>).
+                  // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={creatorData.creator_avatar_url}
                     alt={creatorNickname || "TikTok creator avatar"}
@@ -928,6 +937,10 @@ export default function AiVideoPostPage({
                   >
                     <div className="flex items-center gap-3">
                       {primaryVideo.thumbnailUrl ? (
+                        // Pre-existing (unrelated to this task): thumbnailUrl is a signed Supabase
+                        // storage URL whose host varies per env; skip next/image to avoid an
+                        // allow-list dependency (same rationale as AiVideoDashboard.tsx).
+                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={primaryVideo.thumbnailUrl}
                           alt={`Thumbnail for ${primaryVideo.id}`}
@@ -966,6 +979,10 @@ export default function AiVideoPostPage({
           {primaryVideo?.videoUrl && (
             <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-slate-900">
               {isPhotoPost ? (
+                // Pre-existing (unrelated to this task): videoUrl is a signed Supabase storage URL
+                // whose host varies per env; skip next/image to avoid an allow-list dependency
+                // (same rationale as AiVideoDashboard.tsx).
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={primaryVideo.videoUrl}
                   alt="Preview of selected content"

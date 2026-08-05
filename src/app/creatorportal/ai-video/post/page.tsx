@@ -10,8 +10,6 @@ export const metadata: Metadata = {
   description: "Confirm AI video upload settings before publishing to TikTok.",
 };
 
-const PYTHON_API_BASE = process.env.CAMPAIGNS_API_URL || "http://localhost:5000";
-
 type PageProps = {
   searchParams?: Promise<{ ids?: string }>;
 };
@@ -47,8 +45,8 @@ export default async function PostToTikTokPage({ searchParams }: PageProps) {
     <AiVideoPostPage
       videos={primaryVideo}
       tikTokBinding={tikTokBinding}
-      uploadEndpoint={`${PYTHON_API_BASE}/tiktok/upload-ai-video`}
-      statusEndpoint={`${PYTHON_API_BASE}/tiktok/publish-status`}
+      uploadEndpoint="/api/tiktok/publish"
+      statusEndpoint="/api/tiktok/publish-status"
     />
   );
 }
