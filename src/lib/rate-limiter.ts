@@ -105,6 +105,16 @@ export const contactFormLimiter = new RateLimiter(60 * 60 * 1000, 5); // 5 submi
 // legitimate user mid-search.
 export const pearBrandsLimiter = new RateLimiter(60 * 1000, 30); // 30 requests per minute per warm container
 
+// Public, unauthenticated, email-sending endpoint (POST /api/career/apply) — Phase 4b,
+// same "intentionally public" category as contactFormLimiter above. Own budget, not
+// shared with any other route. This route now sends an email only (no DB write at all
+// — the owner decided career applications stay email-only, no PII at rest; see the
+// phase report), but it still performs an SMTP send per request, so the same abuse
+// concern that justifies contactFormLimiter's budget applies here. Matched to
+// contactFormLimiter's 5/hour rather than inventing a different number: it's the same
+// shape of endpoint (public, mutating-by-side-effect, one outbound email per success).
+export const careerApplicationLimiter = new RateLimiter(60 * 60 * 1000, 5); // 5 submissions per hour per warm container
+
 // GET /api/entertainment-live (list) and GET /api/entertainment-live/[id] (detail)
 // are both public/unauthenticated (porting reference §5.6 — zero auth anywhere in
 // entertainment.py/entertainment_live.py for these two verbs) and now hit Prisma
