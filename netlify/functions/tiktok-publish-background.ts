@@ -42,6 +42,15 @@ function isChunkedUploadJob(value: unknown): value is ChunkedUploadJob & { publi
   );
 }
 
+/** Hostname only — never the path or query, which carry upload/signing tokens. */
+function safeHostname(raw: string): string {
+  try {
+    return new URL(raw).hostname;
+  } catch {
+    return "(unparseable)";
+  }
+}
+
 export default async (req: Request, _context: Context) => {
   if (req.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
@@ -49,6 +58,10 @@ export default async (req: Request, _context: Context) => {
 
   const payload: unknown = await req.json().catch(() => null);
   if (!isChunkedUploadJob(payload)) {
+    // Netlify answers the caller 202 the instant this function is queued, so a
+    // silent rejection here is indistinguishable from a successful upload from
+    // the outside. Log which gate refused (never the URLs themselves).
+    console.error("[tiktok-publish-background] rejected: invalid payload shape");
     return new Response("Bad request", { status: 400 });
   }
 
@@ -62,13 +75,26 @@ export default async (req: Request, _context: Context) => {
       req.headers.get("x-relay-signature")
     )
   ) {
+    console.error("[tiktok-publish-background] rejected: relay auth", {
+      publishId: payload.publishId,
+      hasTimestamp: req.headers.get("x-relay-timestamp") !== null,
+      hasSignature: req.headers.get("x-relay-signature") !== null,
+    });
     return new Response("Unauthorized", { status: 401 });
   }
 
   try {
     assertUploadTargetUrl(payload.uploadUrl);
     assertSourceTargetUrl(payload.sourceUrl);
-  } catch {
+  } catch (error) {
+    // Hostnames only — the full URLs are bearer capabilities and must not be
+    // logged. Without this, an allowlist miss is completely invisible.
+    console.error("[tiktok-publish-background] rejected: url guard", {
+      publishId: payload.publishId,
+      uploadHost: safeHostname(payload.uploadUrl),
+      sourceHost: safeHostname(payload.sourceUrl),
+      name: error instanceof Error ? error.name : typeof error,
+    });
     return new Response("Bad request", { status: 400 });
   }
 
