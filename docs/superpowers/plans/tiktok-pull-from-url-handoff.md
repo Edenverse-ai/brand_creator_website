@@ -1,5 +1,51 @@
 # Handoff — Why TikTok `PULL_FROM_URL` Fails
 
+## RESOLVED 2026-08-06 — root cause was ours, not TikTok's
+
+**We sent TikTok a `supabase.co` URL.** The route decided whether to rewrite onto the
+verified `/media` prefix from _which request field_ carried the source
+(`video_path` → rewrite, `video_url` → pass through). The live client
+(`AiVideoPostPage.tsx:412`) sends `videoUrl`, and that value is itself a signed
+**Supabase** URL minted by `src/lib/ai-video-library.ts`. So every pull attempt handed
+TikTok `https://loesykbqlhynbjmqxfxc.supabase.co/storage/v1/...`, an unverified host.
+
+Proven live against the account's own API, both calls seconds apart:
+
+| Pull URL                                                          | Result                                                    |
+| ----------------------------------------------------------------- | --------------------------------------------------------- |
+| `https://cricher.ai/media/object/sign/aivideogenerated/…?token=…` | init `ok` → `PUBLISH_COMPLETE` (direct post, `SELF_ONLY`) |
+| `https://…supabase.co/storage/v1/object/sign/…?token=…`           | 400 `url_ownership_unverified`                            |
+
+So the leading hypotheses in the sections below are all **disproven**:
+
+- Domain verification is live and healthy — `https://cricher.ai/tiktokQv6eQxw97FIYpCnVZdTz6SSlpr51eMyH.txt`
+  serves the signature file (200). No DNS TXT record is needed or present; the file
+  method satisfied it. Domain-level verification **does** cover `/media/...`.
+- **Query strings are fine.** The `?token=` signed URL was pulled and published.
+- The Netlify `/media` rule is `status = 200` (proxy, not 3xx), which matters: TikTok's
+  docs state redirects are not followed and 3xx URLs are invalid.
+
+### Fixed
+
+- `isOwnSupabaseStorageUrl` / `storageObjectPath` (`src/lib/tiktok/signed-source.ts`)
+  decide by **host**, not by request field. `resolvePullUrl` in the publish route
+  rewrites any source on our own storage onto `/media`, and re-signs it first at
+  `SIGNED_URL_TTL_SECONDS` (30 min) because the library mints 300-second URLs and
+  TikTok's download window is an hour.
+- `logDetailsFor` now logs `tiktokCode` / `tiktokLogId` / a URL-scrubbed
+  `tiktokMessage`. The absence of this is what cost five attempts. Signed URLs are
+  stripped from the message before logging (test covers it).
+
+### Still to do
+
+- `TIKTOK_PULL_FROM_URL_ENABLED` is still `false`. Flip it to `true` after this
+  deploys to production to switch off the relay path.
+- The verification run left one **`SELF_ONLY` (private) test post** on `jason.liu851`
+  — delete it in the TikTok app if unwanted. Note the connected account is
+  `jason.liu851`, not `zhouruc16` as this doc previously stated.
+
+Everything below is the original brief, kept for context.
+
 **Written 2026-08-05.** Everything here was established by live testing against production. Nothing is speculative unless labelled so.
 
 ## The task

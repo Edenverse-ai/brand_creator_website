@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { PublishRequestSchema, type VideoInput } from "@/lib/tiktok/schema";
-import { resolveSignedVideoUrl, toMediaProxyUrl } from "@/lib/tiktok/signed-source";
+import {
+  isOwnSupabaseStorageUrl,
+  resolveSignedVideoUrl,
+  storageObjectPath,
+  toMediaProxyUrl,
+} from "@/lib/tiktok/signed-source";
 import { fetchVideoSize } from "@/lib/tiktok/video-size";
 import { initFileUpload, initPullFromUrl } from "@/lib/tiktok/init";
 import { dispatchBackgroundUpload } from "@/lib/tiktok/background-dispatch";
@@ -47,20 +52,41 @@ interface VideoResult {
   error?: string;
 }
 
+/**
+ * The URL handed to TikTok's PULL_FROM_URL init.
+ *
+ * TikTok will only pull from a URL under one of the app's verified properties
+ * (cricher.ai); it answers 400 `url_ownership_unverified` for anything else --
+ * including our own Supabase storage host, which was the actual cause of the
+ * "TikTok init failed" reports (reproduced live 2026-08-06, see
+ * docs/superpowers/plans/tiktok-pull-from-url-handoff.md). So ANY source on our
+ * own storage host is rewritten onto the verified /media proxy, whichever
+ * request field carried it -- the live client sends `videoUrl`, which the
+ * previous field-based test wrongly treated as third-party.
+ *
+ * Sources on our host are also re-signed first: the library mints its URLs with
+ * a 300-second expiry, and TikTok's download window is an hour.
+ */
+async function resolvePullUrl(sourceUrl: string): Promise<string> {
+  if (!isOwnSupabaseStorageUrl(sourceUrl)) return sourceUrl;
+  const objectPath = storageObjectPath(sourceUrl);
+  const fresh = objectPath ? await resolveSignedVideoUrl(objectPath) : sourceUrl;
+  return toMediaProxyUrl(fresh);
+}
+
 async function processViaPullFromUrl(
   accessToken: string,
   video: VideoInput,
   privacyLevel: string,
-  sourceUrl: string,
-  sourceIsSignedSupabaseUrl: boolean
+  sourceUrl: string
 ): Promise<VideoResult> {
   const id = video.id ?? null;
-  // Only OUR OWN signed Supabase URLs (the video_path branch) get rewritten onto
-  // the verified /media prefix -- a caller-supplied video_url is passed through
-  // as-is; it either already sits under a verified prefix or TikTok will reject
-  // it, which surfaces as a normal per-video TikTokInitError below.
-  const pullUrl = sourceIsSignedSupabaseUrl ? toMediaProxyUrl(sourceUrl) : sourceUrl;
-  const init = await initPullFromUrl(accessToken, video, privacyLevel, pullUrl);
+  const init = await initPullFromUrl(
+    accessToken,
+    video,
+    privacyLevel,
+    await resolvePullUrl(sourceUrl)
+  );
   return { id, status: "ok", publish_id: init.publishId };
 }
 
@@ -104,7 +130,6 @@ async function processVideo(accessToken: string, video: VideoInput): Promise<Vid
     }
 
     let sourceUrl: string | null = null;
-    let sourceIsSignedSupabaseUrl = false;
     if (video.video_url) {
       // POST-REVIEW FIX (IMPORTANT 4): this must run before ANY fetch touches
       // video.video_url (fetchVideoSize below, for the FILE_UPLOAD strategy) --
@@ -115,20 +140,13 @@ async function processVideo(accessToken: string, video: VideoInput): Promise<Vid
       sourceUrl = video.video_url;
     } else if (video.video_path) {
       sourceUrl = await resolveSignedVideoUrl(video.video_path);
-      sourceIsSignedSupabaseUrl = true;
     }
     if (!sourceUrl) {
       return { id, status: "error", error: TIKTOK_MESSAGES.missingVideoSource };
     }
 
     if (isPullFromUrlEnabled()) {
-      return await processViaPullFromUrl(
-        accessToken,
-        video,
-        privacyLevel,
-        sourceUrl,
-        sourceIsSignedSupabaseUrl
-      );
+      return await processViaPullFromUrl(accessToken, video, privacyLevel, sourceUrl);
     }
     return await processViaFileUploadRelay(accessToken, video, privacyLevel, sourceUrl);
   } catch (error) {

@@ -101,15 +101,37 @@ export function publicMessageFor(error: unknown): string {
 }
 
 /**
+ * TikTok error bodies are shaped `{ error: { code, message, log_id } }`. `code`
+ * and `log_id` are TikTok-generated constants (e.g. "url_ownership_unverified")
+ * and carry no caller data, so they are safe to log. `message` can quote the
+ * request back -- including a signed video_url whose `?token=` is a bearer
+ * capability -- so any URL inside it is stripped before logging.
+ */
+const URL_IN_TEXT = /https?:\/\/\S+/gi;
+
+function tiktokErrorDetails(payload: unknown): Record<string, unknown> {
+  if (typeof payload !== "object" || payload === null) return {};
+  const body = (payload as { error?: unknown }).error;
+  if (typeof body !== "object" || body === null) return {};
+  const { code, message, log_id: logId } = body as Record<string, unknown>;
+  return {
+    ...(typeof code === "string" ? { tiktokCode: code } : {}),
+    ...(typeof logId === "string" ? { tiktokLogId: logId } : {}),
+    ...(typeof message === "string"
+      ? { tiktokMessage: message.replace(URL_IN_TEXT, "[url]") }
+      : {}),
+  };
+}
+
+/**
  * Server-log-only detail for a caught error: error.name always, plus an HTTP
- * status when the error carries one. Deliberately excludes `payload` on
- * TikTokInitError/TikTokStatusFetchError -- TikTok's upstream error body is
- * itself an echo of caller-supplied request data and must not be logged
- * verbatim any more than it may be returned to the caller.
+ * status when the error carries one, plus TikTok's own error code/log_id/
+ * URL-scrubbed message when the error carries an upstream payload. The raw
+ * `payload` is still never logged wholesale, and never returned to the caller.
  */
 export function logDetailsFor(error: unknown): Record<string, unknown> {
   if (error instanceof TikTokInitError || error instanceof TikTokStatusFetchError) {
-    return { name: error.name, status: error.status };
+    return { name: error.name, status: error.status, ...tiktokErrorDetails(error.payload) };
   }
   if (error instanceof Error) {
     return { name: error.name };
