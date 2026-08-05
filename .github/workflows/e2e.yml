@@ -16,7 +16,9 @@ jobs:
           cache: npm
       - run: npm ci
       - uses: supabase/setup-cli@v1
-        with: { version: latest }
+        # Pinned, not `latest`: resolving `latest` hits the GitHub releases API
+        # unauthenticated and intermittently fails CI with "rate limit exceeded".
+        with: { version: 2.111.0 }
       - run: npx playwright install --with-deps chromium
       - run: npm run e2e:up
       - run: npm run e2e:ci -- e2e/smoke
