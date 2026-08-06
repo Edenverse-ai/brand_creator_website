@@ -19,7 +19,10 @@ export function PortfolioGallery({ items }: PortfolioGalleryProps) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
       {items.map((item) => (
-        <div key={item.id} className="bg-white shadow rounded-lg overflow-hidden">
+        <div
+          key={item.id}
+          className="bg-surface-raised shadow-raised border border-line rounded-card overflow-hidden transition-all duration-fast ease-out-expo hover:-translate-y-0.5 hover:shadow-glow"
+        >
           {item.imageUrl && (
             <div className="relative h-48">
               <ErrorHandlingImage
@@ -28,22 +31,22 @@ export function PortfolioGallery({ items }: PortfolioGalleryProps) {
                 fill
                 className="object-cover"
                 fallback={
-                  <div className="h-48 bg-gray-100 flex items-center justify-center">
-                    <span className="text-gray-400">Image unavailable</span>
+                  <div className="h-48 bg-surface-sunken flex items-center justify-center">
+                    <span className="text-ink-muted">Image unavailable</span>
                   </div>
                 }
               />
             </div>
           )}
           <div className="p-6">
-            <h3 className="text-lg font-semibold text-gray-900">{item.title}</h3>
-            {item.description && <p className="mt-2 text-gray-600">{item.description}</p>}
+            <h3 className="font-display text-h3 font-semibold text-ink">{item.title}</h3>
+            {item.description && <p className="mt-2 text-ink-muted">{item.description}</p>}
             {item.link && (
               <Link
                 href={item.link}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-4 inline-flex items-center text-sm font-medium text-purple-600 hover:text-purple-500"
+                className="mt-4 inline-flex items-center text-sm font-medium text-accent hover:text-accent-strong"
               >
                 View Project
                 <svg className="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

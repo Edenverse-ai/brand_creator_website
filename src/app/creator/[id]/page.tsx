@@ -142,14 +142,16 @@ export default async function CreatorProfile(props: { params: Promise<{ id: stri
     }, {});
 
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-surface">
         {/* Header */}
-        <div className="bg-purple-900 text-white">
+        <div className="border-b border-line bg-surface-sunken">
           <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
-            <h1 className="text-3xl font-extrabold">Creator Profile</h1>
-            <p className="mt-2 text-lg">View detailed metrics and performance data</p>
+            <h1 className="font-display text-h1 font-semibold text-ink">Creator Profile</h1>
+            <p className="mt-2 text-lg text-ink-muted">
+              View detailed metrics and performance data
+            </p>
             <div className="mt-4 flex flex-wrap gap-4">
-              <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500">
+              <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full shadow-sm text-accent-contrast bg-accent hover:bg-accent-strong focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ring">
                 Book Collaboration
               </button>
               <button className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
@@ -168,9 +170,9 @@ export default async function CreatorProfile(props: { params: Promise<{ id: stri
             <input
               type="text"
               placeholder="Search creators..."
-              className="w-full md:w-1/3 px-4 py-2 border border-gray-300 rounded-md bg-white text-gray-900 placeholder-gray-500 shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+              className="w-full md:w-1/3 px-4 py-2 border border-line rounded-control bg-surface-raised text-ink placeholder-ink-muted shadow-sm focus:ring-2 focus:ring-ring focus:border-accent"
             />
-            <select className="w-full md:w-1/4 px-4 py-2 border border-gray-300 rounded-md bg-white text-gray-900 placeholder-gray-500 shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
+            <select className="w-full md:w-1/4 px-4 py-2 border border-line rounded-control bg-surface-raised text-ink placeholder-ink-muted shadow-sm focus:ring-2 focus:ring-ring focus:border-accent">
               <option value="">Filter by Category</option>
               <option value="beauty">Beauty</option>
               <option value="fashion">Fashion</option>
@@ -178,7 +180,7 @@ export default async function CreatorProfile(props: { params: Promise<{ id: stri
               <option value="food">Food</option>
               <option value="fitness">Fitness</option>
             </select>
-            <select className="w-full md:w-1/4 px-4 py-2 border border-gray-300 rounded-md bg-white text-gray-900 placeholder-gray-500 shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500">
+            <select className="w-full md:w-1/4 px-4 py-2 border border-line rounded-control bg-surface-raised text-ink placeholder-ink-muted shadow-sm focus:ring-2 focus:ring-ring focus:border-accent">
               <option value="">Filter by Platform</option>
               <option value="instagram">Instagram</option>
               <option value="tiktok">TikTok</option>
@@ -190,8 +192,8 @@ export default async function CreatorProfile(props: { params: Promise<{ id: stri
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Profile Header and Image */}
-          <div className="bg-white shadow rounded-lg overflow-hidden">
-            <div className="relative h-48 bg-gradient-to-r from-purple-600 to-indigo-600">
+          <div className="bg-surface-raised shadow-raised rounded-card overflow-hidden border border-line">
+            <div className="relative h-48 bg-gradient-hero">
               {creator.user.image && (
                 <div className="absolute -bottom-12 left-8">
                   <div className="relative w-32 h-32">
@@ -203,7 +205,7 @@ export default async function CreatorProfile(props: { params: Promise<{ id: stri
                       className="rounded-full border-4 border-white object-cover"
                       priority
                       fallback={
-                        <div className="w-32 h-32 rounded-full border-4 border-white bg-gray-200 flex items-center justify-center text-gray-400">
+                        <div className="w-32 h-32 rounded-full border-4 border-surface-raised bg-surface-sunken flex items-center justify-center text-ink-muted">
                           No Image
                         </div>
                       }
@@ -216,33 +218,41 @@ export default async function CreatorProfile(props: { params: Promise<{ id: stri
             <div className="pt-16 pb-8 px-8">
               <div className="flex items-center justify-between">
                 <div>
-                  <h1 className="text-3xl font-bold text-gray-900">{creator.user.name}</h1>
-                  <p className="text-gray-500">{creator.location || "TikTok Creator"}</p>
+                  <h1 className="font-display text-h1 font-semibold text-ink">
+                    {creator.user.name}
+                  </h1>
+                  <p className="text-ink-muted">{creator.location || "TikTok Creator"}</p>
                 </div>
                 <Stats followers={totalFollowers} engagementRate={averageEngagementRate} />
               </div>
 
               <div className="mt-6">
-                <p className="text-gray-700">{creator.bio || "No bio available"}</p>
+                <p className="text-ink">{creator.bio || "No bio available"}</p>
               </div>
 
               {/* Creator Metrics Card - Only show real data */}
-              <div className="mt-8 bg-gray-50 rounded-lg p-6">
-                <h2 className="text-xl font-bold text-gray-900 mb-4">Creator Metrics</h2>
+              <div className="mt-8 bg-surface-sunken rounded-card p-6">
+                <h2 className="font-display text-h3 font-semibold text-ink mb-4">
+                  Creator Metrics
+                </h2>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Basic Stats */}
-                  <div className="bg-white p-4 rounded-md shadow-sm">
-                    <h3 className="text-sm font-medium text-gray-500">Followers</h3>
-                    <p className="mt-1 text-2xl font-bold text-gray-900">
+                  <div className="bg-surface-raised p-4 rounded-control shadow-raised border border-line">
+                    <h3 className="text-micro font-medium uppercase tracking-micro text-ink-muted">
+                      Followers
+                    </h3>
+                    <p className="mt-1 font-display text-h2 font-semibold text-ink">
                       {totalFollowers.toLocaleString()}
                     </p>
                   </div>
 
                   {/* Engagement Rate */}
-                  <div className="bg-white p-4 rounded-md shadow-sm">
-                    <h3 className="text-sm font-medium text-gray-500">Engagement Rate</h3>
-                    <p className="mt-1 text-2xl font-bold text-gray-900">
+                  <div className="bg-surface-raised p-4 rounded-control shadow-raised border border-line">
+                    <h3 className="text-micro font-medium uppercase tracking-micro text-ink-muted">
+                      Engagement Rate
+                    </h3>
+                    <p className="mt-1 font-display text-h2 font-semibold text-ink">
                       {averageEngagementRate.toFixed(2)}%
                     </p>
                   </div>
@@ -251,12 +261,12 @@ export default async function CreatorProfile(props: { params: Promise<{ id: stri
 
               {categories.length > 0 && (
                 <div className="mt-6">
-                  <h2 className="text-lg font-semibold text-gray-900">Categories</h2>
+                  <h2 className="text-lg font-semibold text-ink">Categories</h2>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {categories.map((category: string) => (
                       <span
                         key={category}
-                        className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800"
+                        className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-accent-soft text-accent"
                       >
                         {category}
                       </span>
@@ -268,12 +278,12 @@ export default async function CreatorProfile(props: { params: Promise<{ id: stri
               {/* Platform Stats */}
               {creator.platforms.length > 0 && (
                 <div className="mt-6">
-                  <h2 className="text-lg font-semibold text-gray-900">Platforms</h2>
+                  <h2 className="text-lg font-semibold text-ink">Platforms</h2>
                   <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {creator.platforms.map((cp) => (
                       <div
                         key={cp.platform.id}
-                        className="bg-gray-50 rounded-lg p-4 flex items-center space-x-4"
+                        className="bg-surface-sunken rounded-control p-4 flex items-center space-x-4"
                       >
                         <div className="flex-shrink-0">
                           {cp.platform.iconUrl ? (
@@ -282,15 +292,15 @@ export default async function CreatorProfile(props: { params: Promise<{ id: stri
                               alt={cp.platform.displayName}
                               width={24}
                               height={24}
-                              fallback={<div className="w-6 h-6 bg-gray-200 rounded"></div>}
+                              fallback={<div className="w-6 h-6 bg-surface-sunken rounded"></div>}
                             />
                           ) : (
-                            <div className="w-6 h-6 bg-gray-200 rounded" />
+                            <div className="w-6 h-6 bg-surface-sunken rounded" />
                           )}
                         </div>
                         <div>
-                          <h3 className="font-medium text-gray-900">{cp.platform.displayName}</h3>
-                          <div className="text-sm text-gray-500">
+                          <h3 className="font-medium text-ink">{cp.platform.displayName}</h3>
+                          <div className="text-sm text-ink-muted">
                             <p>
                               {new Intl.NumberFormat().format(Number(cp.followers) || 0)} followers
                             </p>
@@ -301,7 +311,7 @@ export default async function CreatorProfile(props: { params: Promise<{ id: stri
                               ).toFixed(1)}
                               % engagement
                             </p>
-                            {cp.handle && <p className="text-gray-400">{cp.handle}</p>}
+                            {cp.handle && <p className="text-ink-muted">{cp.handle}</p>}
                           </div>
                         </div>
                       </div>
@@ -312,29 +322,35 @@ export default async function CreatorProfile(props: { params: Promise<{ id: stri
 
               {/* Creator Detailed Stats */}
               <div className="mt-8">
-                <h2 className="text-xl font-bold text-gray-900 mb-4">Creator Details</h2>
+                <h2 className="font-display text-h3 font-semibold text-ink mb-4">
+                  Creator Details
+                </h2>
 
                 {/* Account Information */}
-                <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg p-6 mb-6 shadow-sm">
-                  <h3 className="text-lg font-semibold text-purple-800 mb-3 border-b border-purple-200 pb-2">
+                <div className="bg-accent-soft rounded-card p-6 mb-6 shadow-raised">
+                  <h3 className="text-lg font-semibold text-accent mb-3 border-b border-line pb-2">
                     Account Information
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <div className="bg-white rounded-md p-3 shadow-sm hover:shadow-md transition-shadow">
-                      <p className="text-sm font-medium text-gray-500">Creator Handle</p>
-                      <p className="text-lg font-bold text-gray-900">
+                    <div className="bg-surface-raised rounded-control p-3 shadow-raised border border-line transition-shadow duration-fast">
+                      <p className="text-micro font-medium uppercase tracking-micro text-ink-muted">
+                        Creator Handle
+                      </p>
+                      <p className="text-lg font-bold text-ink">
                         @{creator?.creator_handle_name || "N/A"}
                       </p>
                     </div>
-                    <div className="bg-white rounded-md p-3 shadow-sm hover:shadow-md transition-shadow">
-                      <p className="text-sm font-medium text-gray-500">Creator ID</p>
-                      <p className="text-lg font-bold text-gray-900">
-                        {creator?.creator_id || "N/A"}
+                    <div className="bg-surface-raised rounded-control p-3 shadow-raised border border-line transition-shadow duration-fast">
+                      <p className="text-micro font-medium uppercase tracking-micro text-ink-muted">
+                        Creator ID
                       </p>
+                      <p className="text-lg font-bold text-ink">{creator?.creator_id || "N/A"}</p>
                     </div>
-                    <div className="bg-white rounded-md p-3 shadow-sm hover:shadow-md transition-shadow">
-                      <p className="text-sm font-medium text-gray-500">Industry</p>
-                      <p className="text-lg font-bold text-gray-900">
+                    <div className="bg-surface-raised rounded-control p-3 shadow-raised border border-line transition-shadow duration-fast">
+                      <p className="text-micro font-medium uppercase tracking-micro text-ink-muted">
+                        Industry
+                      </p>
+                      <p className="text-lg font-bold text-ink">
                         {creator?.industry_label_name || "Not specified"}
                       </p>
                     </div>
@@ -342,32 +358,40 @@ export default async function CreatorProfile(props: { params: Promise<{ id: stri
                 </div>
 
                 {/* Audience Metrics */}
-                <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-6 mb-6 shadow-sm">
+                <div className="bg-accent-soft rounded-card p-6 mb-6 shadow-raised">
                   <h3 className="text-lg font-semibold text-blue-800 mb-3 border-b border-blue-200 pb-2">
                     Audience Metrics
                   </h3>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-white rounded-md p-3 shadow-sm hover:shadow-md transition-shadow">
-                      <p className="text-sm font-medium text-gray-500">Followers</p>
-                      <p className="text-xl font-bold text-gray-900">
+                    <div className="bg-surface-raised rounded-control p-3 shadow-raised border border-line transition-shadow duration-fast">
+                      <p className="text-micro font-medium uppercase tracking-micro text-ink-muted">
+                        Followers
+                      </p>
+                      <p className="font-display text-h3 font-semibold text-ink">
                         {new Intl.NumberFormat().format(Number(creator?.follower_count) || 0)}
                       </p>
                     </div>
-                    <div className="bg-white rounded-md p-3 shadow-sm hover:shadow-md transition-shadow">
-                      <p className="text-sm font-medium text-gray-500">Following</p>
-                      <p className="text-xl font-bold text-gray-900">
+                    <div className="bg-surface-raised rounded-control p-3 shadow-raised border border-line transition-shadow duration-fast">
+                      <p className="text-micro font-medium uppercase tracking-micro text-ink-muted">
+                        Following
+                      </p>
+                      <p className="font-display text-h3 font-semibold text-ink">
                         {new Intl.NumberFormat().format(Number(creator?.following_count) || 0)}
                       </p>
                     </div>
-                    <div className="bg-white rounded-md p-3 shadow-sm hover:shadow-md transition-shadow">
-                      <p className="text-sm font-medium text-gray-500">Total Likes</p>
-                      <p className="text-xl font-bold text-gray-900">
+                    <div className="bg-surface-raised rounded-control p-3 shadow-raised border border-line transition-shadow duration-fast">
+                      <p className="text-micro font-medium uppercase tracking-micro text-ink-muted">
+                        Total Likes
+                      </p>
+                      <p className="font-display text-h3 font-semibold text-ink">
                         {new Intl.NumberFormat().format(Number(creator?.like_count) || 0)}
                       </p>
                     </div>
-                    <div className="bg-white rounded-md p-3 shadow-sm hover:shadow-md transition-shadow">
-                      <p className="text-sm font-medium text-gray-500">Videos Count</p>
-                      <p className="text-xl font-bold text-gray-900">
+                    <div className="bg-surface-raised rounded-control p-3 shadow-raised border border-line transition-shadow duration-fast">
+                      <p className="text-micro font-medium uppercase tracking-micro text-ink-muted">
+                        Videos Count
+                      </p>
+                      <p className="font-display text-h3 font-semibold text-ink">
                         {new Intl.NumberFormat().format(Number(creator?.videos_count) || 0)}
                       </p>
                     </div>
@@ -398,21 +422,27 @@ export default async function CreatorProfile(props: { params: Promise<{ id: stri
                     Performance Metrics
                   </h3>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    <div className="bg-white rounded-md p-3 shadow-sm hover:shadow-md transition-shadow">
-                      <p className="text-sm font-medium text-gray-500">Engagement Rate</p>
-                      <p className="text-xl font-bold text-gray-900">
+                    <div className="bg-surface-raised rounded-control p-3 shadow-raised border border-line transition-shadow duration-fast">
+                      <p className="text-micro font-medium uppercase tracking-micro text-ink-muted">
+                        Engagement Rate
+                      </p>
+                      <p className="font-display text-h3 font-semibold text-ink">
                         {(Number(creator?.engagement_rate) || 0).toFixed(2)}%
                       </p>
                     </div>
-                    <div className="bg-white rounded-md p-3 shadow-sm hover:shadow-md transition-shadow">
-                      <p className="text-sm font-medium text-gray-500">Median Views</p>
-                      <p className="text-xl font-bold text-gray-900">
+                    <div className="bg-surface-raised rounded-control p-3 shadow-raised border border-line transition-shadow duration-fast">
+                      <p className="text-micro font-medium uppercase tracking-micro text-ink-muted">
+                        Median Views
+                      </p>
+                      <p className="font-display text-h3 font-semibold text-ink">
                         {new Intl.NumberFormat().format(Number(creator?.median_views) || 0)}
                       </p>
                     </div>
-                    <div className="bg-white rounded-md p-3 shadow-sm hover:shadow-md transition-shadow">
-                      <p className="text-sm font-medium text-gray-500">Content Category</p>
-                      <p className="text-xl font-bold text-gray-900">
+                    <div className="bg-surface-raised rounded-control p-3 shadow-raised border border-line transition-shadow duration-fast">
+                      <p className="text-micro font-medium uppercase tracking-micro text-ink-muted">
+                        Content Category
+                      </p>
+                      <p className="font-display text-h3 font-semibold text-ink">
                         {creator?.content_label_name || "Not specified"}
                       </p>
                     </div>
@@ -454,7 +484,7 @@ export default async function CreatorProfile(props: { params: Promise<{ id: stri
                     Collaboration Details
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-white rounded-md p-4 shadow-sm hover:shadow-md transition-shadow flex items-center">
+                    <div className="bg-surface-raised rounded-control p-4 shadow-raised border border-line transition-shadow duration-fast flex items-center">
                       <div className="bg-amber-100 rounded-full p-3 mr-4">
                         <svg
                           xmlns="http://www.w3.org/2000/svg"
@@ -472,9 +502,11 @@ export default async function CreatorProfile(props: { params: Promise<{ id: stri
                         </svg>
                       </div>
                       <div>
-                        <p className="text-sm font-medium text-gray-500">Creator Rate</p>
+                        <p className="text-micro font-medium uppercase tracking-micro text-ink-muted">
+                          Creator Rate
+                        </p>
                         {viewerIsMember ? (
-                          <p className="text-2xl font-bold text-gray-900">
+                          <p className="font-display text-h2 font-semibold text-ink">
                             {creator?.creator_price
                               ? `${creator.currency || "$"}${new Intl.NumberFormat().format(Number(creator.creator_price) || 0)}`
                               : "Contact for pricing"}
@@ -485,7 +517,7 @@ export default async function CreatorProfile(props: { params: Promise<{ id: stri
                             className="mt-1 flex flex-wrap items-center gap-2"
                           >
                             <span
-                              className="select-none text-2xl font-bold text-gray-900"
+                              className="select-none font-display text-h2 font-semibold text-ink"
                               style={{ filter: "blur(7px)" }}
                               aria-hidden
                             >
@@ -510,15 +542,17 @@ export default async function CreatorProfile(props: { params: Promise<{ id: stri
                         )}
                       </div>
                     </div>
-                    <div className="bg-white rounded-md p-4 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="bg-surface-raised rounded-control p-4 shadow-raised border border-line transition-shadow duration-fast">
                       <div className="flex justify-between items-center">
-                        <p className="text-sm font-medium text-gray-500">Availability</p>
+                        <p className="text-micro font-medium uppercase tracking-micro text-ink-muted">
+                          Availability
+                        </p>
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                           Available
                         </span>
                       </div>
                       {viewerIsMember ? (
-                        <button className="mt-3 w-full inline-flex justify-center items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500">
+                        <button className="mt-3 w-full inline-flex justify-center items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-full text-accent-contrast bg-accent hover:bg-accent-strong focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ring">
                           <svg
                             xmlns="http://www.w3.org/2000/svg"
                             className="h-5 w-5 mr-2"
@@ -538,7 +572,7 @@ export default async function CreatorProfile(props: { params: Promise<{ id: stri
                       ) : (
                         <Link
                           href="/membership"
-                          className="mt-3 w-full inline-flex justify-center items-center rounded-md border border-dashed border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-500 hover:border-purple-300 hover:bg-purple-50 hover:text-purple-700"
+                          className="mt-3 w-full inline-flex justify-center items-center rounded-md border border-dashed border-line bg-surface-sunken px-4 py-2 text-micro font-medium uppercase tracking-micro text-ink-muted hover:border-accent hover:bg-accent-soft hover:text-accent"
                         >
                           Contact unlocks with membership
                         </Link>
@@ -559,10 +593,10 @@ export default async function CreatorProfile(props: { params: Promise<{ id: stri
   } catch (error) {
     console.error("Error rendering creator profile:", error);
     return (
-      <div className="min-h-screen bg-gray-50 py-12">
+      <div className="min-h-screen bg-surface py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h1 className="text-3xl font-bold text-gray-900">Error</h1>
-          <p className="text-gray-700">An error occurred while rendering the creator profile.</p>
+          <h1 className="font-display text-h1 font-semibold text-ink">Error</h1>
+          <p className="text-ink">An error occurred while rendering the creator profile.</p>
         </div>
       </div>
     );

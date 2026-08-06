@@ -87,3 +87,6 @@ e2e/**/*.draft.ts
 
 # Design handoff bundles (prototype references, not shipped)
 handoffs/
+
+# Superpowers brainstorm sessions
+.superpowers/

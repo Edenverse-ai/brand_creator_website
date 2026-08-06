@@ -263,13 +263,13 @@ export default function FindCreators() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-surface">
       {/* Header */}
-      <div className="bg-purple-900 text-white">
+      <div className="border-b border-line bg-surface-sunken">
         <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-extrabold">Find Creators</h1>
-            <p className="mt-2 text-lg">
+            <h1 className="font-display text-h1 font-semibold text-ink">Find Creators</h1>
+            <p className="mt-2 text-lg text-ink-muted">
               Discover and connect with top content creators for your next campaign
             </p>
           </div>
@@ -278,7 +278,7 @@ export default function FindCreators() {
               <button
                 onClick={handleSyncNewCreators}
                 disabled={isSyncing}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full shadow-sm text-white bg-success hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ring disabled:opacity-50"
               >
                 <svg
                   className="-ml-1 mr-2 h-4 w-4 text-white"
@@ -301,7 +301,7 @@ export default function FindCreators() {
             <button
               onClick={handleRefreshAllCreators}
               disabled={isSyncing}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50"
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full shadow-sm text-accent-contrast bg-accent hover:bg-accent-strong focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ring disabled:opacity-50"
             >
               {isSyncing ? (
                 <>
@@ -352,7 +352,7 @@ export default function FindCreators() {
 
             <Link
               href="/membership"
-              className="inline-flex items-center gap-2 rounded-md bg-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-purple-700"
+              className="inline-flex items-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-accent-contrast shadow-sm hover:bg-accent-strong"
             >
               <Lock className="h-4 w-4" aria-hidden />
               Unlock rates with membership
@@ -362,8 +362,8 @@ export default function FindCreators() {
       </div>
 
       {/* Members-only notice */}
-      <div className="border-b border-purple-200 bg-gradient-to-r from-purple-50 to-indigo-50">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-4 py-3 text-sm text-purple-800 sm:px-6 lg:px-8">
+      <div className="border-b border-line bg-accent-soft">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-4 py-3 text-sm text-accent-strong sm:px-6 lg:px-8">
           <Lock className="h-4 w-4 shrink-0" aria-hidden />
           <span>
             Creator cards are free to browse — rates and contact are members-only, from $99/month.
@@ -381,14 +381,14 @@ export default function FindCreators() {
             <input
               type="text"
               placeholder="Search creators by name, bio, or handle"
-              className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500"
+              className="w-full px-4 py-2 border border-line rounded-control bg-surface-raised text-ink shadow-sm focus:ring-ring focus:border-accent"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
           <div>
             <select
-              className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500"
+              className="w-full px-4 py-2 border border-line rounded-control bg-surface-raised text-ink shadow-sm focus:ring-ring focus:border-accent"
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
             >
@@ -403,7 +403,7 @@ export default function FindCreators() {
           </div>
           <div>
             <select
-              className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-purple-500 focus:border-purple-500"
+              className="w-full px-4 py-2 border border-line rounded-control bg-surface-raised text-ink shadow-sm focus:ring-ring focus:border-accent"
               value={selectedPlatform}
               onChange={(e) => setSelectedPlatform(e.target.value)}
             >
@@ -417,18 +417,18 @@ export default function FindCreators() {
       {/* Loading State */}
       {loading && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500"></div>
-          <p className="mt-2 text-gray-600">Loading creators...</p>
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-accent"></div>
+          <p className="mt-2 text-ink-muted">Loading creators...</p>
         </div>
       )}
 
       {/* Error State */}
       {error && !loading && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 text-center">
-          <p className="text-red-500">{error}</p>
+          <p className="text-danger">{error}</p>
           <button
             onClick={handleClearFilters}
-            className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+            className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full shadow-sm text-accent-contrast bg-accent hover:bg-accent-strong focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ring"
           >
             Clear Filters & Try Again
           </button>
@@ -439,11 +439,11 @@ export default function FindCreators() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
         {!loading && !error && creators.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-gray-500 text-lg">No creators found matching your criteria</p>
+            <p className="text-ink-muted text-lg">No creators found matching your criteria</p>
             {noCreators && (
               <button
                 onClick={() => syncCreators(false)}
-                className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+                className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full shadow-sm text-accent-contrast bg-accent hover:bg-accent-strong focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ring"
               >
                 Sync TikTok Creators
               </button>
@@ -451,7 +451,7 @@ export default function FindCreators() {
             {!noCreators && (
               <button
                 onClick={handleClearFilters}
-                className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+                className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-full shadow-sm text-accent-contrast bg-accent hover:bg-accent-strong focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-ring"
               >
                 Clear Filters
               </button>
@@ -498,10 +498,10 @@ export default function FindCreators() {
                     <button
                       onClick={handlePreviousPage}
                       disabled={currentPage === 1}
-                      className={`relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium ${
+                      className={`relative inline-flex items-center px-2 py-2 rounded-l-full border border-line bg-surface-raised text-sm font-medium ${
                         currentPage === 1
-                          ? "text-gray-300 cursor-not-allowed"
-                          : "text-gray-500 hover:bg-gray-50"
+                          ? "text-line cursor-not-allowed"
+                          : "text-ink-muted hover:bg-surface-sunken"
                       }`}
                     >
                       <span className="sr-only">Previous</span>
@@ -541,10 +541,10 @@ export default function FindCreators() {
                         <button
                           key={pageToShow}
                           onClick={() => handlePageChange(pageToShow)}
-                          className={`relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium ${
+                          className={`relative inline-flex items-center px-4 py-2 border border-line text-sm font-medium ${
                             currentPage === pageToShow
-                              ? "z-10 bg-purple-50 border-purple-500 text-purple-600"
-                              : "bg-white text-gray-500 hover:bg-gray-50"
+                              ? "z-10 bg-accent-soft border-accent text-accent"
+                              : "bg-surface-raised text-ink-muted hover:bg-surface-sunken"
                           }`}
                         >
                           {pageToShow}
@@ -556,10 +556,10 @@ export default function FindCreators() {
                     <button
                       onClick={handleNextPage}
                       disabled={!hasMorePages}
-                      className={`relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium ${
+                      className={`relative inline-flex items-center px-2 py-2 rounded-r-full border border-line bg-surface-raised text-sm font-medium ${
                         !hasMorePages
-                          ? "text-gray-300 cursor-not-allowed"
-                          : "text-gray-500 hover:bg-gray-50"
+                          ? "text-line cursor-not-allowed"
+                          : "text-ink-muted hover:bg-surface-sunken"
                       }`}
                     >
                       <span className="sr-only">Next</span>

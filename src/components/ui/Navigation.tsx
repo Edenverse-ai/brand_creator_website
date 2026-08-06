@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Globe, Menu, X } from "lucide-react";
+import ThemeToggle from "@/components/ui/ThemeToggle";
 
 type NavLink = { href: string; label: string };
 
@@ -100,11 +101,11 @@ export default function Navigation() {
 
   if (status === "loading") {
     return (
-      <nav className="bg-white border-b border-slate-200/80">
+      <nav className="bg-surface border-b border-line">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 items-center gap-3">
-            <div className="h-7 w-7 animate-pulse rounded-[9px] bg-slate-200" />
-            <div className="h-5 w-28 animate-pulse rounded bg-slate-200" />
+            <div className="h-7 w-7 animate-pulse rounded-[9px] bg-muted" />
+            <div className="h-5 w-28 animate-pulse rounded bg-muted" />
           </div>
         </div>
       </nav>
@@ -121,13 +122,13 @@ export default function Navigation() {
   const dashboardHref = role === "BRAND" ? "/brandportal/dashboard" : "/creatorportal/dashboard";
 
   return (
-    <nav className="sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-slate-200/80">
+    <nav className="sticky top-0 z-40 bg-surface/80 backdrop-blur border-b border-line">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between gap-6">
           <Link href={homeHref} className="flex shrink-0 items-center gap-2.5">
             <LogoMark />
-            <span className="text-[17px] font-semibold tracking-tight text-slate-900 whitespace-nowrap">
-              Cricher<span className="font-medium text-slate-400">.ai</span>
+            <span className="text-[17px] font-semibold tracking-tight text-ink whitespace-nowrap">
+              Cricher<span className="font-medium text-ink-muted">.ai</span>
             </span>
           </Link>
 
@@ -140,13 +141,13 @@ export default function Navigation() {
                     key={link.href}
                     href={link.href}
                     className={`relative whitespace-nowrap py-[22px] text-sm font-medium transition-colors ${
-                      active ? "text-slate-900" : "text-slate-600 hover:text-slate-900"
+                      active ? "text-ink" : "text-ink-muted hover:text-ink"
                     }`}
                   >
                     {link.label}
                     {active && (
                       <span
-                        className="pointer-events-none absolute inset-x-0 -bottom-px h-[2px] rounded-full bg-purple-600"
+                        className="pointer-events-none absolute inset-x-0 -bottom-px h-[2px] rounded-full bg-accent"
                         aria-hidden
                       />
                     )}
@@ -158,9 +159,10 @@ export default function Navigation() {
 
           {isDesktopView && (
             <div className="flex shrink-0 items-center gap-3">
+              <ThemeToggle />
               <button
                 onClick={switchLanguage}
-                className="rounded-md p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                className="rounded-md p-2 text-ink-muted hover:bg-surface-sunken hover:text-ink"
                 aria-label="Switch language"
               >
                 <Globe className="h-4 w-4" />
@@ -169,19 +171,19 @@ export default function Navigation() {
                 <>
                   <Link
                     href={isChinesePath ? "/zh/login" : "/login"}
-                    className="text-sm font-medium text-slate-600 hover:text-slate-900 whitespace-nowrap"
+                    className="text-sm font-medium text-ink-muted hover:text-ink whitespace-nowrap"
                   >
                     {isChinesePath ? "登录" : "Log in"}
                   </Link>
                   <Link
                     href={isChinesePath ? "/zh/join-creator" : "/join-creator"}
-                    className="inline-flex items-center justify-center rounded-lg border border-purple-200 bg-purple-50 px-3.5 py-2 text-sm font-semibold text-purple-700 hover:bg-purple-100 whitespace-nowrap"
+                    className="inline-flex items-center justify-center rounded-lg border border-accent-soft bg-accent-soft px-3.5 py-2 text-sm font-semibold text-accent hover:bg-accent-soft/70 whitespace-nowrap"
                   >
                     {isChinesePath ? "成为创作者" : "Join as Creator"}
                   </Link>
                   <Link
                     href={isChinesePath ? "/zh/join-brand" : "/join-brand"}
-                    className="inline-flex items-center justify-center rounded-lg bg-purple-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-purple-700 whitespace-nowrap"
+                    className="inline-flex items-center justify-center rounded-lg bg-accent px-3.5 py-2 text-sm font-semibold text-accent-contrast shadow-sm hover:bg-accent-strong whitespace-nowrap"
                   >
                     {isChinesePath ? "成为品牌" : "Join as Brand"}
                   </Link>
@@ -189,7 +191,7 @@ export default function Navigation() {
               ) : (
                 <>
                   <div
-                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white py-1 pl-1 pr-3"
+                    className="inline-flex items-center gap-2 rounded-full border border-line bg-surface-raised py-1 pl-1 pr-3"
                     title={session.user?.name ?? undefined}
                   >
                     <span
@@ -202,14 +204,14 @@ export default function Navigation() {
                     >
                       {userInitials}
                     </span>
-                    <span className="max-w-[140px] truncate text-sm font-medium text-slate-800">
+                    <span className="max-w-[140px] truncate text-sm font-medium text-ink">
                       {session.user?.name || (isChinesePath ? "用户" : "User")}
                     </span>
                   </div>
 
                   <Link
                     href={dashboardHref}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-purple-200 bg-purple-50 px-3.5 py-2 text-sm font-semibold text-purple-700 hover:bg-purple-100"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-accent-soft bg-accent-soft px-3.5 py-2 text-sm font-semibold text-accent hover:bg-accent-soft/70"
                   >
                     {isChinesePath ? "仪表板" : "Dashboard"}
                     <ArrowRight className="h-3.5 w-3.5" />
@@ -221,9 +223,10 @@ export default function Navigation() {
 
           {!isDesktopView && (
             <div className="flex items-center gap-1">
+              <ThemeToggle />
               <button
                 onClick={switchLanguage}
-                className="rounded-md p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                className="rounded-md p-2 text-ink-muted hover:bg-surface-sunken hover:text-ink"
                 aria-label="Switch language"
               >
                 <Globe className="h-5 w-5" />
@@ -231,7 +234,7 @@ export default function Navigation() {
               <button
                 type="button"
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="rounded-md p-2 text-slate-600 hover:bg-slate-100"
+                className="rounded-md p-2 text-ink-muted hover:bg-surface-sunken"
                 aria-label={isMenuOpen ? "Close menu" : "Open menu"}
               >
                 {isMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -242,7 +245,7 @@ export default function Navigation() {
       </div>
 
       {!isDesktopView && isMenuOpen && (
-        <div className="border-t border-slate-200 bg-white px-3 pb-4 pt-2">
+        <div className="border-t border-line bg-surface-raised px-3 pb-4 pt-2">
           <div className="space-y-1">
             {currentNavLinks.map((link) => {
               const active = isActive(link.href);
@@ -252,7 +255,7 @@ export default function Navigation() {
                   href={link.href}
                   onClick={() => setIsMenuOpen(false)}
                   className={`block rounded-lg px-3 py-2 text-sm font-medium ${
-                    active ? "bg-purple-50 text-purple-700" : "text-slate-700 hover:bg-slate-100"
+                    active ? "bg-accent-soft text-accent" : "text-ink hover:bg-surface-sunken"
                   }`}
                 >
                   {link.label}
@@ -261,27 +264,27 @@ export default function Navigation() {
             })}
           </div>
 
-          <div className="mt-3 border-t border-slate-200 pt-3">
+          <div className="mt-3 border-t border-line pt-3">
             {!session ? (
               <div className="space-y-1">
                 <Link
                   href={isChinesePath ? "/zh/login" : "/login"}
                   onClick={() => setIsMenuOpen(false)}
-                  className="block rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100"
+                  className="block rounded-lg px-3 py-2 text-sm font-medium text-ink hover:bg-surface-sunken"
                 >
                   {isChinesePath ? "登录" : "Log in"}
                 </Link>
                 <Link
                   href={isChinesePath ? "/zh/join-creator" : "/join-creator"}
                   onClick={() => setIsMenuOpen(false)}
-                  className="block rounded-lg bg-purple-50 px-3 py-2 text-sm font-semibold text-purple-700 hover:bg-purple-100"
+                  className="block rounded-lg bg-accent-soft px-3 py-2 text-sm font-semibold text-accent hover:bg-accent-soft/70"
                 >
                   {isChinesePath ? "成为创作者" : "Join as Creator"}
                 </Link>
                 <Link
                   href={isChinesePath ? "/zh/join-brand" : "/join-brand"}
                   onClick={() => setIsMenuOpen(false)}
-                  className="block rounded-lg bg-purple-600 px-3 py-2 text-sm font-semibold text-white hover:bg-purple-700"
+                  className="block rounded-lg bg-accent px-3 py-2 text-sm font-semibold text-accent-contrast hover:bg-accent-strong"
                 >
                   {isChinesePath ? "成为品牌" : "Join as Brand"}
                 </Link>
@@ -299,14 +302,14 @@ export default function Navigation() {
                   >
                     {userInitials}
                   </span>
-                  <span className="truncate text-sm font-medium text-slate-800">
+                  <span className="truncate text-sm font-medium text-ink">
                     {session.user?.name || (isChinesePath ? "用户" : "User")}
                   </span>
                 </div>
                 <Link
                   href={dashboardHref}
                   onClick={() => setIsMenuOpen(false)}
-                  className="flex items-center justify-between rounded-lg border border-purple-200 bg-purple-50 px-3 py-2 text-sm font-semibold text-purple-700 hover:bg-purple-100"
+                  className="flex items-center justify-between rounded-lg border border-accent-soft bg-accent-soft px-3 py-2 text-sm font-semibold text-accent hover:bg-accent-soft/70"
                 >
                   {isChinesePath ? "仪表板" : "Dashboard"}
                   <ArrowRight className="h-3.5 w-3.5" />

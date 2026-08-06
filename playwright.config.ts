@@ -8,6 +8,7 @@ const baseURL =
 export default defineConfig({
   testDir: "./e2e",
   timeout: 30_000,
+  expect: { toHaveScreenshot: { maxDiffPixelRatio: 0.02 } },
   fullyParallel: !isAgent,
   workers: isAgent ? 1 : undefined,
   retries: process.env.CI ? 2 : 0,

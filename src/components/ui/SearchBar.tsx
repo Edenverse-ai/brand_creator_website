@@ -44,10 +44,10 @@ export function SearchBar({ initialPlatform = "all", initialCategory = "all" }: 
       <select
         name="platform"
         defaultValue={initialPlatform}
-        className="flex-1 px-4 py-3 rounded-lg bg-white text-gray-900 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+        className="flex-1 px-4 py-3 rounded-control bg-surface-raised text-ink border border-line focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
       >
         {platforms.map((platform) => (
-          <option key={platform.id} value={platform.id} className="text-gray-900">
+          <option key={platform.id} value={platform.id} className="text-ink">
             {platform.name}
           </option>
         ))}
@@ -56,10 +56,10 @@ export function SearchBar({ initialPlatform = "all", initialCategory = "all" }: 
       <select
         name="category"
         defaultValue={initialCategory}
-        className="flex-1 px-4 py-3 rounded-lg bg-white text-gray-900 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+        className="flex-1 px-4 py-3 rounded-control bg-surface-raised text-ink border border-line focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
       >
         {categories.map((category) => (
-          <option key={category.id} value={category.id} className="text-gray-900">
+          <option key={category.id} value={category.id} className="text-ink">
             {category.name}
           </option>
         ))}
@@ -67,7 +67,7 @@ export function SearchBar({ initialPlatform = "all", initialCategory = "all" }: 
 
       <button
         type="submit"
-        className="px-8 py-3 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 transition-colors"
+        className="px-8 py-3 bg-accent text-accent-contrast font-medium rounded-full hover:bg-accent-strong focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 transition-colors duration-fast"
       >
         Search
       </button>
