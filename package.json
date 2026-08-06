@@ -40,6 +40,7 @@
     "dev:migrate": "DATABASE_URL=postgres://postgres:postgres@localhost:54329/postgres DIRECT_URL=postgres://postgres:postgres@localhost:54329/postgres prisma migrate deploy && npm run dev:grant",
     "dev:grant": "tsx scripts/e2e/grant-service-role.ts",
     "dev:seed": "DATABASE_URL=postgres://postgres:postgres@localhost:54329/postgres DIRECT_URL=postgres://postgres:postgres@localhost:54329/postgres node prisma/seed.dev.js",
+    "dev:seed:find-creators": "DATABASE_URL=postgres://postgres:postgres@localhost:54329/postgres DIRECT_URL=postgres://postgres:postgres@localhost:54329/postgres node prisma/seed.find-creators.dev.js",
     "harness:prepush": "npm run typecheck && npm run lint && node scripts/harness/prisma-drift.js && npm run test:run",
     "harness:full": "npm run harness:prepush && npm run e2e"
   },

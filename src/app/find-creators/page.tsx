@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import Image from "next/image";
-import ErrorHandlingImage from "@/components/ui/ErrorHandlingImage";
+import { Lock } from "lucide-react";
+import CreatorTradingCard from "@/components/creators/CreatorTradingCard";
 
 // Type definitions for creator data
 interface Platform {
@@ -22,6 +22,10 @@ interface Creator {
   bio: string | null;
   location: string;
   categories: string[];
+  medianViews: number;
+  videosCount: number;
+  /** Server-gated: null for non-members. */
+  rate: string | null;
   user: {
     id: string;
     name: string | null;
@@ -34,6 +38,7 @@ interface CreatorsResponse {
   creators: Creator[];
   totalCount: number;
   hasMore: boolean;
+  isMember?: boolean;
   error?: string;
 }
 
@@ -42,6 +47,7 @@ export default function FindCreators() {
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedPlatform, setSelectedPlatform] = useState("");
   const [creators, setCreators] = useState<Creator[]>([]);
+  const [isMember, setIsMember] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [noCreators, setNoCreators] = useState(false);
@@ -111,6 +117,7 @@ export default function FindCreators() {
       }
 
       setCreators(data.creators || []);
+      setIsMember(Boolean(data.isMember));
       setTotalPages(Math.ceil(data.totalCount / PAGE_SIZE));
       setHasMorePages(data.hasMore);
       setNoCreators(data.totalCount === 0);
@@ -342,7 +349,28 @@ export default function FindCreators() {
                 </>
               )}
             </button>
+
+            <Link
+              href="/membership"
+              className="inline-flex items-center gap-2 rounded-md bg-purple-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-purple-700"
+            >
+              <Lock className="h-4 w-4" aria-hidden />
+              Unlock rates with membership
+            </Link>
           </div>
+        </div>
+      </div>
+
+      {/* Members-only notice */}
+      <div className="border-b border-purple-200 bg-gradient-to-r from-purple-50 to-indigo-50">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2 px-4 py-3 text-sm text-purple-800 sm:px-6 lg:px-8">
+          <Lock className="h-4 w-4 shrink-0" aria-hidden />
+          <span>
+            Creator cards are free to browse — rates and contact are members-only, from $99/month.
+          </span>
+          <Link href="/membership" className="font-semibold underline underline-offset-2">
+            View plans
+          </Link>
         </div>
       </div>
 
@@ -434,97 +462,28 @@ export default function FindCreators() {
           !loading &&
           !error && (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+              <div className="mt-6 grid grid-cols-1 gap-7 md:grid-cols-2 lg:grid-cols-3">
                 {creators.map((creator) => (
-                  <Link
+                  <CreatorTradingCard
                     key={creator.id}
-                    href={`/creator/${creator.id}`}
-                    className="block hover:shadow-lg transition-shadow duration-300"
-                  >
-                    <div className="bg-white rounded-lg shadow overflow-hidden h-full">
-                      <div className="p-6">
-                        <div className="flex items-center">
-                          <div className="relative h-16 w-16 mr-4">
-                            {creator.user.image ? (
-                              <ErrorHandlingImage
-                                src={creator.user.image}
-                                alt={creator.user.name || "Creator"}
-                                fill
-                                className="rounded-full object-cover"
-                                sizes="64px"
-                                fallback={
-                                  <div className="h-16 w-16 rounded-full bg-gray-200 flex items-center justify-center">
-                                    <span className="text-gray-500">
-                                      {creator.user.name?.[0] || "?"}
-                                    </span>
-                                  </div>
-                                }
-                              />
-                            ) : (
-                              <div className="h-16 w-16 rounded-full bg-gray-200 flex items-center justify-center">
-                                <span className="text-gray-500">
-                                  {creator.user.name?.[0] || "?"}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                          <div>
-                            <h3 className="text-lg font-bold text-gray-900">
-                              {creator.user.name || "Unknown Creator"}
-                            </h3>
-                            <p className="text-sm text-gray-500">
-                              {creator.location || "TikTok Creator"}
-                            </p>
-                          </div>
-                        </div>
-
-                        <p className="mt-4 text-gray-600 line-clamp-2">
-                          {creator.bio || "No bio available"}
-                        </p>
-
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          {creator.categories && creator.categories.length > 0 ? (
-                            creator.categories.map((category, index) => (
-                              <span
-                                key={index}
-                                className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800"
-                              >
-                                {category}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="text-sm text-gray-400">No categories</span>
-                          )}
-                        </div>
-
-                        <div className="mt-4 flex items-center justify-between">
-                          <div className="flex space-x-2">
-                            {creator.platforms.map((platform, index) => (
-                              <div key={index} className="flex items-center">
-                                {platform.platform.name === "tiktok" && (
-                                  <Image
-                                    src="/icons/tiktok.svg"
-                                    alt="TikTok"
-                                    width={20}
-                                    height={20}
-                                  />
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {creator.platforms[0]?.followers?.toLocaleString() || "0"} followers
-                          </div>
-                        </div>
-
-                        <div className="mt-5 pt-5 border-t border-gray-200">
-                          <button className="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500">
-                            View Profile
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
+                    lang="en"
+                    isMember={isMember}
+                    creator={{
+                      id: creator.id,
+                      name: creator.user.name,
+                      handle: creator.platforms[0]?.handle
+                        ? `@${creator.platforms[0].handle.replace(/^@/, "")}`
+                        : null,
+                      location: creator.location,
+                      avatar: creator.user.image,
+                      categories: creator.categories ?? [],
+                      followers: Number(creator.platforms[0]?.followers) || 0,
+                      engagementRate: Number(creator.platforms[0]?.engagementRate) || 0,
+                      medianViews: creator.medianViews,
+                      videosCount: creator.videosCount,
+                      rate: creator.rate,
+                    }}
+                  />
                 ))}
               </div>
 

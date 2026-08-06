@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import DigitalHumanSection from "@/components/home/DigitalHumanSection";
 
 export default function Home() {
   // State for carousel
@@ -115,6 +116,9 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {/* AI Digital Human Service */}
+      <DigitalHumanSection lang="en" />
 
       {/* Why Creators Choose Cricher AI Section */}
       <div className="py-24 bg-gradient-to-b from-gray-50 to-white">
