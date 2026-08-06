@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Fraunces, Inter } from "next/font/google";
 import Navigation from "@/components/ui/Navigation";
 import Link from "next/link";
-import SessionProvider from "@/components/providers/SessionProvider";
+import { Providers } from "./providers";
 import "../styles/globals.css";
 import "@/styles/scrollbar-hide.css";
 
@@ -23,7 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${inter.variable} ${fraunces.variable}`} suppressHydrationWarning>
       <body className="font-body">
-        <SessionProvider>
+        <Providers>
           <div className="min-h-screen flex flex-col">
             <Navigation />
             <div className="flex-grow">{children}</div>
@@ -102,7 +102,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </div>
             </footer>
           </div>
-        </SessionProvider>
+        </Providers>
       </body>
     </html>
   );

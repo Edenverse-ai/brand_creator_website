@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Globe, Menu, X } from "lucide-react";
+import ThemeToggle from "@/components/ui/ThemeToggle";
 
 type NavLink = { href: string; label: string };
 
@@ -158,6 +159,7 @@ export default function Navigation() {
 
           {isDesktopView && (
             <div className="flex shrink-0 items-center gap-3">
+              <ThemeToggle />
               <button
                 onClick={switchLanguage}
                 className="rounded-md p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
@@ -221,6 +223,7 @@ export default function Navigation() {
 
           {!isDesktopView && (
             <div className="flex items-center gap-1">
+              <ThemeToggle />
               <button
                 onClick={switchLanguage}
                 className="rounded-md p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
