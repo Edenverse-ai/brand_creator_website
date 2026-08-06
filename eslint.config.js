@@ -94,6 +94,9 @@ module.exports = [
       // Decommissioned FastAPI backend + orphaned Python/JS, kept read-only for
       // reference. Never built, linted, or deployed — see legacy/ARCHIVE.md.
       "legacy/**",
+      // Design handoff bundles: prototype HTML + the design tool's own runtime.
+      // Reference material, never built or shipped — see each bundle's README.
+      "handoffs/**",
       "playwright-report/**",
       "test-results/**",
       "coverage/**",

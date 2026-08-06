@@ -84,3 +84,6 @@ e2e/**/*.draft.ts
 
 # Claude Code local state
 .claude/scheduled_tasks.lock
+
+# Design handoff bundles (prototype references, not shipped)
+handoffs/
