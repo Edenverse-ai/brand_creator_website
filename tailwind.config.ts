@@ -31,7 +31,7 @@ export default {
         warning: "var(--warning)",
         danger: "rgb(var(--danger-rgb) / <alpha-value>)",
         info: "var(--info)",
-        // temporary aliases for unmigrated pages; removed in Task 11
+        // shadcn vocabulary + legacy alias (bg-background, ring-offset-background)
         background: "var(--surface)",
         foreground: "var(--ink)",
         // shadcn/ui component vocabulary (aliases of semantic tokens via themes.css)

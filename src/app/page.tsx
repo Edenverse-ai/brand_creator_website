@@ -208,6 +208,7 @@ export default function Home() {
                               width="100%"
                               height="100%"
                               frameBorder="0"
+                              loading="lazy"
                               allow="encrypted-media"
                               allowFullScreen
                               className="rounded-control"
