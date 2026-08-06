@@ -28,10 +28,10 @@ export function CategorySelector({
         return (
           <div
             key={category}
-            className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+            className={`p-3 rounded-control border cursor-pointer transition-colors duration-fast ${
               isSelected
-                ? "bg-purple-100 border-purple-500"
-                : "bg-white hover:bg-gray-50 border-gray-200"
+                ? "bg-accent-soft border-accent"
+                : "bg-surface-raised hover:bg-surface-sunken border-line"
             } ${selectedCategories.length >= maxCategories && !isSelected ? "opacity-50 cursor-not-allowed" : ""}`}
             onClick={() => {
               if (!(selectedCategories.length >= maxCategories && !isSelected)) {
@@ -44,10 +44,10 @@ export function CategorySelector({
                 type="checkbox"
                 checked={isSelected}
                 onChange={() => {}}
-                className="h-4 w-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
+                className="h-4 w-4 text-accent rounded border-line focus:ring-ring"
                 disabled={selectedCategories.length >= maxCategories && !isSelected}
               />
-              <span className="text-sm font-medium text-gray-900">{label}</span>
+              <span className="text-sm font-medium text-ink">{label}</span>
             </label>
           </div>
         );
