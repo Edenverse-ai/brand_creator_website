@@ -3,15 +3,14 @@ name: brand-creator-e2e
 # Postgres + Supabase Storage/Auth/REST are provided by the official Supabase
 # CLI (`npx supabase start`, config in supabase/config.toml) — see
 # scripts/e2e/up.ts / up-infra.ts, which start it alongside this file. This
-# compose file now only builds the two services the CLI doesn't provide: the
-# FastAPI sidecar (still needed pending its own removal in a later phase) and
-# the Next.js app.
+# compose file now only builds the one service the CLI doesn't provide: the
+# Next.js app. (The FastAPI sidecar was removed in the Phase 5 decommission —
+# see legacy/ARCHIVE.md.)
 #
-# Both services run with `network_mode: host` rather than bridge+port-mapping.
-# This isn't just convenience: both mint Supabase Storage signed URLs
-# server-side (web: src/lib/supabase-admin.ts for presigned uploads/downloads;
-# api: ai_video_service.py for signed download URLs) that get handed to the
-# browser, which then hits that URL directly. The URL is built from whatever
+# The service runs with `network_mode: host` rather than bridge+port-mapping.
+# This isn't just convenience: it mints Supabase Storage signed URLs
+# server-side (src/lib/supabase-admin.ts, for presigned uploads/downloads)
+# that get handed to the browser, which then hits that URL directly. The URL is built from whatever
 # SUPABASE_URL the container used, so the container and the host-side
 # Playwright browser must be able to reach Supabase via the *same*
 # host:port — host networking guarantees that (`localhost:54321` resolves
@@ -21,28 +20,6 @@ name: brand-creator-e2e
 # networking is fully supported on Linux (GitHub Actions runners) and on
 # OrbStack (unlike Docker Desktop, which only partially supports it on Mac).
 services:
-  api:
-    build:
-      context: ../backend
-      dockerfile: Dockerfile
-    network_mode: host
-    # Dockerfile's default CMD binds :8000; override to the port every existing
-    # script/env file in this repo already expects for the FastAPI sidecar.
-    command: ["uvicorn", "app.main.main:app", "--host", "0.0.0.0", "--port", "8001"]
-    environment:
-      DATABASE_URL: postgres://postgres:postgres@localhost:54329/postgres
-      SUPABASE_URL: http://localhost:54321
-      # Supabase CLI's fixed local-dev service_role JWT — identical on every
-      # default `supabase init` project (signed with the CLI's well-known
-      # default JWT secret), not a real secret. Printed by `supabase start`.
-      SUPABASE_SERVICE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
-      ENV: e2e
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://0.0.0.0:8001/health > /dev/null"]
-      interval: 3s
-      timeout: 5s
-      retries: 30
-
   web:
     build:
       context: ..
@@ -54,14 +31,10 @@ services:
     # Dockerfile's default CMD binds :3000; override to the port every existing
     # script/env file in this repo already expects for the e2e web app.
     command: ["npx", "next", "start", "-p", "12001", "-H", "0.0.0.0"]
-    depends_on:
-      api: { condition: service_healthy }
     environment:
       DATABASE_URL: postgres://postgres:postgres@localhost:54329/postgres
       NEXTAUTH_URL: http://localhost:12001
       NEXTAUTH_SECRET: e2e-nextauth-secret-not-prod
-      NEXT_PUBLIC_API_URL: http://localhost:8001
-      CAMPAIGNS_API_URL: http://localhost:8001
       SUPABASE_URL: http://localhost:54321
       NEXT_PUBLIC_SUPABASE_URL: http://localhost:54321
       SUPABASE_SERVICE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU

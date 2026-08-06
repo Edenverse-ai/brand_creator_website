@@ -5,12 +5,6 @@ import { tiktokVerificationLimiter } from "@/lib/rate-limiter";
 import { isOwnedStoragePath } from "@/lib/storage/path-ownership";
 import { idNumberSchema, findIdNumberCharacterMessage } from "./id-number";
 
-// Legacy multipart proxy target — kept as a rollback lever, NOT ported (presigned
-// upload-urls + the JSON path below replace it; see Task 2.3 of the infra-simplification
-// plan). Same env-var resolution the pre-existing proxy used.
-const PYTHON_API_BASE =
-  process.env.CAMPAIGNS_API_URL || process.env.PYTHON_API_URL || "http://127.0.0.1:5000";
-
 // Field-for-field mirror of TikTokVerificationWithPaths.file_paths
 // (backend/app/main/models/tiktokverify.py: `file_paths: dict[str, Any]`) — a fully
 // generic dict, no required keys at the schema level (the service layer enforces
@@ -318,87 +312,20 @@ async function handleJsonSubmission(request: NextRequest): Promise<NextResponse>
   return saveVerification(record);
 }
 
-/**
- * Legacy multipart path: transitional proxy to FastAPI's `upload_verification`
- * endpoint, kept as a rollback lever. NOT ported — presigned upload-urls +
- * handleJsonSubmission above replace it (Task 2.3). Behavior unchanged from the
- * pre-existing proxy.
- */
-async function handleMultipartSubmission(request: NextRequest): Promise<NextResponse> {
-  const formData = await request.formData();
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 60000);
-
-  try {
-    const response = await fetch(`${PYTHON_API_BASE}/tiktokverification/verification`, {
-      method: "POST",
-      body: formData,
-      signal: controller.signal,
-      headers: { Accept: "application/json" },
-    });
-
-    clearTimeout(timeoutId);
-
-    const responseText = await response.text();
-
-    if (!response.ok) {
-      let errorDetail = "Failed to submit verification";
-      try {
-        if (responseText.trim().startsWith("{") || responseText.trim().startsWith("[")) {
-          const errorData = JSON.parse(responseText);
-          errorDetail = errorData.detail || errorData.message || errorDetail;
-        } else if (responseText.includes("<html>") || responseText.includes("<!DOCTYPE")) {
-          errorDetail = `Server error: ${response.status} - HTML response received (likely infrastructure error)`;
-        } else {
-          errorDetail = responseText.substring(0, 200) || errorDetail;
-        }
-      } catch {
-        errorDetail = `Server error: ${response.status} - ${responseText.substring(0, 100)}`;
-      }
-
-      return NextResponse.json(
-        { success: false, detail: errorDetail, status: response.status },
-        { status: response.status >= 500 ? 500 : response.status }
-      );
-    }
-
-    try {
-      return NextResponse.json(JSON.parse(responseText));
-    } catch {
-      return NextResponse.json({
-        success: true,
-        message: responseText || "Verification submitted successfully",
-      });
-    }
-  } catch (fetchError) {
-    clearTimeout(timeoutId);
-
-    let errorMessage = "Error connecting to API";
-    if (fetchError instanceof Error) {
-      if (fetchError.name === "AbortError") {
-        errorMessage = "Request timeout - please try again";
-      } else if (fetchError.message.includes("ECONNREFUSED")) {
-        errorMessage = "API service is not available";
-      } else {
-        errorMessage = fetchError.message;
-      }
-    }
-
-    return NextResponse.json(
-      { success: false, detail: errorMessage, error_type: "connection_error" },
-      { status: 503 }
-    );
-  }
-}
-
 export async function POST(request: NextRequest) {
   try {
+    // The legacy multipart branch proxied to FastAPI and was removed with the backend
+    // (Phase 5 decommission — see legacy/ARCHIVE.md). Presigned upload-urls +
+    // handleJsonSubmission are the only supported shape; anything else is refused
+    // rather than silently accepted.
     const contentType = request.headers.get("content-type") || "";
-    if (contentType.includes("application/json")) {
-      return await handleJsonSubmission(request);
+    if (!contentType.includes("application/json")) {
+      return NextResponse.json(
+        { success: false, detail: "Content-Type must be application/json" },
+        { status: 415 }
+      );
     }
-    return await handleMultipartSubmission(request);
+    return await handleJsonSubmission(request);
   } catch (error) {
     console.error("tiktokverification route error:", error);
     return NextResponse.json(

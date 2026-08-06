@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { isMember } from "@/lib/membership";
 
 export async function GET(request: NextRequest) {
   try {
@@ -50,6 +51,9 @@ export async function GET(request: NextRequest) {
       orderBy: { follower_count: "desc" },
     });
 
+    // Creator rates are members-only: non-members never receive the value.
+    const viewerIsMember = await isMember();
+
     // Format creators for the frontend
     const creators = creatorRecords.map((creator) => {
       const categories = creator.industry_label_name ? [creator.industry_label_name] : [];
@@ -58,11 +62,20 @@ export async function GET(request: NextRequest) {
         categories.push(creator.content_label_name);
       }
 
+      const price = Number(creator.creator_price) || 0;
+      const rate =
+        viewerIsMember && price > 0
+          ? `${creator.currency || "$"}${new Intl.NumberFormat().format(price)}`
+          : null;
+
       return {
         id: creator.id,
         bio: creator.bio,
         location: "TikTok Creator", // Can be enhanced with actual location data
         categories,
+        medianViews: Number(creator.median_views) || 0,
+        videosCount: Number(creator.videos_count) || 0,
+        rate,
         user: {
           id: creator.id,
           name: creator.display_name,
@@ -87,6 +100,7 @@ export async function GET(request: NextRequest) {
       creators,
       totalCount,
       hasMore: skip + creators.length < totalCount,
+      isMember: viewerIsMember,
     });
   } catch (error) {
     console.error("Error fetching creators:", error);

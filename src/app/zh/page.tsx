@@ -1,4 +1,5 @@
 import Link from "next/link";
+import DigitalHumanSection from "@/components/home/DigitalHumanSection";
 
 export default function HomeChinese() {
   return (
@@ -34,6 +35,9 @@ export default function HomeChinese() {
           </div>
         </div>
       </div>
+
+      {/* AI 数字人服务 */}
+      <DigitalHumanSection lang="zh" />
 
       {/* Features Section */}
       <div className="py-12 bg-white">

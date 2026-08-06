@@ -2,7 +2,7 @@
 node_modules/
 prisma/migrations/
 public/
-backend/.venv/
+legacy/
 playwright-report/
 test-results/
 coverage/

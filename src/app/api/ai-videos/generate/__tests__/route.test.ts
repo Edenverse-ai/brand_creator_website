@@ -225,7 +225,7 @@ describe("POST /api/ai-videos/generate (JSON path)", () => {
   });
 });
 
-describe("POST /api/ai-videos/generate (legacy multipart path)", () => {
+describe("POST /api/ai-videos/generate (non-JSON content types)", () => {
   const originalFetch = global.fetch;
 
   beforeEach(() => {
@@ -236,12 +236,9 @@ describe("POST /api/ai-videos/generate (legacy multipart path)", () => {
     global.fetch = originalFetch;
   });
 
-  it("still proxies multipart requests to FastAPI unchanged", async () => {
+  it("refuses multipart with 415 and never reaches the DB (FastAPI proxy removed)", async () => {
     (getServerSession as any).mockResolvedValue({ user: { id: "user-1" } });
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({ request_id: "r1", status: "queued" }),
-    });
+    const fetchMock = vi.fn();
     global.fetch = fetchMock as never;
 
     const formData = new FormData();
@@ -253,12 +250,23 @@ describe("POST /api/ai-videos/generate (legacy multipart path)", () => {
 
     const res = await POST(req as never);
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining("/ai-videos/generate"),
-      expect.objectContaining({ method: "POST" })
-    );
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ request_id: "r1", status: "queued" });
+    expect(res.status).toBe(415);
+    expect(await res.json()).toEqual({ error: "Content-Type must be application/json" });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(aiVideoRequestCreate).not.toHaveBeenCalled();
+  });
+
+  it("refuses an unauthenticated multipart request with 401 before the content-type check", async () => {
+    (getServerSession as any).mockResolvedValue(null);
+
+    const req = new Request("http://localhost/api/ai-videos/generate", {
+      method: "POST",
+      body: new FormData(),
+    });
+
+    const res = await POST(req as never);
+
+    expect(res.status).toBe(401);
     expect(aiVideoRequestCreate).not.toHaveBeenCalled();
   });
 });

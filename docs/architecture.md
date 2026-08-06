@@ -1,20 +1,20 @@
 # Architecture
 
-Brand + creator collaboration platform. Next.js 15 (App Router) front-end, Prisma ORM against PostgreSQL, and an optional FastAPI Python sidecar for media and platform integrations.
+Brand + creator collaboration platform. Next.js 15 (App Router) front-end, Prisma ORM against PostgreSQL, Supabase Storage for media. Every server surface is a Next.js route — the FastAPI Python sidecar was decommissioned in Phase 5 of the infra simplification (see [legacy/ARCHIVE.md](../legacy/ARCHIVE.md)).
 
 ---
 
 ## High-Level Diagram
 
 ```
-Browser ──HTTP──▶ Next.js (App Router) ─Prisma─▶ Postgres
+Browser ──HTTP──▶ Next.js (App Router) ─Prisma──▶ Postgres (Supabase)
                         │
-                        └─HTTP──▶ FastAPI sidecar (backend/)
+                        └─────────────────▶ Supabase Storage (presigned, direct-to-browser)
 ```
 
-- **Next.js** handles all page rendering (RSC + client components) and lightweight API routes under `src/app/api/`.
+- **Next.js** handles all page rendering (RSC + client components) and every API route under `src/app/api/`.
 - **Prisma** is the ORM; it connects to a hosted PostgreSQL instance via `DATABASE_URL` / `DIRECT_URL`.
-- **FastAPI** runs as a separate process for Python-heavy workloads (TikTok integrations, media handling). It is an optional sidecar — the Next.js app degrades gracefully if it is not running.
+- **Supabase Storage** holds media. Uploads and downloads go browser↔storage directly via presigned URLs minted server-side; bytes do not transit a Node function.
 
 ---
 
@@ -28,13 +28,13 @@ Browser → Next.js (App Router) → Prisma client → PostgreSQL
 
 Server Components query the database directly via Prisma. Client Components call Next.js API routes (`src/app/api/**`) which in turn call Prisma.
 
-### FastAPI sidecar
+### Media
 
 ```
-Browser → Next.js API route (src/app/api/**) → FastAPI (backend/app/main/main.py)
+Browser → Next.js API route (mints presigned URL) → Browser → Supabase Storage
 ```
 
-Next.js API routes proxy to the FastAPI service when platform-specific logic (e.g., TikTok API, Supabase storage) is needed. The FastAPI process listens on a separate port; see [backend.md](backend.md) for run instructions.
+No server surface proxies media bytes. TikTok publishing runs natively in `src/app/api/tiktok/**` plus a Netlify background function for the FILE_UPLOAD relay fallback.
 
 ---
 
@@ -50,7 +50,7 @@ Next.js API routes proxy to the FastAPI service when platform-specific logic (e.
 | `src/middleware.ts` | Next.js middleware (auth guards, redirects)                                                              |
 | `pages/`            | Legacy error fallbacks only — do not add routes here                                                     |
 | `prisma/`           | `schema.prisma`, migrations under `prisma/migrations/`, seed script `prisma/seed.js`                     |
-| `backend/`          | FastAPI service (`backend/app/main/`), run scripts, `requirements.txt`                                   |
+| `legacy/`           | Decommissioned FastAPI backend + orphaned Python, kept read-only for reference — see `legacy/ARCHIVE.md` |
 | `public/`           | Static assets served at `/`                                                                              |
 | `plugins/`          | Local Netlify build plugins (added by later harness PRs)                                                 |
 | `scripts/`          | Repo automation scripts (added by later harness PRs)                                                     |
@@ -71,7 +71,7 @@ Next.js API routes proxy to the FastAPI service when platform-specific logic (e.
 ## Key Design Constraints
 
 - **No GitHub Actions CI.** Quality gates will run locally (pre-commit / pre-push — not yet wired; see [harness.md](harness.md)) and on Netlify preview deploys.
-- **Monorepo, one `package.json`.** Node and Python tooling coexist; Python deps live in `backend/requirements.txt`.
+- **Single Node toolchain, one `package.json`.** Python tooling was retired with the FastAPI backend; nothing under `legacy/` is built, linted, or deployed.
 - **Netlify deploy.** Build command is `npx prisma generate && next build`. See [deployment.md](deployment.md).
 
 ---

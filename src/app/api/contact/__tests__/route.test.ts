@@ -15,6 +15,7 @@ vi.mock("@/lib/rate-limiter", () => ({
   contactFormLimiter: { isRateLimited: (...args: unknown[]) => isRateLimited(...args) },
 }));
 
+import * as contactRoute from "../route";
 import { POST } from "../route";
 
 function jsonRequest(body: unknown) {
@@ -311,5 +312,15 @@ describe("POST /api/contact", () => {
       message: "Failed to submit contact form. Please try again later.",
     });
     expect(JSON.stringify(body)).not.toMatch(/sensitive info/);
+  });
+});
+
+describe("removed FastAPI-era verbs", () => {
+  // GET was a hardcoded zero-caller stub; PUT (test-email) and PATCH (get-messages)
+  // proxied to the FastAPI backend. All three were deleted in the Phase 5
+  // decommission — see legacy/ARCHIVE.md. Next.js returns 405 for a verb a route
+  // module does not export, so absence here is the whole contract.
+  it.each(["GET", "PUT", "PATCH", "DELETE"])("no longer exports %s", (verb) => {
+    expect(contactRoute).not.toHaveProperty(verb);
   });
 });

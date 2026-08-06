@@ -1,27 +1,26 @@
 # brand_creator_website
 
-> Brand + creator collaboration platform. Next.js 15 (App Router) + Prisma + Postgres, with a FastAPI sidecar for media and platform integrations.
+> Brand + creator collaboration platform. Next.js 15 (App Router) + Prisma + Postgres + Supabase Storage, deployed on Netlify.
 
-The web app is the primary surface; the FastAPI service is an optional sidecar that the Next.js app degrades gracefully without. End-to-end tests run against a deterministic Docker Compose stack so local development, CI, and AI agents all hit the same surfaces.
+The Next.js app is the only server surface — the FastAPI sidecar was decommissioned in Phase 5 of the infra simplification (see [legacy/ARCHIVE.md](legacy/ARCHIVE.md)). End-to-end tests run against the official Supabase CLI stack plus a containerised web app, so local development, CI, and AI agents all hit the same surfaces.
 
 ---
 
 ## Tech Stack
 
-| Layer       | Tech                                                                         |
-| ----------- | ---------------------------------------------------------------------------- |
-| Web         | Next.js 15 (App Router), React, TypeScript, Tailwind                         |
-| ORM / DB    | Prisma · Postgres                                                            |
-| Sidecar API | FastAPI (Python 3.11+)                                                       |
-| Storage     | Supabase Storage (same official stack in prod and e2e, via the Supabase CLI) |
-| E2E         | Playwright · Supabase CLI · Docker Compose (api + web)                       |
-| Hosting     | Netlify                                                                      |
+| Layer    | Tech                                                                         |
+| -------- | ---------------------------------------------------------------------------- |
+| Web      | Next.js 15 (App Router), React, TypeScript, Tailwind                         |
+| ORM / DB | Prisma · Postgres                                                            |
+| Storage  | Supabase Storage (same official stack in prod and e2e, via the Supabase CLI) |
+| E2E      | Playwright · Supabase CLI · Docker Compose (web)                             |
+| Hosting  | Netlify                                                                      |
 
 ---
 
 ## Quickstart (E2E stack)
 
-The recommended local path. Boots the official Supabase CLI (real Postgres + Storage + Auth + REST, not a stub) plus FastAPI + Next.js in containers, runs migrations, seeds deterministic users. Requires Docker and will fetch the Supabase CLI via `npx` on first run.
+The recommended local path. Boots the official Supabase CLI (real Postgres + Storage + Auth + REST, not a stub) plus Next.js in a container, runs migrations, seeds deterministic users. Requires Docker and will fetch the Supabase CLI via `npx` on first run.
 
 ```bash
 git clone https://github.com/borderxais/brand_creator_website.git
@@ -64,11 +63,11 @@ First boot pulls images and builds; expect 5–15 minutes. Subsequent boots are 
 
 ```
 src/            Next.js App Router (pages, components, API routes, lib)
-backend/        FastAPI sidecar (Python)
+legacy/         decommissioned FastAPI backend, kept read-only (see legacy/ARCHIVE.md)
 prisma/         schema, migrations, seed scripts (incl. seed.e2e.ts)
 e2e/            Playwright specs + fixtures (asBrand/asCreator/asAdmin)
 supabase/       Supabase CLI config (supabase/config.toml)
-docker/         compose.e2e.yml (api + web) + Dockerfile.web
+docker/         compose.e2e.yml (web) + Dockerfile.web
 scripts/        e2e/* harness scripts, harness/* pre-push checks
 docs/           canonical reference; start at docs/README.md
 tests/          unit / integration tests (vitest)
@@ -116,7 +115,7 @@ Canonical reference lives in [docs/](docs/README.md). Recommended reading order:
 
 1. [architecture.md](docs/architecture.md) — system overview
 2. [frontend.md](docs/frontend.md) — Next.js app
-3. [backend.md](docs/backend.md) — FastAPI service
+3. [backend.md](docs/backend.md) — decommissioned FastAPI service (historical)
 4. [database.md](docs/database.md) — Prisma + Postgres
 5. [deployment.md](docs/deployment.md) — Netlify
 6. [harness.md](docs/harness.md) — dev pipeline (read before first commit)

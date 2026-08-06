@@ -1,9 +1,9 @@
 #!/usr/bin/env tsx
 /**
- * Bring up only the infra services (supabase CLI stack + api) — NOT the web
- * container. Use this when you want to run `npm run dev:e2e` against the
- * docker backend. Migrate + seed run from the host with DATABASE_URL pointed
- * at the supabase CLI's host-exposed Postgres port.
+ * Bring up only the infra services (the supabase CLI stack) — NOT the web
+ * container. Use this when you want to run `npm run dev:e2e` against
+ * host-run Next.js. Migrate + seed run from the host with DATABASE_URL
+ * pointed at the supabase CLI's host-exposed Postgres port.
  */
 import { execSync } from "node:child_process";
 import { PrismaClient } from "@prisma/client";
@@ -11,7 +11,6 @@ import { waitForHttp } from "./lib/wait";
 import { assertTestDatabaseUrl } from "./lib/assertTestDatabaseUrl";
 import { grantServiceRole } from "./grant-service-role";
 
-const COMPOSE = "docker compose -p brand-creator-e2e -f docker/compose.e2e.yml";
 const HOST_DB_URL = "postgres://postgres:postgres@localhost:54329/postgres";
 const SUPABASE_URL = "http://localhost:54321";
 // Supabase CLI's fixed local-dev service_role JWT — identical on every default
@@ -29,11 +28,7 @@ async function main() {
   console.log("[e2e:up:infra] starting supabase CLI stack…");
   execSync("npx supabase start", { stdio: "inherit" });
 
-  console.log("[e2e:up:infra] starting api…");
-  execSync(`${COMPOSE} up -d --wait api`, { stdio: "inherit" });
-
   console.log("[e2e:up:infra] waiting on http endpoints…");
-  await waitForHttp("http://localhost:8001/health", { timeoutMs: 60_000, intervalMs: 1000 });
   await waitForHttp(`${SUPABASE_URL}/rest/v1/`, { timeoutMs: 60_000, intervalMs: 1000 });
 
   console.log("[e2e:up:infra] running prisma migrate deploy…");

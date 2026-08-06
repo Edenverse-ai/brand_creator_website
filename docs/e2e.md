@@ -21,7 +21,7 @@
 2. Write failing test at `e2e/<surface>/<feat>.spec.ts` using `import { test, expect } from "../_helpers/fixtures"` and the `asBrand|asCreator|asAdmin` fixture.
 3. Run `npm run e2e:agent -- --grep "<test title>"`.
 4. Read `.e2e/runs/latest/summary.md`.
-5. Edit `src/` or `backend/app/` until green.
+5. Edit `src/` until green.
 6. Commit test + impl.
 
 ## DB state

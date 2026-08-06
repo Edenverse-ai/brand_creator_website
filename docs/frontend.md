@@ -14,13 +14,13 @@ The entire Next.js application lives under `src/app/`. Each folder is a route se
 
 The following route groups are the core portals of the platform:
 
-| Segment          | Purpose                                                          |
-| ---------------- | ---------------------------------------------------------------- |
-| `brandportal/`   | Brand-side portal — campaign management, creator search          |
-| `creatorportal/` | Creator-side portal — profile, campaign applications             |
-| `find-creators/` | Public creator discovery page                                    |
-| `login/`         | Authentication entry point                                       |
-| `api/`           | Next.js API routes (lightweight; heavy logic proxied to FastAPI) |
+| Segment          | Purpose                                                   |
+| ---------------- | --------------------------------------------------------- |
+| `brandportal/`   | Brand-side portal — campaign management, creator search   |
+| `creatorportal/` | Creator-side portal — profile, campaign applications      |
+| `find-creators/` | Public creator discovery page                             |
+| `login/`         | Authentication entry point                                |
+| `api/`           | Next.js API routes — every server surface, no proxy layer |
 
 ### Additional Routes
 

@@ -14,7 +14,7 @@ const NAV_LINKS: Record<"en" | "zh", NavLink[]> = {
     { href: "/campaigns", label: "Campaigns" },
     { href: "/entertainment-live", label: "Live Streaming" },
     { href: "/private-community", label: "Private Community" },
-    { href: "/pear", label: "Pear" },
+    { href: "/membership", label: "Membership" },
     { href: "/how-it-works", label: "How it Works" },
   ],
   zh: [
@@ -22,7 +22,7 @@ const NAV_LINKS: Record<"en" | "zh", NavLink[]> = {
     { href: "/zh/campaigns", label: "广告活动" },
     { href: "/zh/entertainment-live", label: "娱乐直播" },
     { href: "/zh/private-community", label: "私域社区" },
-    { href: "/zh/pear", label: "Pear" },
+    { href: "/zh/membership", label: "会员方案" },
     { href: "/zh/about", label: "关于我们" },
   ],
 };

@@ -134,9 +134,9 @@ async function sendContactNotifications(
 
 /**
  * Native port of POST /contact/submit (backend/app/main/routes/contact.py +
- * ContactService.submit_contact_form). This is the only live-called verb on this
- * route (porting reference §2.7) — GET/PUT/PATCH below remain untouched proxies/stubs;
- * see the phase report for why they're zero-caller deletion candidates instead.
+ * ContactService.submit_contact_form). This is the only verb on this route; the
+ * zero-caller GET stub and the PUT/PATCH FastAPI proxies were removed in the Phase 5
+ * decommission (see legacy/ARCHIVE.md).
  *
  * Intentionally public/unauthenticated, matching Python (no auth anywhere in
  * contact.py/contact_service.py). Zod validation + IP rate limiting stand in for the
@@ -184,102 +184,6 @@ export async function POST(request: NextRequest) {
     console.error("contact: unexpected error", error instanceof Error ? error.name : typeof error);
     return NextResponse.json(
       { success: false, message: "Failed to submit contact form. Please try again later." },
-      { status: 500 }
-    );
-  }
-}
-
-// --- Everything below is unchanged from the pre-Phase-4a proxy implementation. ---
-// GET/PUT/PATCH on this route have zero live callers (porting reference §1.2/§2.1/§2.7:
-// GET is a hardcoded stub that doesn't even proxy to Python; PUT test-email and PATCH
-// get-messages proxy to dead-caller Python endpoints). Per this phase's scope, only the
-// live POST path above is ported to native Prisma/email logic — these three are left
-// exactly as they were, flagged as deletion candidates in the phase report rather than
-// silently rewritten or removed.
-
-export async function GET() {
-  // Return contact form schema or info
-  return NextResponse.json({
-    message: "Contact API is available",
-    methods: ["POST", "PUT"],
-    endpoint: "/api/contact",
-    fields: ["name", "email", "subject", "message"],
-    features: [
-      "Email notifications",
-      "Admin alerts",
-      "User confirmations",
-      "Database storage",
-      "Status tracking",
-    ],
-  });
-}
-
-// Add test endpoint for email configuration
-export async function PUT(_request: NextRequest) {
-  try {
-    console.log("Testing email configuration...");
-
-    const apiUrl = process.env.CAMPAIGNS_API_URL || "http://localhost:5000";
-    const response = await fetch(`${apiUrl}/contact/test-email`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
-
-    const responseData = await response.json();
-    console.log("Email test result:", responseData);
-
-    return NextResponse.json(responseData);
-  } catch (error: any) {
-    console.error("Error testing email configuration:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        message: error.message || "Failed to test email configuration",
-      },
-      { status: 500 }
-    );
-  }
-}
-
-// Add endpoint to get contact messages (admin only)
-export async function PATCH(request: NextRequest) {
-  try {
-    const url = new URL(request.url);
-    const action = url.searchParams.get("action");
-
-    if (action === "get-messages") {
-      const apiUrl = process.env.CAMPAIGNS_API_URL || "http://localhost:5000";
-      const status = url.searchParams.get("status");
-      const limit = url.searchParams.get("limit") || "50";
-      const offset = url.searchParams.get("offset") || "0";
-
-      const queryParams = new URLSearchParams({
-        limit,
-        offset,
-        ...(status && { status }),
-      });
-
-      const response = await fetch(`${apiUrl}/contact/messages?${queryParams}`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-
-      const responseData = await response.json();
-      return NextResponse.json(responseData);
-    }
-
-    return NextResponse.json({ error: "Invalid action" }, { status: 400 });
-  } catch (error: any) {
-    console.error("Error in contact admin operations:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        message: error.message || "Failed to perform admin operation",
-      },
       { status: 500 }
     );
   }

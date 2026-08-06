@@ -1,4 +1,6 @@
 import { notFound } from "next/navigation";
+import Link from "next/link";
+import { isMember } from "@/lib/membership";
 import { SocialLinks } from "@/components/ui/SocialLinks";
 import { Stats } from "@/components/ui/Stats";
 import ErrorHandlingImage from "@/components/ui/ErrorHandlingImage";
@@ -116,6 +118,7 @@ export default async function CreatorProfile(props: { params: Promise<{ id: stri
     }
 
     const categories = parseCategories(creator.categories);
+    const viewerIsMember = await isMember();
 
     // Calculate metrics from real data only
     const totalFollowers = creator.platforms.reduce((sum: number, cp) => {
@@ -470,11 +473,41 @@ export default async function CreatorProfile(props: { params: Promise<{ id: stri
                       </div>
                       <div>
                         <p className="text-sm font-medium text-gray-500">Creator Rate</p>
-                        <p className="text-2xl font-bold text-gray-900">
-                          {creator?.creator_price
-                            ? `${creator.currency || "$"}${new Intl.NumberFormat().format(Number(creator.creator_price) || 0)}`
-                            : "Contact for pricing"}
-                        </p>
+                        {viewerIsMember ? (
+                          <p className="text-2xl font-bold text-gray-900">
+                            {creator?.creator_price
+                              ? `${creator.currency || "$"}${new Intl.NumberFormat().format(Number(creator.creator_price) || 0)}`
+                              : "Contact for pricing"}
+                          </p>
+                        ) : (
+                          <Link
+                            href="/membership"
+                            className="mt-1 flex flex-wrap items-center gap-2"
+                          >
+                            <span
+                              className="select-none text-2xl font-bold text-gray-900"
+                              style={{ filter: "blur(7px)" }}
+                              aria-hidden
+                            >
+                              $0,000
+                            </span>
+                            <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="h-3 w-3"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                strokeWidth={2.5}
+                                aria-hidden
+                              >
+                                <rect x="3" y="11" width="18" height="11" rx="2" />
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                              </svg>
+                              Members only — view plans
+                            </span>
+                          </Link>
+                        )}
                       </div>
                     </div>
                     <div className="bg-white rounded-md p-4 shadow-sm hover:shadow-md transition-shadow">
@@ -484,23 +517,32 @@ export default async function CreatorProfile(props: { params: Promise<{ id: stri
                           Available
                         </span>
                       </div>
-                      <button className="mt-3 w-full inline-flex justify-center items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500">
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          className="h-5 w-5 mr-2"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
+                      {viewerIsMember ? (
+                        <button className="mt-3 w-full inline-flex justify-center items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500">
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-5 w-5 mr-2"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                            />
+                          </svg>
+                          Schedule Collaboration
+                        </button>
+                      ) : (
+                        <Link
+                          href="/membership"
+                          className="mt-3 w-full inline-flex justify-center items-center rounded-md border border-dashed border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-500 hover:border-purple-300 hover:bg-purple-50 hover:text-purple-700"
                         >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                          />
-                        </svg>
-                        Schedule Collaboration
-                      </button>
+                          Contact unlocks with membership
+                        </Link>
+                      )}
                     </div>
                   </div>
                 </div>
