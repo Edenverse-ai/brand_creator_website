@@ -44,7 +44,7 @@ export default function PlatformSection({ platform, creators, iconUrl }: Platfor
 
         <Link
           href={`/platforms/${platform.toLowerCase()}`}
-          className="text-purple-600 hover:text-purple-800"
+          className="text-accent hover:text-accent-strong"
         >
           View all
         </Link>
@@ -69,7 +69,7 @@ export default function PlatformSection({ platform, creators, iconUrl }: Platfor
               key={creator.id}
               className="block hover:shadow-lg transition-shadow duration-300"
             >
-              <div className="bg-white rounded-lg shadow overflow-hidden h-full">
+              <div className="bg-surface-raised rounded-card shadow-raised border border-line overflow-hidden h-full transition-all duration-fast ease-out-expo hover:-translate-y-0.5 hover:shadow-glow">
                 <div className="p-6">
                   <div className="flex items-center">
                     <div className="mr-4">
@@ -88,16 +88,18 @@ export default function PlatformSection({ platform, creators, iconUrl }: Platfor
                           />
                         </div>
                       ) : (
-                        <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center">
-                          <span className="text-gray-500 text-lg font-bold">
+                        <div className="w-16 h-16 rounded-full bg-surface-sunken flex items-center justify-center">
+                          <span className="text-ink-muted text-lg font-bold">
                             {creator.name ? creator.name[0].toUpperCase() : "?"}
                           </span>
                         </div>
                       )}
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold text-gray-900">{creator.name}</h3>
-                      <div className="flex items-center text-sm text-gray-500">
+                      <h3 className="font-display text-h3 font-semibold text-ink">
+                        {creator.name}
+                      </h3>
+                      <div className="flex items-center text-sm text-ink-muted">
                         <span>{followers.toLocaleString()} followers</span>
                         <span className="mx-2">•</span>
                         <span>{engagementRate.toFixed(2)}% engagement</span>

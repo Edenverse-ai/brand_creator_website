@@ -47,7 +47,7 @@ export function SocialLinks(props: SocialLinksProps) {
             href={url}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+            className="flex items-center gap-2 text-ink-muted hover:text-ink transition-colors duration-fast"
           >
             <Icon className="w-5 h-5" />
             <span className="text-sm">{handle}</span>
