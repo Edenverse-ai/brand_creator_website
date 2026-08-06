@@ -21,6 +21,8 @@ export default {
           strong: "var(--accent-strong)",
           soft: "var(--accent-soft)",
           contrast: "var(--accent-contrast)",
+          // shadcn components' text pair for bg-accent
+          foreground: "var(--accent-contrast)",
         },
         line: "var(--line)",
         ring: "var(--ring)",
@@ -31,6 +33,18 @@ export default {
         // temporary aliases for unmigrated pages; removed in Task 11
         background: "var(--surface)",
         foreground: "var(--ink)",
+        // shadcn/ui component vocabulary (aliases of semantic tokens via themes.css)
+        card: { DEFAULT: "var(--card)", foreground: "var(--card-foreground)" },
+        popover: { DEFAULT: "var(--popover)", foreground: "var(--popover-foreground)" },
+        primary: { DEFAULT: "var(--primary)", foreground: "var(--primary-foreground)" },
+        secondary: { DEFAULT: "var(--secondary)", foreground: "var(--secondary-foreground)" },
+        muted: { DEFAULT: "var(--muted)", foreground: "var(--muted-foreground)" },
+        destructive: {
+          DEFAULT: "var(--destructive)",
+          foreground: "var(--destructive-foreground)",
+        },
+        border: "var(--border)",
+        input: "var(--input)",
       },
       borderRadius: {
         card: "var(--radius-card)",
@@ -67,5 +81,5 @@ export default {
       },
     },
   },
-  plugins: [],
+  plugins: [require("tailwindcss-animate")],
 } satisfies Config;
