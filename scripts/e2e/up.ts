@@ -27,14 +27,10 @@ async function main() {
   console.log("[e2e:up] starting supabase CLI stack…");
   execSync("npx supabase start", { stdio: "inherit" });
 
-  console.log("[e2e:up] starting api + web…");
+  console.log("[e2e:up] starting web…");
   execSync(`${COMPOSE} up -d --wait`, { stdio: "inherit" });
 
   console.log("[e2e:up] waiting on http endpoints…");
-  await waitForHttp("http://localhost:8001/health", {
-    timeoutMs: 60_000,
-    intervalMs: 1000,
-  });
   await waitForHttp("http://localhost:12001/", {
     timeoutMs: 60_000,
     intervalMs: 1000,

@@ -433,7 +433,7 @@ describe("POST /api/tiktokverification (JSON path-based submission)", () => {
   });
 });
 
-describe("POST /api/tiktokverification (legacy multipart path)", () => {
+describe("POST /api/tiktokverification (non-JSON content types)", () => {
   const originalFetch = global.fetch;
 
   beforeEach(() => {
@@ -445,11 +445,8 @@ describe("POST /api/tiktokverification (legacy multipart path)", () => {
     global.fetch = originalFetch;
   });
 
-  it("still proxies multipart requests to FastAPI unchanged", async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      text: async () => JSON.stringify({ success: true, message: "ok" }),
-    });
+  it("refuses multipart with 415 and never reaches the DB (FastAPI proxy removed)", async () => {
+    const fetchMock = vi.fn();
     global.fetch = fetchMock as never;
 
     const formData = new FormData();
@@ -461,12 +458,12 @@ describe("POST /api/tiktokverification (legacy multipart path)", () => {
 
     const res = await POST(req as never);
 
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining("/tiktokverification/verification"),
-      expect.objectContaining({ method: "POST" })
-    );
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ success: true, message: "ok" });
+    expect(res.status).toBe(415);
+    expect(await res.json()).toEqual({
+      success: false,
+      detail: "Content-Type must be application/json",
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
     expect(influencerVerificationsCreate).not.toHaveBeenCalled();
     expect(isRateLimited).not.toHaveBeenCalled();
   });

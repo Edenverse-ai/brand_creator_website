@@ -1,5 +1,15 @@
 # Backend
 
+> **DECOMMISSIONED 2026-08-06.** The FastAPI sidecar this document describes no longer
+> runs, is no longer deployed, and is no longer called by any application code. Its
+> source now sits read-only under [`legacy/backend/`](../legacy/backend/); every route
+> it served has a native Next.js equivalent. Read
+> [`legacy/ARCHIVE.md`](../legacy/ARCHIVE.md) for what replaced what, and
+> [`legacy/HANDOFF.md`](../legacy/HANDOFF.md) for the remaining AWS teardown.
+>
+> Everything below is kept verbatim as historical reference. Paths written as
+> `backend/…` now live under `legacy/backend/…`. Do not follow its run instructions.
+
 FastAPI Python sidecar for platform integrations and media handling.
 
 See [architecture.md](architecture.md) for how it fits into the overall system.

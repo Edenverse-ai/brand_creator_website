@@ -97,36 +97,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json([]);
   }
 }
-
-// --- Everything below is unchanged from the pre-Phase-4c proxy implementation. ---
-// POST (create store) has zero live callers anywhere in src/app (porting reference
-// §1.2/§4.8 — no admin UI exists to create a pear store). Per this phase's scope,
-// only the live GET path above is ported to native Prisma logic; this proxy is left
-// exactly as it was, flagged as a deletion candidate in the phase report rather than
-// silently rewritten or removed.
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-
-    const apiBaseUrl = process.env.CAMPAIGNS_API_URL || "http://localhost:5000";
-
-    const response = await fetch(`${apiBaseUrl}/pear`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-
-    const data = await response.json();
-
-    return NextResponse.json(data, { status: response.status });
-  } catch (error: any) {
-    console.error("Pear POST API route error:", error);
-    return NextResponse.json(
-      { error: "Internal server error", message: error.message },
-      { status: 500 }
-    );
-  }
-}

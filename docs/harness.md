@@ -33,25 +33,25 @@ IDE and Claude Code feedback — sub-second.
 - **Prettier on save** via VSCode `editor.formatOnSave` (`.vscode/settings.json` committed in a later harness PR).
 - **ESLint LSP** shows violations live in the editor.
 - **`tsc` language service** via `@typescript/language-service`.
-- **Pylance / Pyright** in `backend/` workspace folder for Python type feedback.
 - **Claude Code PostToolUse hooks** (Write|Edit) run Prettier + ESLint `--fix` on the edited file, configured in `.claude/settings.json` (added in PR 9).
 
 **Status:** Partially live. Claude Code hooks live (PR 9). VSCode `editor.formatOnSave` not yet wired.
 
 ### Claude Code PostToolUse Hooks (PR 9)
 
-Two hook scripts fire automatically after every `Write` or `Edit` tool call Claude Code makes:
+One hook script fires automatically after every `Write` or `Edit` tool call Claude Code makes:
 
-| Script                             | Trigger                                                        | Actions                                                                                                |
-| ---------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `scripts/harness/claude-format.js` | Any file matching `*.{ts,tsx,js,jsx,mjs,json,md,yml,yaml,css}` | `prettier --write <file>`; then `eslint --fix --max-warnings=0 <file>` for TS/JS only                  |
-| `scripts/harness/claude-ruff.js`   | Any file matching `backend/**/*.py`                            | `ruff format <file>` → `ruff check --fix <file>`; silently skips if `backend/.venv/bin/ruff` is absent |
+| Script                             | Trigger                                                        | Actions                                                                               |
+| ---------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `scripts/harness/claude-format.js` | Any file matching `*.{ts,tsx,js,jsx,mjs,json,md,yml,yaml,css}` | `prettier --write <file>`; then `eslint --fix --max-warnings=0 <file>` for TS/JS only |
 
-Both hooks are registered in `.claude/settings.json` under `hooks.PostToolUse` with matcher `Write|Edit`. Hook failures print to stderr but do **not** block tool execution — they are best-effort post-edit hygiene, not gates.
+The hook is registered in `.claude/settings.json` under `hooks.PostToolUse` with matcher `Write|Edit`. Hook failures print to stderr but do **not** block tool execution — they are best-effort post-edit hygiene, not gates.
+
+The companion `claude-ruff.js` hook (Python, `backend/**/*.py`) was retired with the FastAPI backend in the Phase 5 decommission — see [legacy/ARCHIVE.md](../legacy/ARCHIVE.md).
 
 **Performance note:** Each TS/JS edit adds ~1–3 s for Prettier + ESLint. This is acceptable for the quality guarantee it provides.
 
-**To disable hooks for a session:** run `/hooks` in Claude Code to open the hooks manager and toggle off the `Write|Edit` entries. Re-enable by toggling them back on. Alternatively, remove or rename `.claude/settings.json` temporarily.
+**To disable the hook for a session:** run `/hooks` in Claude Code to open the hooks manager and toggle off the `Write|Edit` entry. Re-enable by toggling it back on. Alternatively, remove or rename `.claude/settings.json` temporarily.
 
 ---
 
@@ -64,7 +64,6 @@ Husky + lint-staged. Single `pre-commit` hook dispatches by file glob.
 | `*.{ts,tsx,js,jsx,mjs}`    | `prettier --write` → `eslint --fix --max-warnings=0`              |
 | `*.{ts,tsx}`               | `tsc --noEmit` scoped to changed files via `tsc-files`            |
 | `prisma/schema.prisma`     | `prisma format` → drift check (`prisma migrate diff --exit-code`) |
-| `backend/**/*.py`          | `ruff format` → `ruff check --fix`                                |
 | `*.{json,md,yml,yaml,css}` | `prettier --write`                                                |
 
 **Friction note.** The per-file `eslint --fix --max-warnings=0` step blocks a commit when the staged file already carries a warning, even if your change is unrelated to the warning. The 35 warnings tracked at branch creation (`@next/next/no-img-element`, `react-hooks/exhaustive-deps`) live in roughly 20 files. If your commit touches one of these, fix the warning in-place or add a `// eslint-disable-next-line <rule> -- TODO(harness): <issue>` comment with a tracking issue. To preview the warning list, run `npm run lint`. To run the strictest gate manually, `npm run lint:strict`.
@@ -79,8 +78,6 @@ Hook error format:
   See: docs/harness.md#layer-2-pre-commit
 ```
 
-mypy runs in pre-push only (Layer 3) — per-file mypy in lint-staged produces false positives on Pydantic models. See [backend.md](backend.md) for rationale.
-
 **Status:** Live (PR 3 + PR 6).
 
 ---
@@ -93,8 +90,6 @@ Full-repo checks. Single `pre-push` hook runs `npm run harness:prepush`:
 2. `npm run lint  # eslint . — warns allowed per plan §1.3`
 3. `prisma migrate diff --exit-code` (full drift check)
 4. `vitest run` (unit suite)
-5. `ruff check backend/`
-6. `mypy backend/`
 
 Use `npm run lint:strict` as an opt-in zero-tolerance variant (zero warnings allowed).
 
@@ -122,7 +117,7 @@ Manual scripts available via `package.json` (added in later harness PRs):
 | ------------------------- | ---------------------------------------------------- |
 | `npm run e2e`             | Playwright smoke tests vs local dev server           |
 | `npm run e2e:preview`     | Playwright smoke tests vs `$DEPLOY_PRIME_URL`        |
-| `npm run harness:full`    | Layer 3 checks + E2E + full mypy                     |
+| `npm run harness:full`    | Layer 3 checks + E2E                                 |
 | `npm run harness:install` | Bootstrap: install Husky, scaffold env, print banner |
 
 **Status:** Live (PRs 3, 7, 8).

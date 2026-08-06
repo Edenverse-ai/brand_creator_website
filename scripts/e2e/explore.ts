@@ -6,7 +6,6 @@ execSync("npx tsx scripts/e2e/up.ts", { stdio: "inherit", env: process.env });
 console.log(`
 [e2e:explore] stack ready.
   web:      http://localhost:12001
-  api:      http://localhost:8001
   pg:       postgres://postgres:postgres@localhost:54329/postgres
   studio:   http://localhost:54323
   test login (gated by E2E_EXPLORE=1):

@@ -91,7 +91,9 @@ module.exports = [
       "node_modules/**",
       "prisma/migrations/**",
       "public/**",
-      "backend/**",
+      // Decommissioned FastAPI backend + orphaned Python/JS, kept read-only for
+      // reference. Never built, linted, or deployed — see legacy/ARCHIVE.md.
+      "legacy/**",
       "playwright-report/**",
       "test-results/**",
       "coverage/**",

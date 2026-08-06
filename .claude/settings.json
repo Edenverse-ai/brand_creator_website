@@ -9,15 +9,6 @@
             "command": "node scripts/harness/claude-format.js"
           }
         ]
-      },
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node scripts/harness/claude-ruff.js"
-          }
-        ]
       }
     ]
   }

@@ -10,6 +10,7 @@ vi.mock("@/lib/rate-limiter", () => ({
   pearBrandsLimiter: { isRateLimited: (...args: unknown[]) => isRateLimited(...args) },
 }));
 
+import * as pearRoute from "../route";
 import { GET } from "../route";
 
 function getRequest(query: string = "") {
@@ -169,5 +170,13 @@ describe("GET /api/pear", () => {
     );
 
     consoleErrorSpy.mockRestore();
+  });
+});
+
+describe("removed FastAPI-era verbs", () => {
+  // POST (create store) proxied to the FastAPI backend and had zero callers; it was
+  // deleted in the Phase 5 decommission — see legacy/ARCHIVE.md.
+  it.each(["POST", "PUT", "PATCH", "DELETE"])("no longer exports %s", (verb) => {
+    expect(pearRoute).not.toHaveProperty(verb);
   });
 });
