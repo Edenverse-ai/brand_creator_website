@@ -1,0 +1,50 @@
+/*
+ * Layer 2 — semantic tokens.
+ * Light = :root, dark = [data-theme="dark"] (violet-tinted).
+ * Contract: every token here MUST exist in both blocks (tests/design/tokens.test.ts).
+ * Values are hex so the WCAG contrast test can do the math.
+ */
+
+:root {
+  --surface: #fcfcfd;
+  --surface-raised: #ffffff;
+  --surface-sunken: #f4f2f9;
+  --ink: #17151f;
+  --ink-muted: #565264;
+  --accent: #7c3aed;
+  --accent-strong: #6d28d9;
+  --accent-soft: #f1ebfd;
+  --accent-contrast: #ffffff;
+  --line: #ddd9e8;
+  --ring: #7c3aed;
+  --success: #15803d;
+  --warning: #b45309;
+  --danger: #b91c1c;
+  --info: #1d4ed8;
+  --gradient-hero: linear-gradient(135deg, #7c3aed, #4f46e5);
+  --shadow-raised: 0 1px 2px rgb(23 21 31 / 0.06), 0 8px 24px rgb(23 21 31 / 0.08);
+  --shadow-overlay: 0 4px 12px rgb(23 21 31 / 0.12), 0 24px 60px rgb(23 21 31 / 0.18);
+  --glow-accent: 0 0 0 1px var(--line), 0 8px 24px rgb(124 58 237 / 0.1);
+}
+
+[data-theme="dark"] {
+  --surface: #131020;
+  --surface-raised: #1b1730;
+  --surface-sunken: #241e3e;
+  --ink: #edeaf6;
+  --ink-muted: #9c96b0;
+  --accent: #a78bfa;
+  --accent-strong: #8b5cf6;
+  --accent-soft: #2a2350;
+  --accent-contrast: #131020;
+  --line: #35304e;
+  --ring: #a78bfa;
+  --success: #4ade80;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --info: #93c5fd;
+  --gradient-hero: linear-gradient(135deg, #8b5cf6, #6366f1);
+  --shadow-raised: 0 0 0 1px #35304e;
+  --shadow-overlay: 0 0 0 1px #35304e, 0 24px 60px rgb(0 0 0 / 0.5);
+  --glow-accent: 0 0 0 1px #35304e, 0 8px 32px rgb(139 92 246 / 0.35);
+}

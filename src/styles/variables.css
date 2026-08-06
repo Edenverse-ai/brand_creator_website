@@ -1,0 +1,42 @@
+/*
+ * Layer 1 — theme-independent primitives: typography scale, spacing,
+ * radius, motion. Colors live in themes.css.
+ */
+
+:root {
+  /* Font indirection: next/font sets --font-fraunces/--font-inter on <html>;
+     the zh layout re-points them at CJK fonts. Components only ever use
+     --font-display / --font-body. */
+  --font-display: var(--font-fraunces);
+  --font-body: var(--font-inter);
+
+  --text-hero: clamp(3rem, 1rem + 7vw, 7rem);
+  --text-h1: clamp(2.25rem, 1.5rem + 2.5vw, 3.5rem);
+  --text-h2: clamp(1.75rem, 1.35rem + 1.4vw, 2.5rem);
+  --text-h3: clamp(1.25rem, 1.1rem + 0.6vw, 1.5rem);
+  --text-base: clamp(1rem, 0.95rem + 0.2vw, 1.0625rem);
+  --text-small: 0.875rem;
+  --text-micro: 0.6875rem;
+
+  --leading-display: 1.05;
+  --leading-body: 1.6;
+  --tracking-display: -0.015em;
+  --tracking-micro: 0.18em;
+
+  --radius-card: 16px;
+  --radius-control: 10px;
+
+  --space-section: clamp(4rem, 3rem + 5vw, 9rem);
+
+  --dur-fast: 150ms;
+  --dur-normal: 300ms;
+  --dur-slow: 600ms;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* CJK typography adjustments — applied by src/app/zh/layout.tsx wrapper */
+.zh-typography {
+  --leading-display: 1.25;
+  --tracking-display: 0;
+  --tracking-micro: 0.08em;
+}
