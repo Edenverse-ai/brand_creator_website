@@ -1,12 +1,18 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Fraunces, Inter } from "next/font/google";
 import Navigation from "@/components/ui/Navigation";
 import Link from "next/link";
 import SessionProvider from "@/components/providers/SessionProvider";
 import "../styles/globals.css";
 import "@/styles/scrollbar-hide.css";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  variable: "--font-fraunces",
+  display: "swap",
+  axes: ["opsz"],
+});
 
 export const metadata: Metadata = {
   title: "Creator-Brand Collaboration Platform",
@@ -15,8 +21,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
+    <html lang="en" className={`${inter.variable} ${fraunces.variable}`} suppressHydrationWarning>
+      <body className="font-body">
         <SessionProvider>
           <div className="min-h-screen flex flex-col">
             <Navigation />

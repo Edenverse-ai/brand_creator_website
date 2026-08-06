@@ -39,4 +39,12 @@
   --leading-display: 1.25;
   --tracking-display: 0;
   --tracking-micro: 0.08em;
+  /* Override the semantic font vars directly — var() chains resolve at
+     the element that declares them (:root), so re-pointing the inner
+     --font-inter/--font-fraunces from a descendant has no effect. */
+  --font-display: "Songti SC", "Noto Serif SC", "Source Han Serif SC", "SimSun", serif;
+  --font-body: "PingFang SC", "Noto Sans SC", "Source Han Sans SC", "Microsoft YaHei", sans-serif;
+  /* Re-resolve font-family inside the wrapper: body computed it outside,
+     and descendants inherit the resolved value, not the var() expression. */
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
 }
