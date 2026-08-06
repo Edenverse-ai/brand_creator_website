@@ -1,0 +1,34 @@
+/* Motion patterns — compositor-friendly properties only. */
+
+.reveal-up {
+  opacity: 0;
+  transform: translateY(16px);
+  transition:
+    opacity var(--dur-normal) var(--ease-out-expo),
+    transform var(--dur-normal) var(--ease-out-expo);
+}
+.reveal-up.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+.hero-clip-reveal {
+  clip-path: inset(0 0 100% 0);
+  animation: hero-clip var(--dur-slow) var(--ease-out-expo) forwards;
+}
+@keyframes hero-clip {
+  to {
+    clip-path: inset(0 0 0% 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal-up,
+  .hero-clip-reveal {
+    opacity: 1;
+    transform: none;
+    clip-path: none;
+    animation: none;
+    transition: none;
+  }
+}

@@ -49,35 +49,37 @@ export default function DigitalHumanSection({ lang = "en" }: DigitalHumanSection
     <section
       id="dh"
       aria-labelledby="dh-heading"
-      className="border-b border-gray-100 bg-gradient-to-b from-purple-50 to-white py-24"
+      className="border-b border-line bg-surface py-[--space-section]"
     >
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="text-center">
-          <span className="inline-flex items-center gap-2 rounded-full border border-purple-200 bg-purple-100 px-4 py-1.5 text-[13px] font-bold uppercase tracking-wide text-purple-700">
-            <span className="h-1.5 w-1.5 rounded-full bg-purple-600" aria-hidden />
+          <span className="inline-flex items-center gap-2 rounded-full border border-accent-soft bg-accent-soft px-4 py-1.5 text-micro font-bold uppercase tracking-micro text-accent">
+            <span className="h-1.5 w-1.5 rounded-full bg-accent" aria-hidden />
             {COPY.badge[lang]}
           </span>
-          <h3 id="dh-heading" className="mt-6 text-4xl font-extrabold text-gray-900 sm:text-5xl">
+          <h3 id="dh-heading" className="mt-6 font-display text-h1 font-semibold text-ink">
             {COPY.title[lang]}
           </h3>
-          <p className="mx-auto mt-6 max-w-3xl text-xl leading-relaxed text-gray-600">
+          <p className="mx-auto mt-6 max-w-3xl text-xl leading-[--leading-body] text-ink-muted">
             {COPY.subtitle[lang]}
           </p>
         </div>
 
         <div className="mx-auto mt-20 grid max-w-5xl gap-8 md:grid-cols-2">
           {/* Learn it yourself */}
-          <div className="group relative rounded-2xl border border-gray-100 bg-white p-8 pt-12 shadow-lg transition-all duration-300 hover:-translate-y-2 hover:border-purple-200 hover:shadow-2xl">
-            <div className="absolute -top-6 left-8 grid h-12 w-12 place-items-center rounded-xl bg-gradient-to-br from-purple-500 to-blue-500 shadow-lg">
+          <div className="group relative rounded-card border border-line bg-surface-raised p-8 pt-12 shadow-raised transition-all duration-fast ease-out-expo hover:-translate-y-0.5 hover:shadow-glow">
+            <div className="absolute -top-6 left-8 grid h-12 w-12 place-items-center rounded-xl bg-gradient-hero shadow-raised">
               <BookOpen className="h-6 w-6 text-white" aria-hidden />
             </div>
-            <h4 className="text-2xl font-bold text-gray-900">{COPY.learn.title[lang]}</h4>
-            <p className="mt-3 leading-relaxed text-gray-600">{COPY.learn.body[lang]}</p>
+            <h4 className="font-display text-h3 font-semibold text-ink">
+              {COPY.learn.title[lang]}
+            </h4>
+            <p className="mt-3 leading-[--leading-body] text-ink-muted">{COPY.learn.body[lang]}</p>
             <ul className="mt-6 space-y-3">
               {COPY.learn.features.map((feature) => (
-                <li key={feature.en} className="flex items-start gap-2.5 text-[15px] text-gray-700">
+                <li key={feature.en} className="flex items-start gap-2.5 text-[15px] text-ink">
                   <Check
-                    className="mt-0.5 h-4 w-4 shrink-0 text-purple-600"
+                    className="mt-0.5 h-4 w-4 shrink-0 text-accent"
                     strokeWidth={2.5}
                     aria-hidden
                   />
@@ -87,7 +89,7 @@ export default function DigitalHumanSection({ lang = "en" }: DigitalHumanSection
             </ul>
             <Link
               href={`${prefix}/contact?topic=digital-human-course`}
-              className="mt-7 inline-flex items-center gap-1.5 text-[15px] font-semibold text-purple-600 hover:text-purple-800"
+              className="mt-7 inline-flex items-center gap-1.5 text-[15px] font-semibold text-accent hover:text-accent-strong"
             >
               {COPY.learn.cta[lang]}
               <ArrowRight
@@ -98,17 +100,17 @@ export default function DigitalHumanSection({ lang = "en" }: DigitalHumanSection
           </div>
 
           {/* Done for you */}
-          <div className="group relative rounded-2xl border border-gray-100 bg-white p-8 pt-12 shadow-lg transition-all duration-300 hover:-translate-y-2 hover:border-indigo-200 hover:shadow-2xl">
-            <div className="absolute -top-6 left-8 grid h-12 w-12 place-items-center rounded-xl bg-gradient-to-br from-indigo-600 to-blue-600 shadow-lg">
+          <div className="group relative rounded-card border border-line bg-surface-raised p-8 pt-12 shadow-raised transition-all duration-fast ease-out-expo hover:-translate-y-0.5 hover:shadow-glow">
+            <div className="absolute -top-6 left-8 grid h-12 w-12 place-items-center rounded-xl bg-gradient-hero shadow-raised">
               <Video className="h-6 w-6 text-white" aria-hidden />
             </div>
-            <h4 className="text-2xl font-bold text-gray-900">{COPY.done.title[lang]}</h4>
-            <p className="mt-3 leading-relaxed text-gray-600">{COPY.done.body[lang]}</p>
+            <h4 className="font-display text-h3 font-semibold text-ink">{COPY.done.title[lang]}</h4>
+            <p className="mt-3 leading-[--leading-body] text-ink-muted">{COPY.done.body[lang]}</p>
             <ul className="mt-6 space-y-3">
               {COPY.done.features.map((feature) => (
-                <li key={feature.en} className="flex items-start gap-2.5 text-[15px] text-gray-700">
+                <li key={feature.en} className="flex items-start gap-2.5 text-[15px] text-ink">
                   <Check
-                    className="mt-0.5 h-4 w-4 shrink-0 text-indigo-600"
+                    className="mt-0.5 h-4 w-4 shrink-0 text-accent"
                     strokeWidth={2.5}
                     aria-hidden
                   />
@@ -118,7 +120,7 @@ export default function DigitalHumanSection({ lang = "en" }: DigitalHumanSection
             </ul>
             <Link
               href={`${prefix}/contact?topic=digital-human-production`}
-              className="mt-7 inline-flex items-center justify-center rounded-[10px] bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-3 text-[15px] font-semibold text-white shadow-md transition hover:brightness-110"
+              className="mt-7 inline-flex items-center justify-center rounded-full bg-accent px-6 py-3 text-[15px] font-semibold text-accent-contrast shadow-raised transition-colors duration-fast hover:bg-accent-strong"
             >
               {COPY.done.cta[lang]}
             </Link>

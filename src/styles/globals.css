@@ -1,6 +1,7 @@
 /* Design tokens */
 @import "./variables.css";
 @import "./themes.css";
+@import "./animations.css";
 
 /* Import portal-specific styles */
 @import "./portals.css";
