@@ -96,8 +96,9 @@ asserting the route module no longer exports them.
 
 ## AWS
 
-Torn down 2026-08-06 — ECS service, ECR repository, log group, and all four task
-definition revisions are gone, and `CAMPAIGNS_API_URL` is unset on Netlify. See
+Torn down 2026-08-06 — ECS service, ECR repository, log group, all four task definition
+revisions, the express-gateway ALB and its target groups, both ECS IAM roles, and the
+empty `default` cluster are all gone, and `CAMPAIGNS_API_URL` is unset on Netlify. See
 [HANDOFF.md](HANDOFF.md) for what was run, what was verified, and the one resource
 still worth re-checking.
 

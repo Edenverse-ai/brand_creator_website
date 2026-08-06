@@ -14,6 +14,9 @@ is left to watch.
 | Log group `/ecs/cricher-backend`                       | Deleted.                                                         |
 | Task definitions `default-cricher-backend:1–4`         | Deregistered **and deleted.** Not in the original plan, and necessary: task definitions survive service deletion and held `SUPABASE_SERVICE_KEY` and `SMTP_PASSWORD` in plaintext `environment` entries readable by anyone with `ecs:DescribeTaskDefinition`. |
 | `netlify env:unset CAMPAIGNS_API_URL`                   | Unset in all contexts.                                           |
+| ALB `ecs-express-gateway-alb-a39a3db4` + both `ecs-gateway-tg-*` target groups | **Reaped by ECS itself** once the last task finished draining — no manual deletion needed. Do not hand-delete `AmazonECSManaged` load balancers; give ECS a few minutes first. |
+| IAM roles `ecsInfrastructureRole`, `ecsTaskExecutionRole` | Deleted (one AWS-managed policy detached from each; no inline policies). Both showed a last-used timestamp from ECS's own teardown minutes earlier and nothing else in any region used them. |
+| ECS cluster `default`                                  | Deleted (empty).                                                 |
 
 Verification after the fact: `aws ecs list-services` → empty · `describe-repositories`
 no longer lists `cricher-backend` · `describe-log-groups` prefix `/ecs/cricher` → empty ·
@@ -25,18 +28,21 @@ Production smoke (`cricher.ai`): `/`, `/campaigns`, `/contact`, `/api/campaigns`
 route swallows errors into `[]` at HTTP 200, so an empty body there is never by itself
 evidence of health; it was checked against the database directly.
 
+Final sweep: no ECS clusters, services, or task definitions in any region checked
+(us-east-1/2, us-west-1/2, eu-west-1, ap-southeast-1, ap-northeast-1) · no load balancers
+or target groups in us-east-2 · no `/ecs*` log groups · both IAM roles return
+`NoSuchEntity` · the ECS endpoint no longer resolves. Production re-smoked green after.
+
+## Deliberately left alone
+
+- **ECR repository `robotx-crm-api`** (us-east-2) — a different project, untouched.
+- **IAM user `jason-cli`** — it created the service, but it is also the identity these
+  teardown commands ran as. Deleting it would remove the account's CLI access. If it was
+  only ever used for this backend, remove it from a different admin identity.
+
 ## Still to watch
 
-- **`ecs-express-gateway-alb-a39a3db4`** (us-east-2) was still `active` immediately after
-  deletion, with the old target group draining. It is tagged `AmazonECSManaged=true`, so
-  ECS owns its lifecycle — it should disappear once draining completes. **Re-check it.**
-  An idle ALB is roughly $16–20/month, and it is the one resource that could silently keep
-  billing. Do not delete an `AmazonECSManaged` load balancer by hand unless it is still
-  there long after the last service is gone.
-- Next billing cycle: confirm ECS/ECR line items are $0.
-- `ecsInfrastructureRole` / `ecsTaskExecutionRole` and the `jason-cli` IAM user that
-  created the service: review for removal if unused elsewhere. The `default` ECS cluster
-  is now empty.
+- Next billing cycle: confirm ECS / ECR / ELB line items are $0.
 - Once the reference is no longer wanted: `git rm -r legacy`.
 
 ## Secrets
