@@ -10,16 +10,17 @@ export default {
   theme: {
     extend: {
       colors: {
+        // rgb(var(--x-rgb) / <alpha-value>) enables opacity modifiers (bg-surface/80)
         surface: {
-          DEFAULT: "var(--surface)",
+          DEFAULT: "rgb(var(--surface-rgb) / <alpha-value>)",
           raised: "var(--surface-raised)",
-          sunken: "var(--surface-sunken)",
+          sunken: "rgb(var(--surface-sunken-rgb) / <alpha-value>)",
         },
-        ink: { DEFAULT: "var(--ink)", muted: "var(--ink-muted)" },
+        ink: { DEFAULT: "rgb(var(--ink-rgb) / <alpha-value>)", muted: "var(--ink-muted)" },
         accent: {
-          DEFAULT: "var(--accent)",
+          DEFAULT: "rgb(var(--accent-rgb) / <alpha-value>)",
           strong: "var(--accent-strong)",
-          soft: "var(--accent-soft)",
+          soft: "rgb(var(--accent-soft-rgb) / <alpha-value>)",
           contrast: "var(--accent-contrast)",
           // shadcn components' text pair for bg-accent
           foreground: "var(--accent-contrast)",
@@ -28,7 +29,7 @@ export default {
         ring: "var(--ring)",
         success: "var(--success)",
         warning: "var(--warning)",
-        danger: "var(--danger)",
+        danger: "rgb(var(--danger-rgb) / <alpha-value>)",
         info: "var(--info)",
         // temporary aliases for unmigrated pages; removed in Task 11
         background: "var(--surface)",
@@ -36,11 +37,17 @@ export default {
         // shadcn/ui component vocabulary (aliases of semantic tokens via themes.css)
         card: { DEFAULT: "var(--card)", foreground: "var(--card-foreground)" },
         popover: { DEFAULT: "var(--popover)", foreground: "var(--popover-foreground)" },
-        primary: { DEFAULT: "var(--primary)", foreground: "var(--primary-foreground)" },
-        secondary: { DEFAULT: "var(--secondary)", foreground: "var(--secondary-foreground)" },
+        primary: {
+          DEFAULT: "rgb(var(--accent-rgb) / <alpha-value>)",
+          foreground: "var(--primary-foreground)",
+        },
+        secondary: {
+          DEFAULT: "rgb(var(--surface-sunken-rgb) / <alpha-value>)",
+          foreground: "var(--secondary-foreground)",
+        },
         muted: { DEFAULT: "var(--muted)", foreground: "var(--muted-foreground)" },
         destructive: {
-          DEFAULT: "var(--destructive)",
+          DEFAULT: "rgb(var(--danger-rgb) / <alpha-value>)",
           foreground: "var(--destructive-foreground)",
         },
         border: "var(--border)",
