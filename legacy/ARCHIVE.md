@@ -94,7 +94,15 @@ asserting the route module no longer exports them.
 - A >64 MB TikTok video has never been published; that is the only case that
   exercises the chunking path in the FILE_UPLOAD relay.
 
+## AWS
+
+Torn down 2026-08-06 — ECS service, ECR repository, log group, and all four task
+definition revisions are gone, and `CAMPAIGNS_API_URL` is unset on Netlify. See
+[HANDOFF.md](HANDOFF.md) for what was run, what was verified, and the one resource
+still worth re-checking.
+
 ## Deleting this directory
 
-Safe once nobody needs the reference and the AWS side is torn down (see
-[HANDOFF.md](HANDOFF.md)). `git rm -r legacy` — the history keeps everything.
+Safe once nobody needs the reference. `git rm -r legacy` — the history keeps
+everything. Note that the container image is gone from ECR; the only remaining way to
+run this service is to rebuild it from `legacy/backend/Dockerfile`.
