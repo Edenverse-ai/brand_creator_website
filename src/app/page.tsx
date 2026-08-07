@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { ArrowRight, BarChart3, ChevronLeft, ChevronRight, Search, Users } from "lucide-react";
 import DigitalHumanSection from "@/components/home/DigitalHumanSection";
+import TikTokEmbed from "@/components/home/TikTokEmbed";
 import HeroSection from "@/components/home/HeroSection";
 import { useRevealOnScroll } from "@/hooks/useRevealOnScroll";
 
@@ -203,17 +204,7 @@ export default function Home() {
                           className="rounded-card border border-line bg-surface-raised p-4 shadow-raised transition-all duration-fast ease-out-expo hover:-translate-y-0.5 hover:shadow-glow"
                         >
                           <div className="relative h-96 w-full overflow-hidden rounded-control bg-surface-sunken">
-                            <iframe
-                              src={`https://www.tiktok.com/embed/v2/${video.id}`}
-                              width="100%"
-                              height="100%"
-                              frameBorder="0"
-                              loading="lazy"
-                              allow="encrypted-media"
-                              allowFullScreen
-                              className="rounded-control"
-                              title={`TikTok video by ${video.username}`}
-                            />
+                            <TikTokEmbed videoId={video.id} username={video.username} />
                           </div>
                           <figcaption className="mt-4 text-center">
                             <p className="text-sm font-medium text-ink">{video.username}</p>
