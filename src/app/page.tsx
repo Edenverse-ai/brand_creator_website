@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { ArrowRight, BarChart3, ChevronLeft, ChevronRight, Search, Users } from "lucide-react";
+import { ArrowRight, BarChart3, Search, Users } from "lucide-react";
+import CreatorCarousel from "@/components/home/CreatorCarousel";
 import DigitalHumanSection from "@/components/home/DigitalHumanSection";
-import TikTokEmbed from "@/components/home/TikTokEmbed";
 import HeroSection from "@/components/home/HeroSection";
 import { useRevealOnScroll } from "@/hooks/useRevealOnScroll";
 
@@ -32,8 +31,6 @@ const TIKTOK_VIDEOS = [
     description: "Family & Lifestyle Creator",
   },
 ];
-
-const VIDEOS_PER_SLIDE = 3;
 
 const CREATOR_VALUE_CARDS = [
   {
@@ -105,11 +102,6 @@ function SectionHeading({
 
 export default function Home() {
   useRevealOnScroll();
-  const [currentSlide, setCurrentSlide] = useState(0);
-  const totalSlides = Math.ceil(TIKTOK_VIDEOS.length / VIDEOS_PER_SLIDE);
-
-  const nextSlide = () => setCurrentSlide((prev) => (prev + 1) % totalSlides);
-  const prevSlide = () => setCurrentSlide((prev) => (prev - 1 + totalSlides) % totalSlides);
 
   return (
     <main className="min-h-screen bg-surface">
@@ -124,6 +116,32 @@ export default function Home() {
           secondaryCta: { label: "Join as Creator", href: "/join-creator" },
         }}
       />
+
+      {/* TikTok showcase carousel */}
+      <section className="bg-surface py-[--space-section]">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <SectionHeading
+            kicker="Featured Content"
+            title="See our creators in action"
+            subtitle="Watch real content from our talented creator community and see the quality of work they produce for brands."
+          />
+
+          <CreatorCarousel videos={TIKTOK_VIDEOS} />
+
+          <div className="reveal-up mt-16 text-center">
+            <p className="mb-6 text-lg text-ink-muted">
+              Ready to create amazing content like this? Join our creator community today.
+            </p>
+            <Link
+              href="/join-creator"
+              className="group inline-flex items-center gap-2 rounded-full bg-accent px-6 py-3 text-base font-semibold text-accent-contrast shadow-raised transition-colors duration-fast hover:bg-accent-strong"
+            >
+              Join as Creator
+              <ArrowRight className="h-5 w-5 transition-transform duration-fast group-hover:translate-x-1" />
+            </Link>
+          </div>
+        </div>
+      </section>
 
       {/* AI Digital Human Service */}
       <DigitalHumanSection lang="en" />
@@ -156,93 +174,6 @@ export default function Home() {
                 ) : null}
               </article>
             ))}
-          </div>
-        </div>
-      </section>
-
-      {/* TikTok showcase carousel */}
-      <section className="bg-surface py-[--space-section]">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <SectionHeading
-            kicker="Featured Content"
-            title="See our creators in action"
-            subtitle="Watch real content from our talented creator community and see the quality of work they produce for brands."
-          />
-
-          <div className="reveal-up relative">
-            <button
-              onClick={prevSlide}
-              aria-label="Previous videos"
-              className="absolute left-0 top-1/2 z-10 -translate-y-1/2 rounded-full border border-line bg-surface-raised p-3 shadow-raised transition-colors duration-fast hover:bg-surface-sunken disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={currentSlide === 0}
-            >
-              <ChevronLeft className="h-6 w-6 text-ink-muted" />
-            </button>
-            <button
-              onClick={nextSlide}
-              aria-label="Next videos"
-              className="absolute right-0 top-1/2 z-10 -translate-y-1/2 rounded-full border border-line bg-surface-raised p-3 shadow-raised transition-colors duration-fast hover:bg-surface-sunken disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={currentSlide === totalSlides - 1}
-            >
-              <ChevronRight className="h-6 w-6 text-ink-muted" />
-            </button>
-
-            <div className="mx-12 overflow-hidden">
-              <div
-                className="flex transition-transform duration-slow ease-out-expo"
-                style={{ transform: `translateX(-${currentSlide * 100}%)` }}
-              >
-                {Array.from({ length: totalSlides }).map((_, slideIndex) => (
-                  <div key={slideIndex} className="w-full flex-shrink-0">
-                    <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
-                      {TIKTOK_VIDEOS.slice(
-                        slideIndex * VIDEOS_PER_SLIDE,
-                        (slideIndex + 1) * VIDEOS_PER_SLIDE
-                      ).map((video) => (
-                        <figure
-                          key={video.id}
-                          className="rounded-card border border-line bg-surface-raised p-4 shadow-raised transition-all duration-fast ease-out-expo hover:-translate-y-0.5 hover:shadow-glow"
-                        >
-                          <div className="relative h-96 w-full overflow-hidden rounded-control bg-surface-sunken">
-                            <TikTokEmbed videoId={video.id} username={video.username} />
-                          </div>
-                          <figcaption className="mt-4 text-center">
-                            <p className="text-sm font-medium text-ink">{video.username}</p>
-                            <p className="mt-1 text-xs text-ink-muted">{video.description}</p>
-                          </figcaption>
-                        </figure>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-8 flex justify-center space-x-2">
-              {Array.from({ length: totalSlides }).map((_, index) => (
-                <button
-                  key={index}
-                  onClick={() => setCurrentSlide(index)}
-                  aria-label={`Go to slide ${index + 1}`}
-                  className={`h-3 w-3 rounded-full transition-all duration-fast ${
-                    index === currentSlide ? "scale-110 bg-accent" : "bg-line hover:bg-accent/40"
-                  }`}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div className="reveal-up mt-16 text-center">
-            <p className="mb-6 text-lg text-ink-muted">
-              Ready to create amazing content like this? Join our creator community today.
-            </p>
-            <Link
-              href="/join-creator"
-              className="group inline-flex items-center gap-2 rounded-full bg-accent px-6 py-3 text-base font-semibold text-accent-contrast shadow-raised transition-colors duration-fast hover:bg-accent-strong"
-            >
-              Join as Creator
-              <ArrowRight className="h-5 w-5 transition-transform duration-fast group-hover:translate-x-1" />
-            </Link>
           </div>
         </div>
       </section>

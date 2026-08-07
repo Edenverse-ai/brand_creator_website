@@ -23,6 +23,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${inter.variable} ${fraunces.variable}`} suppressHydrationWarning>
       <body className="font-body">
+        {/* Warm TikTok player origins so carousel embeds start streaming sooner */}
+        <link rel="preconnect" href="https://www.tiktok.com" />
         <Providers>
           <div className="min-h-screen flex flex-col">
             <Navigation />
