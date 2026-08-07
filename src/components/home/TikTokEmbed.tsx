@@ -1,57 +1,59 @@
 "use client";
 
-import { useState } from "react";
-import { Play } from "lucide-react";
 import { TikTokIcon } from "@/components/ui/TikTokIcon";
 
 interface TikTokEmbedProps {
   videoId: string;
   username: string;
+  /**
+   * When true the embed mounts and autoplays (muted, looping) via TikTok's
+   * player/v1. When false a silent shimmer skeleton renders instead — the
+   * carousel staggers activation so the mount burst doesn't trip TikTok's
+   * "overload-protect" rate limiter.
+   */
+  active?: boolean;
 }
 
-/**
- * Click-to-load facade for TikTok embeds. Rendering all embed iframes at
- * once trips TikTok's "overload-protect" rate limiter and drags LCP; the
- * iframe is only created after the user asks for it.
- */
-export default function TikTokEmbed({ videoId, username }: TikTokEmbedProps) {
-  const [isLoaded, setIsLoaded] = useState(false);
+const PLAYER_PARAMS =
+  "autoplay=1&loop=1&controls=1&progress_bar=1&play_button=1&volume_control=1&fullscreen_button=0&timestamp=0&music_info=0&description=0&rel=0&native_context_menu=0";
 
-  if (isLoaded) {
+export default function TikTokEmbed({ videoId, username, active = false }: TikTokEmbedProps) {
+  if (active) {
     return (
       <iframe
-        src={`https://www.tiktok.com/embed/v2/${videoId}?autoplay=1`}
+        src={`https://www.tiktok.com/player/v1/${videoId}?${PLAYER_PARAMS}`}
         width="100%"
         height="100%"
         frameBorder="0"
-        allow="encrypted-media; autoplay"
-        allowFullScreen
-        className="rounded-control"
+        allow="encrypted-media; autoplay; fullscreen"
+        className="h-full w-full"
         title={`TikTok video by ${username}`}
       />
     );
   }
 
   return (
-    <button
-      type="button"
-      onClick={() => setIsLoaded(true)}
-      aria-label={`Play TikTok video by ${username}`}
-      className="group/embed relative flex h-full w-full flex-col items-center justify-center gap-4 rounded-control bg-gradient-to-b from-accent-soft to-surface-sunken transition-colors duration-fast hover:from-accent-soft hover:to-accent-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    <div
+      aria-hidden
+      className="relative flex h-full w-full items-center justify-center overflow-hidden bg-gradient-to-b from-accent-soft to-surface-sunken"
     >
-      <span className="absolute right-3 top-3 text-ink-muted" aria-hidden>
-        <TikTokIcon className="h-5 w-5" />
+      <span className="text-ink-muted/40">
+        <TikTokIcon className="h-8 w-8" />
       </span>
-      <span
-        aria-hidden
-        className="flex h-16 w-16 items-center justify-center rounded-full bg-accent text-accent-contrast shadow-raised transition-transform duration-fast ease-out-expo group-hover/embed:scale-110"
-      >
-        <Play className="ml-1 h-7 w-7 fill-current" />
-      </span>
-      <span className="text-sm font-medium text-ink">{username}</span>
-      <span className="text-micro font-medium uppercase tracking-micro text-ink-muted">
-        Tap to load video
-      </span>
-    </button>
+      <span className="shimmer absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+      <style jsx>{`
+        .shimmer {
+          animation: embed-shimmer 1.6s ease-in-out infinite;
+        }
+        @keyframes embed-shimmer {
+          from {
+            transform: translateX(-100%);
+          }
+          to {
+            transform: translateX(100%);
+          }
+        }
+      `}</style>
+    </div>
   );
 }
