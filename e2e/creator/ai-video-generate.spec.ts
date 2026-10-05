@@ -35,6 +35,14 @@ test.describe("creator / ai-video generate", () => {
 
     await asCreator.goto("/creatorportal/ai-video");
     await expect(asCreator.getByText(/1 ready/i).first()).toBeVisible({ timeout: 10_000 });
+
+    await asCreator.goto("/creatorportal/ai-video/tasks");
+    const row = asCreator.locator("li", { hasText: prompt });
+    await expect(row.getByText("Delivered")).toBeVisible();
+    await expect(row.getByRole("link", { name: /View output/i })).toHaveAttribute(
+      "href",
+      /^https?:/
+    );
   });
 
   test("shows a failure and lets the creator try again", async ({ asCreator }) => {
@@ -47,6 +55,11 @@ test.describe("creator / ai-video generate", () => {
     await expect(asCreator.getByText(/generation failed/i)).toBeVisible({ timeout: 45_000 });
     await asCreator.getByRole("button", { name: /Try again/i }).click();
     await expect(asCreator.getByLabel(/^Prompt$/i)).toHaveValue("E2E failing prompt [mock-fail]");
+
+    await asCreator.goto("/creatorportal/ai-video/tasks");
+    const row = asCreator.locator("li", { hasText: "E2E failing prompt" });
+    await expect(row.getByText("Failed", { exact: true })).toBeVisible();
+    await expect(row.getByText(/You were not charged/i)).toBeVisible();
   });
 
   test("blocks generation once the daily cap is reached", async ({ asCreator }) => {

@@ -9,6 +9,7 @@ export type TaskRowData = {
   id: string;
   prompt: string;
   status: AiVideoTaskStatus;
+  errorMessage: string | null;
   outputUrl: string | null;
   outputSignedUrl: string | null;
   hasVoice: boolean;
@@ -51,6 +52,9 @@ export default function TaskRow({ task }: { task: TaskRowData }) {
             </span>
           ) : null}
         </p>
+        {task.status === "FAILED" && task.errorMessage ? (
+          <p className="mt-1 text-xs text-rose-600">{task.errorMessage}</p>
+        ) : null}
       </div>
       <span
         className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${display.className}`}
