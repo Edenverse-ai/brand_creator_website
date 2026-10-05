@@ -114,6 +114,9 @@ describe("patchTaskSchema", () => {
       notes: "n",
     });
   });
+  it("accepts FAILED", () => {
+    expect(patchTaskSchema.parse({ status: "FAILED" })).toEqual({ status: "FAILED" });
+  });
   it("rejects an invalid status", () => {
     expect(() => patchTaskSchema.parse({ status: "BOGUS" })).toThrow();
   });
@@ -128,6 +131,7 @@ describe("STATUS_DISPLAY", () => {
     expect(STATUS_DISPLAY.GENERATING.label).toBe("Generating");
     expect(STATUS_DISPLAY.IN_REVIEW.label).toBe("In Review");
     expect(STATUS_DISPLAY.DELIVERED.label).toBe("Delivered");
+    expect(STATUS_DISPLAY.FAILED.label).toBe("Failed");
   });
 });
 

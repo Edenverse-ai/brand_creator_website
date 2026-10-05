@@ -32,7 +32,7 @@ export default async function TasksPage() {
     },
   });
 
-  const portraitPaths = rows.map((r) => r.portraitPath);
+  const portraitPaths = rows.map((r) => r.portraitPath).filter((p): p is string => p !== null);
   const outputPaths = rows.map((r) => r.outputPath).filter((p): p is string => p !== null);
 
   const [portraitMap, outputMap] = await Promise.all([
@@ -47,7 +47,7 @@ export default async function TasksPage() {
     outputUrl: r.outputUrl,
     outputSignedUrl: r.outputPath ? (outputMap.get(r.outputPath) ?? null) : null,
     hasVoice: r.voicePath !== null,
-    portraitSignedUrl: portraitMap.get(r.portraitPath) ?? null,
+    portraitSignedUrl: r.portraitPath ? (portraitMap.get(r.portraitPath) ?? null) : null,
     createdAt: r.createdAt.toISOString(),
   }));
 
