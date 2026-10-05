@@ -9,6 +9,7 @@ import {
   buildPortraitPath,
   buildVoicePath,
   buildOutputPath,
+  buildLibraryVideoPath,
   validatePortraitFile,
   validateVoiceFile,
   validateOutputFile,
@@ -154,6 +155,12 @@ describe("buildOutputPath", () => {
     expect(buildOutputPath("c", "t", "video/mp4")).toBe("c/t/output.mp4");
     expect(buildOutputPath("c", "t", "video/webm")).toBe("c/t/output.webm");
     expect(buildOutputPath("c", "t", "video/quicktime")).toBe("c/t/output.mov");
+  });
+});
+
+describe("buildLibraryVideoPath", () => {
+  it("files the video under the creator, named by task id", () => {
+    expect(buildLibraryVideoPath("creator-1", "task1")).toBe("creator-1/task1.mp4");
   });
 });
 

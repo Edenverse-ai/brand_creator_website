@@ -76,6 +76,11 @@ export function buildOutputPath(creatorId: string, taskId: string, mime: VideoMi
   return `${creatorId}/${taskId}/output.${VIDEO_MIME_TO_EXT[mime]}`;
 }
 
+/** Object path of a generated video in the AI Video library bucket (aivideogenerated). */
+export function buildLibraryVideoPath(creatorId: string, taskId: string): string {
+  return `${creatorId}/${taskId}.mp4`;
+}
+
 export const promptSchema = z
   .string()
   .transform((s) => s.trim())

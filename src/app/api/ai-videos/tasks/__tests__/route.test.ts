@@ -13,8 +13,21 @@ vi.mock("next-auth", () => ({ getServerSession: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ authOptions: {} }));
 
 const aiVideoTaskCreate = vi.fn();
+const aiVideoTaskFindUnique = vi.fn();
 vi.mock("@/lib/prisma", () => ({
-  prisma: { aiVideoTask: { create: (...args: unknown[]) => aiVideoTaskCreate(...args) } },
+  prisma: {
+    aiVideoTask: {
+      create: (...args: unknown[]) => aiVideoTaskCreate(...args),
+      findUnique: (...args: unknown[]) => aiVideoTaskFindUnique(...args),
+    },
+  },
+}));
+
+const submitTask = vi.fn();
+const remainingToday = vi.fn();
+vi.mock("@/lib/ai-video-generation", () => ({
+  submitTask: (...args: unknown[]) => submitTask(...args),
+  remainingToday: (...args: unknown[]) => remainingToday(...args),
 }));
 
 const deleteFromBucket = vi.fn();
@@ -55,9 +68,18 @@ const validBody = {
   voice_path: `${OWNER}/taskabc/voice.mp3`,
 };
 
+const DEFAULT_PARAMS = { ratio: "9:16", duration: 5, resolution: "720p", generateAudio: true };
+
 describe("POST /api/ai-videos/tasks (JSON path)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    remainingToday.mockResolvedValue({ remaining: 5, limit: 5 });
+    submitTask.mockResolvedValue(undefined);
+    aiVideoTaskFindUnique.mockResolvedValue({
+      id: "taskabc",
+      status: "GENERATING",
+      errorMessage: null,
+    });
   });
 
   it("returns 401 when there is no session", async () => {
@@ -69,7 +91,7 @@ describe("POST /api/ai-videos/tasks (JSON path)", () => {
     expect(aiVideoTaskCreate).not.toHaveBeenCalled();
   });
 
-  it("returns 400 when the body fails schema validation (missing taskId)", async () => {
+  it("returns 400 when a reference image is given without its taskId", async () => {
     (getServerSession as any).mockResolvedValue({ user: { id: OWNER } });
 
     const res = await POST(
@@ -79,6 +101,31 @@ describe("POST /api/ai-videos/tasks (JSON path)", () => {
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: "Invalid input" });
     expect(aiVideoTaskCreate).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when params contain a value the UI does not offer", async () => {
+    (getServerSession as any).mockResolvedValue({ user: { id: OWNER } });
+
+    const res = await POST(jsonRequest({ ...validBody, params: { resolution: "1080p" } }) as never);
+
+    expect(res.status).toBe(400);
+    expect(aiVideoTaskCreate).not.toHaveBeenCalled();
+  });
+
+  it("returns 429 with remaining 0 when the daily cap is reached", async () => {
+    (getServerSession as any).mockResolvedValue({ user: { id: OWNER } });
+    remainingToday.mockResolvedValue({ remaining: 0, limit: 5 });
+
+    const res = await POST(jsonRequest(validBody) as never);
+
+    expect(res.status).toBe(429);
+    expect(await res.json()).toEqual({
+      error: "Daily generation limit reached. Try again tomorrow.",
+      remaining: 0,
+      limit: 5,
+    });
+    expect(aiVideoTaskCreate).not.toHaveBeenCalled();
+    expect(submitTask).not.toHaveBeenCalled();
   });
 
   it("returns 400 when taskId contains characters outside [a-z0-9] (aligned with the minting route's charset)", async () => {
@@ -111,20 +158,20 @@ describe("POST /api/ai-videos/tasks (JSON path)", () => {
     expect(aiVideoTaskCreate).not.toHaveBeenCalled();
   });
 
-  it("returns 400 'Portrait image required' when portrait_path is missing", async () => {
+  it("creates a text-only task (no reference image) with a server-minted id", async () => {
     (getServerSession as any).mockResolvedValue({ user: { id: OWNER } });
+    aiVideoTaskCreate.mockImplementation(async ({ data }: { data: { id: string } }) => ({
+      id: data.id,
+      status: "QUEUED",
+    }));
 
-    const res = await POST(
-      jsonRequest({
-        prompt: "hi",
-        taskId: "taskabc",
-        voice_path: `${OWNER}/taskabc/voice.mp3`,
-      }) as never
-    );
+    const res = await POST(jsonRequest({ prompt: "a cat" }) as never);
 
-    expect(res.status).toBe(400);
-    expect(await res.json()).toEqual({ error: "Portrait image required" });
-    expect(aiVideoTaskCreate).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    const data = aiVideoTaskCreate.mock.calls[0][0].data;
+    expect(data.id).toMatch(/^[a-z0-9]{20,32}$/);
+    expect(data.portraitPath).toBeNull();
+    expect(submitTask).toHaveBeenCalledWith(data.id);
   });
 
   it("returns 403 when portrait_path belongs to a different user", async () => {
@@ -184,11 +231,13 @@ describe("POST /api/ai-videos/tasks (JSON path)", () => {
     expect(aiVideoTaskCreate).not.toHaveBeenCalled();
   });
 
-  it("creates the AiVideoTask row with field parity to the multipart branch and returns { id, status }", async () => {
+  it("creates the row with params, submits it, and returns the post-submit status", async () => {
     (getServerSession as any).mockResolvedValue({ user: { id: OWNER } });
     aiVideoTaskCreate.mockResolvedValue({ id: "taskabc", status: "QUEUED" });
 
-    const res = await POST(jsonRequest(validBody) as never);
+    const res = await POST(
+      jsonRequest({ ...validBody, params: { ratio: "16:9", duration: 10 } }) as never
+    );
 
     expect(aiVideoTaskCreate).toHaveBeenCalledWith({
       data: {
@@ -197,11 +246,28 @@ describe("POST /api/ai-videos/tasks (JSON path)", () => {
         prompt: "Make a video",
         portraitPath: `${OWNER}/taskabc/portrait.jpg`,
         voicePath: `${OWNER}/taskabc/voice.mp3`,
+        params: { ...DEFAULT_PARAMS, ratio: "16:9", duration: 10 },
       },
       select: { id: true, status: true },
     });
+    expect(submitTask).toHaveBeenCalledWith("taskabc");
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ id: "taskabc", status: "QUEUED" });
+    expect(await res.json()).toEqual({ id: "taskabc", status: "GENERATING", errorMessage: null });
+  });
+
+  it("returns a FAILED status with its message when submission fails", async () => {
+    (getServerSession as any).mockResolvedValue({ user: { id: OWNER } });
+    aiVideoTaskCreate.mockResolvedValue({ id: "taskabc", status: "QUEUED" });
+    aiVideoTaskFindUnique.mockResolvedValue({
+      id: "taskabc",
+      status: "FAILED",
+      errorMessage: "Video generation is temporarily unavailable. Please try again later.",
+    });
+
+    const res = await POST(jsonRequest(validBody) as never);
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ status: "FAILED" });
   });
 
   it("stores voicePath as null when voice_path is omitted", async () => {

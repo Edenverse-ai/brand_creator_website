@@ -1,6 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
+import { buildLibraryVideoPath } from "@/lib/ai-video-task";
 import { createSignedUrl, uploadToAiVideoBucket } from "@/lib/supabase-admin";
 import { buildFinalizeAuthHeaders } from "@/lib/ai-video-finalize-auth";
 import { fetchWithTimeout } from "@/lib/tiktok/fetch-with-timeout";
@@ -256,7 +257,7 @@ export async function finalizeTask(taskId: string): Promise<void> {
     }
 
     const video = await provider.downloadVideo(status.videoUrl);
-    const path = `${task.creatorId}/${task.id}.mp4`;
+    const path = buildLibraryVideoPath(task.creatorId, task.id);
     await uploadToAiVideoBucket(path, video.bytes, "video/mp4");
 
     const aiVideoId = randomUUID();
