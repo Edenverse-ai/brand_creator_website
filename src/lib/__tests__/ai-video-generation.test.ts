@@ -38,7 +38,7 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 const storage = { createSignedUrl: vi.fn(), uploadToAiVideoBucket: vi.fn() };
-vi.mock("@/lib/supabase-admin", () => ({
+vi.mock("@/lib/supabase-admin-core", () => ({
   createSignedUrl: (...a: unknown[]) => storage.createSignedUrl(...a),
   uploadToAiVideoBucket: (...a: unknown[]) => storage.uploadToAiVideoBucket(...a),
 }));

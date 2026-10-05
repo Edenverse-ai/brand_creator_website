@@ -1,8 +1,7 @@
-import "server-only";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { buildLibraryVideoPath } from "@/lib/ai-video-task";
-import { createSignedUrl, uploadToAiVideoBucket } from "@/lib/supabase-admin";
+import { createSignedUrl, uploadToAiVideoBucket } from "@/lib/supabase-admin-core";
 import { buildFinalizeAuthHeaders } from "@/lib/ai-video-finalize-auth";
 import { fetchWithTimeout } from "@/lib/tiktok/fetch-with-timeout";
 import { getVideoProvider } from "@/lib/seedance";

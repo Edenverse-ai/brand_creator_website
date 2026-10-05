@@ -4,7 +4,9 @@
 
 [functions]
   external_node_modules = ["@prisma/client", "axios"]
-  included_files = ["prisma/**"]
+  # The generated Prisma client loads its query engine by a computed path, which
+  # file tracing can miss; the AI video functions (ai-video-*) need it at runtime.
+  included_files = ["prisma/**", "node_modules/.prisma/client/**"]
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"

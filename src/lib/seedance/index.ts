@@ -1,4 +1,3 @@
-import "server-only";
 import { AiOpenPlatformProvider } from "./client";
 import { getLiveConfig, isLiveBlockedEnvironment } from "./config";
 import { LiveProviderBlockedError } from "./errors";
