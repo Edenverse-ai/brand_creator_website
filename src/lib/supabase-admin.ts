@@ -1,7 +1,9 @@
 import "server-only";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { AI_VIDEO_BUCKET } from "@/lib/tiktok/constants";
 
 export const AI_VIDEO_TASK_BUCKET = "ai-video-tasks";
+export { AI_VIDEO_BUCKET };
 
 declare global {
   var _supabaseAdmin: SupabaseClient | undefined;
@@ -70,6 +72,39 @@ export async function createSignedUrl(path: string, expiresInSec = 3600): Promis
     .createSignedUrl(path, expiresInSec);
   if (error || !data?.signedUrl) {
     console.error("[supabase-admin] signed URL failed", { path, message: error?.message });
+    return null;
+  }
+  return data.signedUrl;
+}
+
+/**
+ * Writes a generated video into the AI Video library bucket (My Videos, TikTok
+ * publish). Upserts so a finalize retried after a partial failure can overwrite.
+ */
+export async function uploadToAiVideoBucket(
+  path: string,
+  bytes: ArrayBuffer,
+  contentType: string
+): Promise<void> {
+  const client = getSupabaseAdmin();
+  const { error } = await client.storage
+    .from(AI_VIDEO_BUCKET)
+    .upload(path, bytes, { contentType, upsert: true });
+  if (error) {
+    throw new SupabaseUploadError(path, error);
+  }
+}
+
+export async function createAiVideoSignedUrl(
+  path: string,
+  expiresInSec = 3600
+): Promise<string | null> {
+  const client = getSupabaseAdmin();
+  const { data, error } = await client.storage
+    .from(AI_VIDEO_BUCKET)
+    .createSignedUrl(path, expiresInSec);
+  if (error || !data?.signedUrl) {
+    console.error("[supabase-admin] ai video signed URL failed", { message: error?.message });
     return null;
   }
   return data.signedUrl;
