@@ -15,6 +15,8 @@ const BUCKETS = [
   { id: "studio-samples", public: true, fileSizeLimit: 30 * 1024 * 1024 },
   { id: "studio-outputs", public: false, fileSizeLimit: 200 * 1024 * 1024 },
   { id: "ai-video-tasks", public: false, fileSizeLimit: 30 * 1024 * 1024 },
+  // AI Video library (My Videos, TikTok publish); generated videos land here.
+  { id: "aivideogenerated", public: false, fileSizeLimit: 200 * 1024 * 1024 },
 ];
 
 (async () => {

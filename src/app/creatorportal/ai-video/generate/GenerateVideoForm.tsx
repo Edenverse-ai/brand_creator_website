@@ -1,38 +1,71 @@
 "use client";
 
-import { FormEvent, useRef, useState } from "react";
-import { useSession } from "next-auth/react";
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
-import { FileAudio, FileImage, Loader2, Sparkles } from "lucide-react";
 import {
-  PORTRAIT_MAX_BYTES,
-  PORTRAIT_MIME_TO_EXT,
-  VOICE_MAX_BYTES,
-  VOICE_MIME_TO_EXT,
-  type PortraitMime,
-  type VoiceMime,
-} from "@/lib/ai-video-task";
+  AlertTriangle,
+  Clapperboard,
+  ImagePlus,
+  Loader2,
+  RotateCcw,
+  Sparkles,
+  Volume2,
+  VolumeX,
+  X,
+} from "lucide-react";
+import { PORTRAIT_MAX_BYTES, PORTRAIT_MIME_TO_EXT, type PortraitMime } from "@/lib/ai-video-task";
+import {
+  DURATIONS,
+  RATIOS,
+  RESOLUTIONS,
+  type Duration,
+  type Ratio,
+  type Resolution,
+} from "@/lib/seedance/schema";
 
-type SubmissionState =
-  | { type: "idle" }
-  | { type: "success"; taskId: string }
-  | { type: "error"; message: string };
+const PROMPT_MAX = 5000;
+const POLL_INTERVAL_MS = 10_000;
+// Provider limits for reference images (AI Open Platform video API v1.1).
+const IMAGE_MIN_SIDE = 300;
+const IMAGE_MAX_SIDE = 6000;
+const IMAGE_MIN_ASPECT = 0.4;
+const IMAGE_MAX_ASPECT = 2.5;
+const GENERIC_FAILURE = "Video generation failed. You were not charged — please try again.";
+
+const RATIO_ASPECT: Record<Ratio, string> = {
+  "9:16": "9 / 16",
+  "16:9": "16 / 9",
+  "1:1": "1 / 1",
+  "3:4": "3 / 4",
+  "4:3": "4 / 3",
+};
+
+type Phase =
+  | { kind: "idle" }
+  | { kind: "submitting" }
+  | { kind: "generating"; taskId: string; startedAt: number }
+  | { kind: "delivered"; videoUrl: string | null }
+  | { kind: "failed"; message: string };
+
+type TaskResponse = {
+  id: string;
+  status: string;
+  errorMessage: string | null;
+  videoUrl?: string | null;
+};
 
 type UploadUrlResponse = { uploadUrl: string; path: string; token: string; taskId: string };
 
-async function requestUploadUrl(args: {
-  kind: "portrait" | "voice";
-  ext: string;
-  taskId?: string;
-}): Promise<UploadUrlResponse> {
+async function requestUploadUrl(ext: string): Promise<UploadUrlResponse> {
   const response = await fetch("/api/ai-videos/tasks/upload-url", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(args),
+    body: JSON.stringify({ kind: "portrait", ext }),
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(data.error || "Failed to prepare file upload.");
+    throw new Error(data.error || "Failed to prepare the image upload.");
   }
   return data as UploadUrlResponse;
 }
@@ -44,269 +77,516 @@ async function putFile(uploadUrl: string, file: File): Promise<void> {
     body: file,
   });
   if (!response.ok) {
-    throw new Error("Failed to upload file. Please try again.");
+    throw new Error("Failed to upload the image. Please try again.");
   }
 }
 
-export default function GenerateVideoForm() {
-  const { status: sessionStatus } = useSession();
-  const [prompt, setPrompt] = useState("");
-  const [voice, setVoice] = useState<File | null>(null);
-  const [portrait, setPortrait] = useState<File | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [status, setStatus] = useState<SubmissionState>({ type: "idle" });
+async function validateImage(file: File): Promise<string | null> {
+  if (!(file.type in PORTRAIT_MIME_TO_EXT)) return "Use a JPG, PNG or WebP image.";
+  if (file.size > PORTRAIT_MAX_BYTES) return "Images must be 10 MB or smaller.";
+  try {
+    const bitmap = await createImageBitmap(file);
+    const { width, height } = bitmap;
+    bitmap.close();
+    if (Math.min(width, height) < IMAGE_MIN_SIDE || Math.max(width, height) > IMAGE_MAX_SIDE) {
+      return `Each side must be between ${IMAGE_MIN_SIDE} and ${IMAGE_MAX_SIDE} pixels.`;
+    }
+    const aspect = width / height;
+    if (aspect < IMAGE_MIN_ASPECT || aspect > IMAGE_MAX_ASPECT) {
+      return "That image is too tall or too wide. Try a less extreme crop.";
+    }
+  } catch {
+    return "We couldn't read that image. Try another file.";
+  }
+  return null;
+}
 
-  const voiceInputRef = useRef<HTMLInputElement>(null);
-  const portraitInputRef = useRef<HTMLInputElement>(null);
+function formatElapsed(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function OptionGroup<T extends string | number>({
+  label,
+  options,
+  value,
+  onChange,
+  format = (option) => String(option),
+}: {
+  label: string;
+  options: readonly T[];
+  value: T;
+  onChange: (value: T) => void;
+  format?: (option: T) => string;
+}) {
+  return (
+    <div>
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label={label}>
+        {options.map((option) => {
+          const selected = option === value;
+          return (
+            <button
+              key={String(option)}
+              type="button"
+              aria-pressed={selected}
+              onClick={() => onChange(option)}
+              className={`rounded-full border px-4 py-1.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                selected
+                  ? "border-indigo-500 bg-indigo-50 text-indigo-700"
+                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900"
+              }`}
+            >
+              {format(option)}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export default function GenerateVideoForm({
+  initialRemaining,
+  limit,
+  isMock,
+}: {
+  initialRemaining: number;
+  limit: number;
+  isMock: boolean;
+}) {
+  const [prompt, setPrompt] = useState("");
+  const [image, setImage] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [ratio, setRatio] = useState<Ratio>("9:16");
+  const [duration, setDuration] = useState<Duration>(5);
+  const [resolution, setResolution] = useState<Resolution>("720p");
+  const [generateAudio, setGenerateAudio] = useState(true);
+  const [remaining, setRemaining] = useState(initialRemaining);
+  const [phase, setPhase] = useState<Phase>({ kind: "idle" });
+  const [formError, setFormError] = useState<string | null>(null);
+  const [elapsed, setElapsed] = useState(0);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+
+  const busy = phase.kind === "submitting" || phase.kind === "generating";
+
+  useEffect(() => {
+    if (!image) {
+      setPreviewUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(image);
+    setPreviewUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [image]);
+
+  useEffect(() => {
+    if (phase.kind !== "generating") return;
+    const { taskId, startedAt } = phase;
+    let cancelled = false;
+
+    const tick = () => setElapsed(Math.floor((Date.now() - startedAt) / 1000));
+    tick();
+    const clock = setInterval(tick, 1000);
+
+    const poll = async () => {
+      try {
+        const response = await fetch(`/api/ai-videos/tasks/${taskId}`, { cache: "no-store" });
+        if (!response.ok || cancelled) return;
+        const data = (await response.json()) as TaskResponse;
+        if (cancelled) return;
+        if (data.status === "DELIVERED") {
+          setPhase({ kind: "delivered", videoUrl: data.videoUrl ?? null });
+        } else if (data.status === "FAILED") {
+          setPhase({ kind: "failed", message: data.errorMessage ?? GENERIC_FAILURE });
+        }
+      } catch {
+        // Transient network error: the next poll retries.
+      }
+    };
+    const poller = setInterval(poll, POLL_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      clearInterval(clock);
+      clearInterval(poller);
+    };
+  }, [phase]);
+
+  const clearImage = () => {
+    setImage(null);
+    setImageError(null);
+    if (imageInputRef.current) imageInputRef.current.value = "";
+  };
+
+  const handleImageChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    if (!file) return;
+    const problem = await validateImage(file);
+    if (problem) {
+      clearImage();
+      setImageError(problem);
+      return;
+    }
+    setImageError(null);
+    setImage(file);
+  };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const trimmed = prompt.trim();
+    if (!trimmed) {
+      setFormError("Describe the video you want to generate.");
+      return;
+    }
+    if (remaining <= 0 || busy) return;
 
-    if (sessionStatus === "loading") {
-      return;
-    }
-    if (sessionStatus !== "authenticated") {
-      setStatus({
-        type: "error",
-        message: "You must be signed in as a creator to submit a request.",
-      });
-      return;
-    }
-    if (!prompt.trim()) {
-      setStatus({ type: "error", message: "Please provide a generation prompt." });
-      return;
-    }
-    if (!portrait) {
-      setStatus({ type: "error", message: "Please upload a portrait reference image." });
-      return;
-    }
-    if (!(portrait.type in PORTRAIT_MIME_TO_EXT)) {
-      setStatus({ type: "error", message: "Unsupported portrait file type." });
-      return;
-    }
-    if (portrait.size > PORTRAIT_MAX_BYTES) {
-      setStatus({ type: "error", message: "Portrait file exceeds the 10 MB size limit." });
-      return;
-    }
-    if (voice) {
-      if (!(voice.type in VOICE_MIME_TO_EXT)) {
-        setStatus({ type: "error", message: "Unsupported voice file type." });
-        return;
-      }
-      if (voice.size > VOICE_MAX_BYTES) {
-        setStatus({ type: "error", message: "Voice file exceeds the 25 MB size limit." });
-        return;
-      }
-    }
-
-    setIsSubmitting(true);
-    setStatus({ type: "idle" });
+    setFormError(null);
+    setPhase({ kind: "submitting" });
 
     try {
-      const portraitUpload = await requestUploadUrl({
-        kind: "portrait",
-        ext: PORTRAIT_MIME_TO_EXT[portrait.type as PortraitMime],
-      });
-      await putFile(portraitUpload.uploadUrl, portrait);
-
-      let voicePath: string | undefined;
-      if (voice) {
-        const voiceUpload = await requestUploadUrl({
-          kind: "voice",
-          ext: VOICE_MIME_TO_EXT[voice.type as VoiceMime],
-          taskId: portraitUpload.taskId,
-        });
-        await putFile(voiceUpload.uploadUrl, voice);
-        voicePath = voiceUpload.path;
+      let upload: UploadUrlResponse | null = null;
+      if (image) {
+        upload = await requestUploadUrl(PORTRAIT_MIME_TO_EXT[image.type as PortraitMime]);
+        await putFile(upload.uploadUrl, image);
       }
 
       const response = await fetch("/api/ai-videos/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: prompt.trim(),
-          taskId: portraitUpload.taskId,
-          portrait_path: portraitUpload.path,
-          ...(voicePath ? { voice_path: voicePath } : {}),
+          prompt: trimmed,
+          ...(upload ? { taskId: upload.taskId, portrait_path: upload.path } : {}),
+          params: { ratio, duration, resolution, generateAudio },
         }),
       });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to queue AI video request.");
+      const data = await response.json().catch(() => ({}));
+
+      if (response.status === 429) {
+        setRemaining(0);
+        throw new Error(data.error || "You've reached today's generation limit.");
       }
-      setStatus({ type: "success", taskId: data.id });
-      setPrompt("");
-      setVoice(null);
-      setPortrait(null);
-      if (voiceInputRef.current) voiceInputRef.current.value = "";
-      if (portraitInputRef.current) portraitInputRef.current.value = "";
+      if (!response.ok) {
+        throw new Error(data.error || "We couldn't start this video. Please try again.");
+      }
+
+      const task = data as TaskResponse;
+      if (task.status === "FAILED") {
+        setPhase({ kind: "failed", message: task.errorMessage ?? GENERIC_FAILURE });
+        return;
+      }
+      setRemaining((value) => Math.max(0, value - 1));
+      setPhase({ kind: "generating", taskId: task.id, startedAt: Date.now() });
     } catch (error) {
-      setStatus({
-        type: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Something went wrong while submitting your request.",
-      });
-    } finally {
-      setIsSubmitting(false);
+      setPhase({ kind: "idle" });
+      setFormError(
+        error instanceof Error ? error.message : "Something went wrong. Please try again."
+      );
     }
   };
 
+  const resetForAnother = () => {
+    setPhase({ kind: "idle" });
+    setElapsed(0);
+  };
+
   return (
-    <>
-      {status.type !== "idle" && (
-        <div
-          className={`rounded-2xl border p-4 text-sm ${
-            status.type === "success"
-              ? "border-emerald-200 bg-emerald-50/70 text-emerald-800"
-              : "border-rose-200 bg-rose-50/70 text-rose-700"
-          }`}
-        >
-          {status.type === "success" ? (
-            <>
-              <p className="font-semibold">Task queued.</p>
-              <p className="mt-1 text-emerald-700">
-                Task ID: <span className="font-mono text-xs">{status.taskId}</span>
-              </p>
-              <p className="mt-2">
-                <Link
-                  href="/creatorportal/ai-video/tasks"
-                  className="font-semibold underline-offset-2 hover:underline"
-                >
-                  View all tasks →
-                </Link>
-              </p>
-            </>
-          ) : (
-            status.message
-          )}
+    <div className="space-y-6">
+      {isMock && (
+        <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-sm text-amber-800">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <p>
+            <span className="font-semibold">Mock mode — no video credits used.</span> Generations
+            return a sample clip after about 10 seconds.
+          </p>
         </div>
       )}
 
-      <form className="grid gap-6 lg:grid-cols-[1.3fr_1fr]" onSubmit={handleSubmit}>
-        <div className="space-y-6">
-          <section className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-              Voice upload
-            </h2>
-            <p className="mt-2 text-sm text-slate-600">
-              Provide an audio sample for cloning—30 seconds or longer works best. WAV, MP3, or M4A
-              up to 25 MB. Optional.
-            </p>
-            <label
-              htmlFor="voice"
-              className="mt-5 flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-indigo-200 bg-indigo-50/40 p-6 text-center transition hover:border-indigo-400 hover:bg-indigo-50"
-            >
-              <FileAudio className="h-10 w-10 text-indigo-500" />
-              <span className="mt-3 text-sm font-semibold text-indigo-700">
-                Click to upload voice sample
-              </span>
-              <span className="mt-1 text-xs text-slate-500">Or drag and drop an audio file</span>
-              <input
-                id="voice"
-                name="voice"
-                type="file"
-                accept="audio/mpeg,audio/wav,audio/mp4,audio/x-m4a"
-                className="hidden"
-                ref={voiceInputRef}
-                onChange={(event) => setVoice(event.target.files?.[0] ?? null)}
-              />
-            </label>
-            {voice && (
-              <p className="mt-3 truncate text-xs font-medium text-indigo-700">{voice.name}</p>
-            )}
-          </section>
-
-          <section className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-              Creative prompt
-            </h2>
-            <p className="mt-2 text-sm text-slate-600">
-              Outline the storyline, pacing notes, and CTAs you want in the finished video.
-            </p>
-            <div className="mt-4">
-              <label
-                htmlFor="prompt"
-                className="text-xs font-semibold uppercase tracking-wide text-slate-500"
-              >
-                Generation prompt
-              </label>
+      <div className="grid gap-6 lg:grid-cols-[1.25fr_1fr]">
+        <form className="space-y-6" onSubmit={handleSubmit} noValidate>
+          <fieldset disabled={busy} className="space-y-6">
+            <section className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+              <div className="flex items-baseline justify-between gap-4">
+                <label
+                  htmlFor="prompt"
+                  className="text-sm font-semibold uppercase tracking-wide text-slate-500"
+                >
+                  Prompt
+                </label>
+                <span className="text-xs tabular-nums text-slate-400">
+                  {prompt.length}/{PROMPT_MAX}
+                </span>
+              </div>
+              <p className="mt-2 text-sm text-slate-600">
+                Describe the subject, action, scene, style, camera movement and sound. Put spoken
+                lines in quotes.
+              </p>
               <textarea
                 id="prompt"
                 name="prompt"
-                rows={8}
-                placeholder="Example: Create a 30s vertical video highlighting our winter skincare capsule..."
-                className="mt-2 w-full rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3 text-sm text-slate-700 transition focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                rows={7}
+                maxLength={PROMPT_MAX}
+                placeholder='Example: A barista slides a latte across a sunlit counter, slow push-in, warm film look. She smiles and says "Your usual."'
+                className="mt-4 w-full rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3 text-sm text-slate-700 transition focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100"
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
-                required
               />
-            </div>
-          </section>
-        </div>
+            </section>
 
-        <aside className="space-y-6">
-          <section className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-              Portrait reference
-            </h2>
-            <p className="mt-2 text-sm text-slate-600">
-              Upload a clear facial image of the target talent. Front-facing with neutral lighting.
-              Required.
-            </p>
-            <label
-              htmlFor="portrait"
-              className="mt-5 flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/60 p-6 text-center transition hover:border-slate-300 hover:bg-slate-100"
-            >
-              <FileImage className="h-10 w-10 text-slate-500" />
-              <span className="mt-3 text-sm font-semibold text-slate-700">
-                Upload portrait image
-              </span>
-              <span className="mt-1 text-xs text-slate-500">
-                JPG, PNG, or WebP — minimum 1080x1080
-              </span>
+            <section className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                Reference image <span className="normal-case text-slate-400">· optional</span>
+              </h2>
+              <p className="mt-2 text-sm text-slate-600">
+                Guide the look, a product or a character — including yourself. Only upload images
+                you have the rights to use.
+              </p>
+
+              {previewUrl ? (
+                <div className="mt-4 flex items-center gap-4 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+                  <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-slate-100">
+                    <Image
+                      src={previewUrl}
+                      alt="Reference image preview"
+                      fill
+                      unoptimized
+                      sizes="80px"
+                      className="object-cover"
+                    />
+                  </div>
+                  <p className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">
+                    {image?.name}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={clearImage}
+                    className="grid h-8 w-8 place-items-center rounded-full text-slate-500 transition hover:bg-slate-200 hover:text-slate-900"
+                    aria-label="Remove reference image"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <label
+                  htmlFor="reference-image"
+                  className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-indigo-200 bg-indigo-50/40 p-6 text-center transition hover:border-indigo-400 hover:bg-indigo-50"
+                >
+                  <ImagePlus className="h-9 w-9 text-indigo-500" />
+                  <span className="mt-3 text-sm font-semibold text-indigo-700">
+                    Upload reference image
+                  </span>
+                  <span className="mt-1 text-xs text-slate-500">
+                    JPG, PNG or WebP · up to 10 MB · at least 300 px per side
+                  </span>
+                </label>
+              )}
               <input
-                id="portrait"
-                name="portrait"
+                id="reference-image"
+                name="reference-image"
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
                 className="hidden"
-                ref={portraitInputRef}
-                onChange={(event) => setPortrait(event.target.files?.[0] ?? null)}
+                ref={imageInputRef}
+                onChange={handleImageChange}
               />
-            </label>
-            {portrait && (
-              <p className="mt-3 truncate text-xs font-medium text-slate-700">{portrait.name}</p>
+              {imageError && <p className="mt-3 text-xs font-medium text-rose-600">{imageError}</p>}
+            </section>
+
+            <section className="space-y-5 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                Format
+              </h2>
+              <OptionGroup
+                label="Aspect ratio"
+                options={RATIOS}
+                value={ratio}
+                onChange={setRatio}
+              />
+              <OptionGroup
+                label="Duration"
+                options={DURATIONS}
+                value={duration}
+                onChange={setDuration}
+                format={(seconds) => `${seconds}s`}
+              />
+              <OptionGroup
+                label="Resolution"
+                options={RESOLUTIONS}
+                value={resolution}
+                onChange={setResolution}
+              />
+              <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3">
+                <div className="flex items-center gap-3">
+                  {generateAudio ? (
+                    <Volume2 className="h-4 w-4 text-indigo-500" />
+                  ) : (
+                    <VolumeX className="h-4 w-4 text-slate-400" />
+                  )}
+                  <div>
+                    <p className="text-sm font-semibold text-slate-700">Generate audio</p>
+                    <p className="text-xs text-slate-500">Voices, sound effects and music.</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={generateAudio}
+                  aria-label="Generate audio"
+                  onClick={() => setGenerateAudio((value) => !value)}
+                  className={`relative h-6 w-11 shrink-0 rounded-full transition disabled:opacity-60 ${
+                    generateAudio ? "bg-indigo-500" : "bg-slate-300"
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
+                      generateAudio ? "left-[22px]" : "left-0.5"
+                    }`}
+                  />
+                </button>
+              </div>
+            </section>
+          </fieldset>
+
+          {formError && (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-4 text-sm text-rose-700">
+              {formError}
+            </div>
+          )}
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-sm text-slate-600">
+              <p>
+                <span className="font-semibold text-slate-900">
+                  {remaining} generation{remaining === 1 ? "" : "s"} left today
+                </span>{" "}
+                <span className="text-slate-400">of {limit}</span>
+              </p>
+              <p className="mt-0.5 text-xs text-slate-500">
+                Generation can&apos;t be cancelled once started.
+              </p>
+            </div>
+            <button
+              type="submit"
+              disabled={busy || !prompt.trim() || remaining <= 0}
+              className="group relative inline-flex items-center justify-center overflow-hidden rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 px-6 py-3 text-sm font-semibold text-white shadow-lg transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <span className="absolute inset-0 bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+              <span className="relative inline-flex items-center gap-2">
+                {busy ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4" />
+                )}
+                {phase.kind === "submitting"
+                  ? "Submitting…"
+                  : phase.kind === "generating"
+                    ? "Generating…"
+                    : "Generate video"}
+              </span>
+            </button>
+          </div>
+        </form>
+
+        <aside className="h-fit space-y-4 lg:sticky lg:top-6">
+          <section className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Preview
+            </h2>
+            <div
+              className="relative mx-auto mt-4 w-full max-w-sm overflow-hidden rounded-xl bg-slate-900"
+              style={{ aspectRatio: RATIO_ASPECT[ratio] }}
+            >
+              {phase.kind === "delivered" && phase.videoUrl ? (
+                <video
+                  src={phase.videoUrl}
+                  controls
+                  playsInline
+                  className="h-full w-full object-contain"
+                />
+              ) : (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center">
+                  {phase.kind === "generating" || phase.kind === "submitting" ? (
+                    <>
+                      <Loader2 className="h-8 w-8 animate-spin text-indigo-300" />
+                      <p className="text-sm font-semibold text-white">
+                        {phase.kind === "submitting" ? "Submitting…" : "Generating your video…"}
+                      </p>
+                      {phase.kind === "generating" && (
+                        <p className="font-mono text-xs text-slate-400">
+                          {formatElapsed(elapsed)} elapsed · usually a few minutes
+                        </p>
+                      )}
+                    </>
+                  ) : phase.kind === "failed" ? (
+                    <>
+                      <AlertTriangle className="h-8 w-8 text-rose-300" />
+                      <p className="text-sm font-semibold text-white">{phase.message}</p>
+                    </>
+                  ) : phase.kind === "delivered" ? (
+                    <>
+                      <Clapperboard className="h-8 w-8 text-emerald-300" />
+                      <p className="text-sm font-semibold text-white">
+                        Your video is ready in My Videos.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <Clapperboard className="h-8 w-8 text-slate-500" />
+                      <p className="text-sm text-slate-400">Your video will appear here.</p>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {phase.kind === "generating" && (
+              <p className="mt-4 text-xs text-slate-500">
+                You can leave this page — the video will still be added to My Videos when it&apos;s
+                done.
+              </p>
             )}
 
-            <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50/60 p-4 text-xs text-slate-500">
-              <p className="font-semibold text-slate-600">Tips for fast approvals</p>
-              <ul className="mt-2 space-y-1">
-                <li>• Use raw files rather than screenshots to avoid compression artifacts.</li>
-                <li>• Keep visible logos or watermarks out of frame.</li>
-                <li>• Confirm likeness permissions before uploading third-party talent.</li>
-              </ul>
-            </div>
+            {phase.kind === "delivered" && (
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                <Link
+                  href="/creatorportal/ai-video"
+                  className="text-sm font-semibold text-indigo-600 underline-offset-2 hover:underline"
+                >
+                  Post it to TikTok from My Videos →
+                </Link>
+                <button
+                  type="button"
+                  onClick={resetForAnother}
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-slate-900"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Generate another
+                </button>
+              </div>
+            )}
+
+            {phase.kind === "failed" && (
+              <button
+                type="button"
+                onClick={resetForAnother}
+                className="mt-4 inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+              >
+                <RotateCcw className="h-4 w-4" />
+                Try again
+              </button>
+            )}
           </section>
 
-          <button
-            type="submit"
-            disabled={isSubmitting || sessionStatus === "loading" || !prompt.trim() || !portrait}
-            className="group relative inline-flex w-full items-center justify-center overflow-hidden rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 px-6 py-3 text-sm font-semibold text-white shadow-lg transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
+          <Link
+            href="/creatorportal/ai-video/tasks"
+            className="block text-center text-xs font-semibold text-slate-500 hover:text-slate-800"
           >
-            <span className="absolute inset-0 bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
-            <span className="relative inline-flex items-center gap-2">
-              {isSubmitting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Sparkles className="h-4 w-4" />
-              )}
-              {isSubmitting ? "Submitting…" : "Generate video"}
-            </span>
-          </button>
+            View all generation tasks →
+          </Link>
         </aside>
-      </form>
-    </>
+      </div>
+    </div>
   );
 }
