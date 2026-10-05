@@ -98,6 +98,8 @@ It only runs on published production deploys; preview and local rely on page pol
 
 **Why 10 minutes.** Each run costs one indexed query plus free status calls. The interval only affects creators who left the page; anyone watching gets the result from the 10 s page polling. Task expiry is 1 hour, so a 10-minute sweep has ample margin. The 30 s limit applies to every run regardless of interval, so running more often would not help with it. If volume grows, raise the per-run concurrency rather than the frequency.
 
+**No `server-only` in function code paths.** Outside Next.js, the `server-only` package throws on import, which would crash both functions at load. The lifecycle modules (`src/lib/ai-video-generation.ts`, `src/lib/seedance/`) therefore don't import it. The Supabase helpers live in `src/lib/supabase-admin-core.ts`, and `src/lib/supabase-admin.ts` adds the marker for Next.js code. This was verified by bundling both functions with esbuild and loading them in plain Node.
+
 **Concurrency.** Page polling (possibly several tabs), task-list rendering and the scheduled sweep can all call `syncTask` on the same task. The `finalizeStartedAt` claim guarantees exactly one finalize. A finalize that crashes after claiming is re-claimable once `finalizeStartedAt` is older than 20 minutes.
 
 ## 6. Data Model
@@ -136,7 +138,9 @@ QUEUED ──submit ok──▶ GENERATING ──succeeded + finalize──▶ D
 | `GENERATING` or `DELIVERED`                                 | Yes     | In progress or charged.                             |
 | `FAILED`, `failureCode = unknown_outcome`                   | Yes     | The provider may have created and charged the task. |
 | `FAILED`, `submit_rejected`, `provider_failed` or `timeout` | No      | Rejected before creation, or failed (not charged).  |
+| `QUEUED` with `submitStartedAt` set (submission in flight)  | Yes     | A create call may already be under way.             |
 | `QUEUED` (never submitted)                                  | No      | No provider call was made.                          |
+| `IN_REVIEW` (manual workflow)                               | Yes     | Counted conservatively.                             |
 
 The day boundary is UTC midnight, based on `submitStartedAt`. If the manual live test shows that a failed task does carry `usage.completion_tokens`, the rule changes to "counts if `completionTokens > 0`" and `completionTokens` is also recorded on failure.
 
