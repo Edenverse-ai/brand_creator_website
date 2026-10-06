@@ -85,7 +85,7 @@ Code that runs inside Netlify functions must not import `server-only`: outside N
 
 ## Key Design Constraints
 
-- **No GitHub Actions CI.** Quality gates will run locally (pre-commit / pre-push — not yet wired; see [harness.md](harness.md)) and on Netlify preview deploys.
+- **Quality gates.** Pre-commit and pre-push hooks run locally (see [harness.md](harness.md)). GitHub Actions (`.github/workflows/e2e.yml`) runs the E2E smoke suite and the AI video specs (mock provider) on every PR to `main`. Netlify preview deploys run their own smoke plugin.
 - **Single Node toolchain, one `package.json`.** Python tooling was retired with the FastAPI backend; nothing under `legacy/` is built, linted, or deployed.
 - **Netlify deploy.** Build command is `npx prisma generate && next build`. See [deployment.md](deployment.md).
 

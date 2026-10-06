@@ -15,14 +15,14 @@ One-page lifecycle reference. For full repo conventions see [`AGENTS.md`](../AGE
 ### 2. Commit
 
 - Stage your changes with `git add`.
-- The pre-commit hook ([harness Layer 2](harness.md#layer-2-pre-commit) — not yet wired, PR 3) runs automatically once wired: Prettier, ESLint, TypeScript, and Prisma drift check on staged files.
+- The pre-commit hook ([harness Layer 2](harness.md#layer-2-pre-commit)) runs automatically: Prettier, ESLint, TypeScript, and Prisma drift check on staged files.
 - If the hook blocks, read the error output — it includes a fix command and a `docs/` anchor.
 - Write commit messages in Conventional Commit style: `feat:`, `fix:`, `chore:`, `docs:`, etc. Subject line ≤ 72 characters.
 - Only use `--no-verify` with a justification in the commit body. See [harness.md#bypass-rules](harness.md#bypass-rules).
 
 ### 3. Push
 
-- The pre-push hook ([harness Layer 3](harness.md#layer-3-pre-push) — not yet wired, PR 4) runs full-repo TypeScript, ESLint, Prisma drift, and Vitest checks once wired.
+- The pre-push hook ([harness Layer 3](harness.md#layer-3-pre-push)) runs full-repo TypeScript, ESLint, Prisma drift, and Vitest checks.
 - Fix any failures before the push completes. The hook error output includes the fix command.
 
 ### 4. Preview
