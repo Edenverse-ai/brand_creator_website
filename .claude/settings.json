@@ -1,4 +1,36 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(node -e ' *)",
+      "Bash(npx eslint *)",
+      "Bash(node -e \"require\\('server-only'\\); console.log\\('loaded fine'\\)\")",
+      "Bash(git mv *)",
+      "Bash(node --env-file=.env.e2e-dev scripts/studio-create-buckets.js)",
+      "Bash(node -e \"const b=require\\('fs'\\).readFileSync\\('e2e/fixtures/portrait.png'\\); console.log\\('png', b.readUInt32BE\\(16\\)+'x'+b.readUInt32BE\\(20\\)\\)\")",
+      "Bash(sed -i 's#fixtures/portrait.png#fixtures/reference-512.png#' e2e/ai-video-tasks.spec.ts)",
+      "Bash(npx playwright *)",
+      "Bash(sed -i 's#getByRole\\(\"button\", { name: \"5s\" }\\)#getByRole\\(\"button\", { name: \"5s\", exact: true }\\)#; s#getByRole\\(\"button\", { name: \"9:16\" }\\)#getByRole\\(\"button\", { name: \"9:16\", exact: true }\\)#; s#getByRole\\(\"button\", { name: \"480p\" }\\)#getByRole\\(\"button\", { name: \"480p\", exact: true }\\)#' e2e/creator/ai-video-generate.spec.ts)",
+      "Bash(E2E_AGENT=1 E2E_RUN_ID=seedance-2 npx playwright test e2e/creator/ai-video-generate.spec.ts e2e/ai-video-tasks.spec.ts e2e/ai-video-fulfillment.spec.ts e2e/creator/ai-video.spec.ts)",
+      "Bash(git diff *)",
+      "Bash(attrib .env.example)",
+      "Bash(powershell -NoProfile -Command \"\\(Get-Item .env.example\\).Attributes\")",
+      "PowerShell($conn = Get-NetTCPConnection -LocalPort 12001 -State Listen -ErrorAction SilentlyContinue; if \\($conn\\) { $conn | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -Confirm:$false; \"stopped PID $\\($_.OwningProcess\\)\" } } else { \"nothing listening on 12001\" })",
+      "Bash(DATABASE_URL=postgres://postgres:postgres@localhost:54329/postgres DIRECT_URL=postgres://postgres:postgres@localhost:54329/postgres node prisma/seed.dev.js)",
+      "Bash(gh auth *)",
+      "PowerShell($g = Get-Command gh -ErrorAction SilentlyContinue; if \\($g\\) { $g.Source; gh auth status } else { \"gh not installed\" })",
+      "Bash(git push *)",
+      "Bash(grep -v -E '^\\\\s*$')",
+      "PowerShell($env:Path = [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"User\"\\); \\(Get-Command gh -ErrorAction SilentlyContinue\\).Source; gh auth status; gh pr list --repo Edenverse-ai/brand_creator_website --head feat/ai-video-seedance-generation --state all)",
+      "PowerShell($env:Path = [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"User\"\\); gh auth status 2>&1 | Select-Object -First 3; gh pr list --repo Edenverse-ai/brand_creator_website --head feat/ai-video-seedance-generation --state all)",
+      "PowerShell($env:Path = [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"User\"\\); gh pr create --repo Edenverse-ai/brand_creator_website --base main --head feat/ai-video-seedance-generation --title \"feat\\(ai-video\\): Seedance video generation on the creator generate page\" --body-file \"C:\\\\Users\\\\QINGY_~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--Work-BorderX-Cricher-Creator-Web-brand-creator-website\\\\6bd6a70e-5416-405f-ad5b-ad9526fb0157\\\\scratchpad\\\\pr-body.md\")",
+      "PowerShell($env:Path = [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"User\"\\); gh pr checks 29 --repo Edenverse-ai/brand_creator_website 2>&1)",
+      "PowerShell($env:Path = [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"User\"\\); gh pr checks 29 --repo Edenverse-ai/brand_creator_website 2>&1; gh pr view 29 --repo Edenverse-ai/brand_creator_website --json comments,statusCheckRollup --jq '.comments[].body' 2>&1 | Select-Object -First 30; Get-ChildItem .github/workflows -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name)",
+      "PowerShell($env:Path = [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"User\"\\); gh repo view Edenverse-ai/brand_creator_website --json nameWithOwner,isFork,parent,createdAt,pushedAt,url 2>&1; \"-----\"; gh repo view robotx-ai/brand_creator_website --json nameWithOwner,isFork,createdAt,pushedAt,url,defaultBranchRef 2>&1; \"-----\"; gh api repos/robotx-ai/brand_creator_website --jq '.full_name' 2>&1)",
+      "Bash(cd 'C:\\\\Users\\\\qingy_fr6f9x6\\\\.claude\\\\projects\\\\d--Work-BorderX-Cricher-Creator-Web-brand-creator-website\\\\memory' && ls; cat MEMORY.md 2>/dev/null)",
+      "Read(//c/Users/qingy_fr6f9x6/.claude/projects/d--Work-BorderX-Cricher-Creator-Web-brand-creator-website/memory/**)",
+      "PowerShell($env:Path = [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"User\"\\); gh pr view 29 --repo Edenverse-ai/brand_creator_website --json state,mergeable,reviewDecision --jq '\"state=\\\\\\(.state\\) mergeable=\\\\\\(.mergeable\\) review=\\\\\\(.reviewDecision\\)\"'; gh pr checks 29 --repo Edenverse-ai/brand_creator_website 2>&1 | ForEach-Object { \\($_ -split \"`t\"\\)[0..1] -join \": \" })"
+    ]
+  },
   "hooks": {
     "PostToolUse": [
       {

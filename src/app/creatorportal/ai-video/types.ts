@@ -7,6 +7,8 @@ export type AiVideoRecord = {
   expiresAt: string;
   videoUrl?: string;
   thumbnailUrl?: string | null;
+  /** Prompt the video was generated from, shown as its name. */
+  prompt?: string | null;
   tags: string[];
   status: VideoStatus;
 };

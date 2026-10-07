@@ -1,9 +1,12 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { createSignedUrls } from "@/lib/supabase-admin";
+import { createAiVideoSignedUrl, createSignedUrls } from "@/lib/supabase-admin";
+import { syncTask } from "@/lib/ai-video-generation";
+import { buildLibraryVideoPath } from "@/lib/ai-video-task";
 import TaskRow, { type TaskRowData } from "./TaskRow";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +18,19 @@ export default async function TasksPage() {
   }
 
   const PAGE_SIZE = 50;
+  const SYNC_ON_RENDER_LIMIT = 10;
+
+  // Advance in-progress generations so a creator returning here sees the latest
+  // state without waiting for the scheduled sweep. Failures just leave the row as is.
+  const inProgress = await prisma.aiVideoTask.findMany({
+    where: { creatorId: session.user.id, status: "GENERATING" },
+    orderBy: { createdAt: "desc" },
+    take: SYNC_ON_RENDER_LIMIT,
+    select: { id: true },
+  });
+  const host = (await headers()).get("host");
+  const origin = host ? `https://${host}` : undefined;
+  await Promise.allSettled(inProgress.map((task) => syncTask(task.id, { origin })));
 
   const rows = await prisma.aiVideoTask.findMany({
     where: { creatorId: session.user.id },
@@ -22,32 +38,47 @@ export default async function TasksPage() {
     take: PAGE_SIZE,
     select: {
       id: true,
+      creatorId: true,
       prompt: true,
       status: true,
+      errorMessage: true,
       outputUrl: true,
       outputPath: true,
+      aiVideoId: true,
       voicePath: true,
       portraitPath: true,
       createdAt: true,
     },
   });
 
-  const portraitPaths = rows.map((r) => r.portraitPath);
+  const portraitPaths = rows.map((r) => r.portraitPath).filter((p): p is string => p !== null);
   const outputPaths = rows.map((r) => r.outputPath).filter((p): p is string => p !== null);
+  const generated = rows.filter((r) => r.status === "DELIVERED" && r.aiVideoId);
 
-  const [portraitMap, outputMap] = await Promise.all([
+  const [portraitMap, outputMap, libraryUrls] = await Promise.all([
     createSignedUrls(portraitPaths),
     createSignedUrls(outputPaths),
+    Promise.all(
+      generated.map(
+        async (r) =>
+          [r.id, await createAiVideoSignedUrl(buildLibraryVideoPath(r.creatorId, r.id))] as const
+      )
+    ),
   ]);
+  const libraryMap = new Map(libraryUrls);
 
   const tasks: TaskRowData[] = rows.map((r) => ({
     id: r.id,
     prompt: r.prompt,
     status: r.status,
+    errorMessage: r.errorMessage,
     outputUrl: r.outputUrl,
-    outputSignedUrl: r.outputPath ? (outputMap.get(r.outputPath) ?? null) : null,
+    // Manual deliveries live in ai-video-tasks; generated ones in the library bucket.
+    outputSignedUrl: r.outputPath
+      ? (outputMap.get(r.outputPath) ?? null)
+      : (libraryMap.get(r.id) ?? null),
     hasVoice: r.voicePath !== null,
-    portraitSignedUrl: portraitMap.get(r.portraitPath) ?? null,
+    portraitSignedUrl: r.portraitPath ? (portraitMap.get(r.portraitPath) ?? null) : null,
     createdAt: r.createdAt.toISOString(),
   }));
 

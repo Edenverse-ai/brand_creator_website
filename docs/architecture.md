@@ -36,6 +36,21 @@ Browser → Next.js API route (mints presigned URL) → Browser → Supabase Sto
 
 No server surface proxies media bytes. TikTok publishing runs natively in `src/app/api/tiktok/**` plus a Netlify background function for the FILE_UPLOAD relay fallback.
 
+### AI video generation
+
+```
+Browser → POST /api/ai-videos/tasks → video provider (create, billable)
+Browser → GET  /api/ai-videos/tasks/:id (every 10 s) → video provider (status)
+                    └─ on success → ai-video-finalize-background (Netlify, 15 min)
+                                      → copies the video into Supabase Storage (aivideogenerated)
+                                      → AiVideo row (My Videos)
+Netlify schedule (every 10 min) → ai-video-sync-scheduled → same status/finalize path
+```
+
+Generation goes through the AI Open Platform video API (Seedance). The client in `src/lib/seedance/` is **mock by default**. It only calls the real, billable API when `SEEDANCE_LIVE=1`, `VIDEO_API_KEY` and `VIDEO_API_BASE_URL` are all set, and never under test or E2E. The task lifecycle (`src/lib/ai-video-generation.ts`) makes at most one billable create call per task and copies each finished video exactly once. See [the design spec](superpowers/specs/2026-10-05-seedance-video-generation-design.md).
+
+Code that runs inside Netlify functions must not import `server-only`: outside Next.js that package throws on import. Shared helpers therefore live in `src/lib/supabase-admin-core.ts`; `src/lib/supabase-admin.ts` adds the marker for Next.js code.
+
 ---
 
 ## Repo Map
@@ -70,7 +85,7 @@ No server surface proxies media bytes. TikTok publishing runs natively in `src/a
 
 ## Key Design Constraints
 
-- **No GitHub Actions CI.** Quality gates will run locally (pre-commit / pre-push — not yet wired; see [harness.md](harness.md)) and on Netlify preview deploys.
+- **Quality gates.** Pre-commit and pre-push hooks run locally (see [harness.md](harness.md)). GitHub Actions (`.github/workflows/e2e.yml`) runs the E2E smoke suite and the AI video specs (mock provider) on every PR to `main`. Netlify preview deploys run their own smoke plugin.
 - **Single Node toolchain, one `package.json`.** Python tooling was retired with the FastAPI backend; nothing under `legacy/` is built, linted, or deployed.
 - **Netlify deploy.** Build command is `npx prisma generate && next build`. See [deployment.md](deployment.md).
 

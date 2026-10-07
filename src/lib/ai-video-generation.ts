@@ -1,0 +1,358 @@
+import { randomUUID } from "node:crypto";
+import { prisma } from "@/lib/prisma";
+import { buildLibraryVideoPath } from "@/lib/ai-video-task";
+import { createSignedUrl, uploadToAiVideoBucket } from "@/lib/supabase-admin-core";
+import { buildFinalizeAuthHeaders } from "@/lib/ai-video-finalize-auth";
+import { fetchWithTimeout } from "@/lib/tiktok/fetch-with-timeout";
+import { getVideoProvider } from "@/lib/seedance";
+import { mockProvider } from "@/lib/seedance/mock";
+import { getDailyLimit } from "@/lib/seedance/config";
+import {
+  CREATOR_MESSAGES,
+  describeProviderFailure,
+  describeSubmitError,
+} from "@/lib/seedance/errors";
+import { generationParamsSchema } from "@/lib/seedance/schema";
+import type { VideoProvider } from "@/lib/seedance/types";
+
+/**
+ * Lifecycle of an automated generation task
+ * (docs/superpowers/specs/2026-10-05-seedance-video-generation-design.md §5–6):
+ *
+ *   QUEUED ─submitTask─▶ GENERATING ─syncTask/finalizeTask─▶ DELIVERED
+ *                │                 │
+ *                └──────▶ FAILED ◀─┘
+ *
+ * The provider has no idempotency key, so every create call is billable. Two
+ * atomic claims (`updateMany … where <claim> is null`) make the expensive steps
+ * happen once no matter how many requests race: submitStartedAt guards the
+ * create call, finalizeStartedAt guards the copy into the library.
+ */
+
+const REFERENCE_URL_TTL_SEC = 6 * 3600;
+const GENERATION_TIMEOUT_MS = 75 * 60_000;
+const FINALIZE_CLAIM_TTL_MS = 20 * 60_000;
+const DISPATCH_TIMEOUT_MS = 10_000;
+const LIBRARY_TAGS = JSON.stringify(["ai-generated"]);
+
+function traceIdOf(error: unknown): string | null {
+  const traceId = (error as { traceId?: unknown } | null)?.traceId;
+  return typeof traceId === "string" ? traceId : null;
+}
+
+/** Tasks are resolved by the provider that created them, whatever the current config. */
+function providerForTask(name: string | null): VideoProvider | null {
+  if (name === "mock") return mockProvider;
+  try {
+    const provider = getVideoProvider();
+    return provider.name === name ? provider : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function submitTask(taskId: string): Promise<void> {
+  const claimed = await prisma.aiVideoTask.updateMany({
+    where: { id: taskId, status: "QUEUED", submitStartedAt: null },
+    data: { submitStartedAt: new Date() },
+  });
+  if (claimed.count === 0) return;
+
+  const task = await prisma.aiVideoTask.findUniqueOrThrow({
+    where: { id: taskId },
+    select: { id: true, prompt: true, portraitPath: true, params: true },
+  });
+  const params = generationParamsSchema.parse(task.params ?? {});
+
+  let provider: VideoProvider | null = null;
+  try {
+    provider = getVideoProvider();
+
+    let referenceImageUrl: string | null = null;
+    if (task.portraitPath) {
+      referenceImageUrl = await createSignedUrl(task.portraitPath, REFERENCE_URL_TTL_SEC);
+      if (!referenceImageUrl) throw new Error("reference image could not be signed");
+    }
+
+    const created = await provider.createTask({
+      prompt: task.prompt,
+      params,
+      referenceImageUrl,
+    });
+
+    await prisma.aiVideoTask.update({
+      where: { id: taskId },
+      data: {
+        status: "GENERATING",
+        provider: provider.name,
+        providerTaskId: created.taskId,
+        traceId: created.traceId,
+        lastCheckedAt: new Date(),
+      },
+    });
+  } catch (error) {
+    const { failureCode, message } = describeSubmitError(error);
+    console.error("[ai-video-generation] submit failed", {
+      taskId,
+      failureCode,
+      name: error instanceof Error ? error.name : typeof error,
+      traceId: traceIdOf(error),
+    });
+    await prisma.aiVideoTask.update({
+      where: { id: taskId },
+      data: {
+        status: "FAILED",
+        failureCode,
+        errorMessage: message,
+        traceId: traceIdOf(error),
+        provider: provider?.name ?? null,
+      },
+    });
+  }
+}
+
+export async function syncTask(taskId: string, options: { origin?: string } = {}): Promise<void> {
+  const task = await prisma.aiVideoTask.findUnique({
+    where: { id: taskId },
+    select: {
+      id: true,
+      status: true,
+      provider: true,
+      providerTaskId: true,
+      submitStartedAt: true,
+    },
+  });
+  if (!task || task.status !== "GENERATING" || !task.providerTaskId) return;
+
+  const provider = providerForTask(task.provider);
+  if (!provider) return;
+
+  let status;
+  try {
+    status = await provider.getTaskStatus(task.providerTaskId);
+  } catch (error) {
+    console.error("[ai-video-generation] status lookup failed", {
+      taskId,
+      name: error instanceof Error ? error.name : typeof error,
+    });
+    return;
+  }
+
+  const now = new Date();
+
+  if (status.state === "failed") {
+    // Creators see a mapped message; the raw reason is only kept here for support.
+    console.error("[ai-video-generation] provider reported failure", {
+      taskId,
+      providerTaskId: task.providerTaskId,
+      traceId: status.traceId,
+      providerError: status.error,
+    });
+    await prisma.aiVideoTask.updateMany({
+      where: { id: taskId, status: "GENERATING" },
+      data: {
+        status: "FAILED",
+        failureCode: "provider_failed",
+        errorMessage: describeProviderFailure(status.error),
+        traceId: status.traceId,
+        lastCheckedAt: now,
+      },
+    });
+    return;
+  }
+
+  if (status.state === "in_progress") {
+    const submittedAt = task.submitStartedAt?.getTime() ?? now.getTime();
+    if (now.getTime() - submittedAt > GENERATION_TIMEOUT_MS) {
+      await prisma.aiVideoTask.updateMany({
+        where: { id: taskId, status: "GENERATING" },
+        data: {
+          status: "FAILED",
+          failureCode: "timeout",
+          errorMessage: CREATOR_MESSAGES.timedOut,
+          lastCheckedAt: now,
+        },
+      });
+      return;
+    }
+    await prisma.aiVideoTask.update({ where: { id: taskId }, data: { lastCheckedAt: now } });
+    return;
+  }
+
+  await prisma.aiVideoTask.update({ where: { id: taskId }, data: { lastCheckedAt: now } });
+  await requestFinalize(taskId, options.origin);
+}
+
+/**
+ * Base URL of the deploy whose background function should run the finalize, or
+ * null off Netlify.
+ *
+ * Netlify's function runtime only exposes URL, which is always the production
+ * site — DEPLOY_PRIME_URL exists at build time only. Dispatching to URL from a
+ * deploy preview therefore hits production (a different build, and a 404 when the
+ * function isn't released there yet). Prefer the origin the request arrived on,
+ * but only when it is this site's own host, so a forged Host header can't point
+ * the signed dispatch elsewhere.
+ */
+function finalizeDispatchBase(origin: string | undefined): string | null {
+  const siteUrl = process.env.URL;
+  if (!siteUrl) return null;
+
+  if (origin) {
+    try {
+      const host = new URL(origin).host;
+      const siteName = process.env.SITE_NAME;
+      const isSiteHost = host === new URL(siteUrl).host;
+      const isDeployHost = siteName
+        ? host === `${siteName}.netlify.app` || host.endsWith(`--${siteName}.netlify.app`)
+        : // SITE_NAME not exposed: the site can't be checked, so accept any Netlify
+          // deploy host. Worst case a forged host receives a 5-minute signature that
+          // can only finalize this one task (a no-op once it is finalized).
+          /^[a-z0-9-]+--[a-z0-9-]+\.netlify\.app$/.test(host);
+      if (isSiteHost || isDeployHost) return `https://${host}`;
+    } catch {
+      // unparseable origin: fall through to the site URL
+    }
+  }
+  return siteUrl.replace(/\/$/, "");
+}
+
+/**
+ * On Netlify, hands the copy to the background function (15-minute budget);
+ * elsewhere (local `next dev`) runs it inline.
+ */
+async function requestFinalize(taskId: string, origin?: string): Promise<void> {
+  const base = finalizeDispatchBase(origin);
+  if (!base) {
+    await finalizeTask(taskId);
+    return;
+  }
+
+  try {
+    const res = await fetchWithTimeout(
+      `${base}/.netlify/functions/ai-video-finalize-background`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...buildFinalizeAuthHeaders(taskId) },
+        body: JSON.stringify({ taskId }),
+      },
+      DISPATCH_TIMEOUT_MS
+    );
+    if (res.status !== 202) {
+      console.error("[ai-video-generation] finalize dispatch rejected", {
+        taskId,
+        status: res.status,
+      });
+    }
+  } catch (error) {
+    // The next poll or the scheduled sweep dispatches again.
+    console.error("[ai-video-generation] finalize dispatch failed", {
+      taskId,
+      name: error instanceof Error ? error.name : typeof error,
+    });
+  }
+}
+
+export async function finalizeTask(taskId: string): Promise<void> {
+  const now = new Date();
+  const claimed = await prisma.aiVideoTask.updateMany({
+    where: {
+      id: taskId,
+      status: "GENERATING",
+      OR: [
+        { finalizeStartedAt: null },
+        { finalizeStartedAt: { lt: new Date(now.getTime() - FINALIZE_CLAIM_TTL_MS) } },
+      ],
+    },
+    data: { finalizeStartedAt: now },
+  });
+  if (claimed.count === 0) return;
+
+  const releaseClaim = () =>
+    prisma.aiVideoTask.updateMany({
+      where: { id: taskId, status: "GENERATING" },
+      data: { finalizeStartedAt: null },
+    });
+
+  try {
+    const task = await prisma.aiVideoTask.findUniqueOrThrow({
+      where: { id: taskId },
+      select: { id: true, creatorId: true, provider: true, providerTaskId: true },
+    });
+    const provider = providerForTask(task.provider);
+    if (!provider || !task.providerTaskId) {
+      await releaseClaim();
+      return;
+    }
+
+    // Re-read the status for a fresh video URL rather than trusting a caller's.
+    const status = await provider.getTaskStatus(task.providerTaskId);
+    if (status.state !== "succeeded") {
+      await releaseClaim();
+      return;
+    }
+
+    const video = await provider.downloadVideo(status.videoUrl);
+    const path = buildLibraryVideoPath(task.creatorId, task.id);
+    await uploadToAiVideoBucket(path, video.bytes, "video/mp4");
+
+    const aiVideoId = randomUUID();
+    await prisma.$transaction([
+      prisma.aiVideo.create({
+        data: {
+          id: aiVideoId,
+          creator_id: task.creatorId,
+          generated_time: now,
+          video: path,
+          tag: LIBRARY_TAGS,
+        },
+      }),
+      prisma.aiVideoTask.update({
+        where: { id: taskId },
+        data: {
+          status: "DELIVERED",
+          aiVideoId,
+          completionTokens: status.completionTokens,
+          traceId: status.traceId,
+          lastCheckedAt: now,
+        },
+      }),
+    ]);
+  } catch (error) {
+    console.error("[ai-video-generation] finalize failed", {
+      taskId,
+      name: error instanceof Error ? error.name : typeof error,
+    });
+    await releaseClaim();
+  }
+}
+
+function startOfUtcDay(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+}
+
+/**
+ * Tasks that may have used provider tokens today (spec §6 "Daily cap counting").
+ * QUEUED rows with a submit claim are in flight and count; failures the provider
+ * doesn't charge for don't.
+ */
+export async function countTodayGenerations(creatorId: string): Promise<number> {
+  return prisma.aiVideoTask.count({
+    where: {
+      creatorId,
+      submitStartedAt: { gte: startOfUtcDay(new Date()) },
+      OR: [
+        { status: { in: ["QUEUED", "GENERATING", "IN_REVIEW", "DELIVERED"] } },
+        { status: "FAILED", failureCode: "unknown_outcome" },
+      ],
+    },
+  });
+}
+
+export async function remainingToday(
+  creatorId: string
+): Promise<{ remaining: number; limit: number }> {
+  const limit = getDailyLimit();
+  const used = await countTodayGenerations(creatorId);
+  return { remaining: Math.max(0, limit - used), limit };
+}

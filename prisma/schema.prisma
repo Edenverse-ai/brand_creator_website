@@ -227,6 +227,7 @@ enum AiVideoTaskStatus {
   GENERATING
   IN_REVIEW
   DELIVERED
+  FAILED
 }
 
 model AiVideoTask {
@@ -237,12 +238,26 @@ model AiVideoTask {
 
   prompt       String  @db.Text
   voicePath    String?
-  portraitPath String
+  /// Optional reference image; null for text-to-video generations.
+  portraitPath String?
 
   status     AiVideoTaskStatus @default(QUEUED)
   outputPath String? // Supabase Storage object path; set when admin uploads file
   outputUrl  String? // External URL; kept for non-uploaded deliveries
   notes      String?           @db.Text
+
+  // Automated generation (see docs/superpowers/specs/2026-10-05-seedance-video-generation-design.md)
+  provider          String? // "ai-open-platform" or "mock"
+  providerTaskId    String?
+  params            Json? // { mode, ratio, duration, resolution, generateAudio }
+  errorMessage      String?   @db.Text // creator-facing failure reason
+  failureCode       String? // submit_rejected | unknown_outcome | provider_failed | timeout
+  traceId           String?
+  completionTokens  Int?
+  submitStartedAt   DateTime? // claim: at most one provider create call per task
+  finalizeStartedAt DateTime? // claim: at most one copy into the library per task
+  lastCheckedAt     DateTime? // last provider status check; orders the scheduled sweep
+  aiVideoId         String?   @db.Uuid // AiVideo row created on delivery
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

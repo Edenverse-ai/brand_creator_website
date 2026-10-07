@@ -1,35 +1,36 @@
 import path from "node:path";
 import { test, expect } from "./_helpers/fixtures";
+import { E2E_CREATOR_ID, testDb } from "./_helpers/db";
 
-test("creator submits, admin uploads output, creator sees Delivered", async ({
+test("admin uploads output for a manual task, creator sees Delivered", async ({
   asCreator,
   page,
 }) => {
   const promptText = `E2E fulfillment ${Date.now()}`;
 
-  // 1. Creator submits a task via the form.
-  await asCreator.goto("/creatorportal/ai-video/generate");
-  await asCreator.getByLabel(/Generation prompt/i).fill(promptText);
-  await asCreator
-    .locator("input#portrait")
-    .setInputFiles(path.join(__dirname, "fixtures/portrait.png"));
-  await asCreator.getByRole("button", { name: /Generate video/i }).click();
-  await expect(asCreator.getByText(/Task queued/i)).toBeVisible({ timeout: 15_000 });
+  // 1. A manually fulfilled task (no provider). The generate form now submits to
+  //    the video provider and delivers automatically, so the manual path is seeded.
+  const db = testDb();
+  await db.aiVideoTask.create({
+    data: { id: `e2efulfil${Date.now()}`, creatorId: E2E_CREATOR_ID, prompt: promptText },
+  });
+  await db.$disconnect();
 
   // 2. Admin (unauthed) finds the row, uploads an output mp4, marks DELIVERED.
   await page.goto("/storyclaw-admin");
-  const row = page.locator("tr", { hasText: promptText });
+  // Rows are <li> cards (the table layout was replaced in 331b384).
+  const row = page.locator("li", { hasText: promptText });
   await expect(row).toBeVisible({ timeout: 10_000 });
 
   await row
     .locator('input[type="file"][accept*="video"]')
     .setInputFiles(path.join(__dirname, "fixtures/output-sample.mp4"));
-  await row.getByRole("button", { name: /^Upload$/ }).click();
-  await expect(row.getByText(/Output uploaded/i)).toBeVisible({ timeout: 20_000 });
+  await row.getByRole("button", { name: /Upload output/i }).click();
+  await expect(row.getByText("Uploaded", { exact: true })).toBeVisible({ timeout: 20_000 });
 
-  await row.getByLabel(/Status/i).selectOption("DELIVERED");
-  await row.getByRole("button", { name: /^Save$/ }).click();
-  await expect(row.getByLabel(/Status/i)).toHaveValue("DELIVERED");
+  await row.getByRole("button", { name: "Delivered", exact: true }).click();
+  await row.getByRole("button", { name: /Save changes/i }).click();
+  await expect(row.getByRole("button", { name: /No changes/i })).toBeVisible({ timeout: 10_000 });
 
   // 3. Creator returns and sees Delivered + a working "View output" link.
   await asCreator.goto("/creatorportal/ai-video/tasks");

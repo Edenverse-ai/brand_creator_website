@@ -1,15 +1,34 @@
 import { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { getServerSession } from "next-auth";
 import { ArrowLeft } from "lucide-react";
+import { authOptions } from "@/lib/auth";
+import { remainingToday } from "@/lib/ai-video-generation";
+import { isMockMode } from "@/lib/seedance";
+import { VIDEO_MODELS, getUnlockedModes } from "@/lib/seedance/models";
 import GenerateVideoForm from "./GenerateVideoForm";
+
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Generate AI Video | Cricher AI CreatorHub",
-  description:
-    "Submit the assets and creative direction needed to spin up a fresh AI-generated advertising video.",
+  description: "Describe a scene and generate a short AI video ready to post on TikTok.",
 };
 
-export default function GenerateAiVideoPage() {
+export default async function GenerateAiVideoPage() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    redirect("/login");
+  }
+
+  const { remaining, limit } = await remainingToday(session.user.id);
+  const unlocked = getUnlockedModes();
+  const models = VIDEO_MODELS.map((model) => ({
+    ...model,
+    locked: !unlocked.includes(model.mode),
+  }));
+
   return (
     <div className="space-y-8 py-8">
       <Link
@@ -20,17 +39,22 @@ export default function GenerateAiVideoPage() {
         Back to AI Video Library
       </Link>
 
-      <div className="space-y-10">
+      <div className="space-y-8">
         <header className="space-y-3">
           <p className="text-sm uppercase tracking-[0.2em] text-indigo-500">AI production suite</p>
           <h1 className="text-3xl font-semibold text-slate-900">Generate a new AI video</h1>
           <p className="text-base text-slate-600">
-            Drop in the reference voice clone, a clear portrait for stylistic grounding, and the
-            prompt we should follow. Our production pipeline handles the rest.
+            Describe the scene, optionally add a reference image, and pick the model and format.
+            Finished videos land in My Videos, ready to post to TikTok.
           </p>
         </header>
 
-        <GenerateVideoForm />
+        <GenerateVideoForm
+          initialRemaining={remaining}
+          limit={limit}
+          isMock={isMockMode()}
+          models={models}
+        />
       </div>
     </div>
   );

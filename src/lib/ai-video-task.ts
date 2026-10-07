@@ -76,12 +76,17 @@ export function buildOutputPath(creatorId: string, taskId: string, mime: VideoMi
   return `${creatorId}/${taskId}/output.${VIDEO_MIME_TO_EXT[mime]}`;
 }
 
+/** Object path of a generated video in the AI Video library bucket (aivideogenerated). */
+export function buildLibraryVideoPath(creatorId: string, taskId: string): string {
+  return `${creatorId}/${taskId}.mp4`;
+}
+
 export const promptSchema = z
   .string()
   .transform((s) => s.trim())
   .pipe(z.string().min(1, "Prompt required").max(5000));
 
-const baseStatusSchema = z.enum(["QUEUED", "GENERATING", "IN_REVIEW", "DELIVERED"]);
+const baseStatusSchema = z.enum(["QUEUED", "GENERATING", "IN_REVIEW", "DELIVERED", "FAILED"]);
 
 export const patchTaskSchema = z.object({
   status: baseStatusSchema,
@@ -96,4 +101,5 @@ export const STATUS_DISPLAY = {
   GENERATING: { label: "Generating", className: "bg-indigo-100 text-indigo-700" },
   IN_REVIEW: { label: "In Review", className: "bg-amber-100 text-amber-700" },
   DELIVERED: { label: "Delivered", className: "bg-emerald-100 text-emerald-700" },
+  FAILED: { label: "Failed", className: "bg-rose-100 text-rose-700" },
 } as const;

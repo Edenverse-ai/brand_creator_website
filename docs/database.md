@@ -61,6 +61,39 @@ npm run prisma:generate   # regenerates the Prisma client (run after migrate or 
 
 **Shadow database:** `prisma migrate dev` uses a shadow database to verify migrations are consistent. Ensure your database user has permission to create and drop databases, or configure `shadowDatabaseUrl` in `schema.prisma` if your provider restricts this (common with Supabase).
 
+**Production is not migrated by the build.** The Netlify build runs only `prisma generate && next build`, so a new migration must be applied to the production database separately before the code that needs it goes live.
+
+### Known drift (as of 2026-10-05)
+
+The migration history and `schema.prisma` already disagree, independent of any new change:
+
+- The `Campaign` table exists in migrations but was removed from the schema.
+- Several models were added to the schema without migrations, including `AiVideo`, `AiVideoRequest`, `Contact`, `FindCreator`, `avocadata` and `influencer_verifications`.
+
+Consequences:
+
+- `prisma migrate dev` puts all of that drift into whatever new migration you generate, including a `DROP TABLE "Campaign"`. **Always review the generated SQL and trim it to your change.** A diff between two schema versions gives the exact delta: `npx prisma migrate diff --from-schema-datamodel <old schema> --to-schema-datamodel prisma/schema.prisma --script`.
+- With `SHADOW_DATABASE_URL` set, the drift hook reports this pre-existing drift too. Resolving it (a baseline migration matched against production) is separate work.
+
+---
+
+## AI video tasks
+
+`AiVideoTask` backs both the manual Storyclaw workflow and automated Seedance generation (migration `20261005221656_ai_video_task_generation`):
+
+| Field                                  | Purpose                                                                                                                             |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `status`                               | `QUEUED → GENERATING → DELIVERED`, or `FAILED` (new). `IN_REVIEW` is used by the manual flow.                                       |
+| `portraitPath`                         | Optional reference image (now nullable; text-to-video has none).                                                                    |
+| `provider`, `providerTaskId`, `params` | Which provider (`ai-open-platform` or `mock`), its task id, and the generation settings.                                            |
+| `errorMessage`, `failureCode`          | Creator-facing reason; `submit_rejected`, `unknown_outcome`, `provider_failed` or `timeout`. Drives the daily-cap rule.             |
+| `traceId`, `completionTokens`          | Provider trace id and token usage, for support and billing reconciliation.                                                          |
+| `submitStartedAt`, `finalizeStartedAt` | Atomic claims: at most one billable create call, and one copy into the library, per task.                                           |
+| `lastCheckedAt`                        | Last provider status check; orders the scheduled sweep.                                                                             |
+| `aiVideoId`                            | The `AiVideo` (My Videos) row created on delivery. The migration also creates `AiVideo` if missing (`IF NOT EXISTS`) for local/E2E. |
+
+See [the design spec](superpowers/specs/2026-10-05-seedance-video-generation-design.md) §6.
+
 ---
 
 ## Drift Detection

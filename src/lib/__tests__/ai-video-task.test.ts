@@ -9,6 +9,7 @@ import {
   buildPortraitPath,
   buildVoicePath,
   buildOutputPath,
+  buildLibraryVideoPath,
   validatePortraitFile,
   validateVoiceFile,
   validateOutputFile,
@@ -114,6 +115,9 @@ describe("patchTaskSchema", () => {
       notes: "n",
     });
   });
+  it("accepts FAILED", () => {
+    expect(patchTaskSchema.parse({ status: "FAILED" })).toEqual({ status: "FAILED" });
+  });
   it("rejects an invalid status", () => {
     expect(() => patchTaskSchema.parse({ status: "BOGUS" })).toThrow();
   });
@@ -128,6 +132,7 @@ describe("STATUS_DISPLAY", () => {
     expect(STATUS_DISPLAY.GENERATING.label).toBe("Generating");
     expect(STATUS_DISPLAY.IN_REVIEW.label).toBe("In Review");
     expect(STATUS_DISPLAY.DELIVERED.label).toBe("Delivered");
+    expect(STATUS_DISPLAY.FAILED.label).toBe("Failed");
   });
 });
 
@@ -150,6 +155,12 @@ describe("buildOutputPath", () => {
     expect(buildOutputPath("c", "t", "video/mp4")).toBe("c/t/output.mp4");
     expect(buildOutputPath("c", "t", "video/webm")).toBe("c/t/output.webm");
     expect(buildOutputPath("c", "t", "video/quicktime")).toBe("c/t/output.mov");
+  });
+});
+
+describe("buildLibraryVideoPath", () => {
+  it("files the video under the creator, named by task id", () => {
+    expect(buildLibraryVideoPath("creator-1", "task1")).toBe("creator-1/task1.mp4");
   });
 });
 

@@ -8,7 +8,13 @@ import TaskAdminRow, { type TaskAdminRowData } from "./TaskAdminRow";
 
 export const dynamic = "force-dynamic";
 
-const STATUS_ORDER: AiVideoTaskStatus[] = ["QUEUED", "GENERATING", "IN_REVIEW", "DELIVERED"];
+const STATUS_ORDER: AiVideoTaskStatus[] = [
+  "QUEUED",
+  "GENERATING",
+  "IN_REVIEW",
+  "DELIVERED",
+  "FAILED",
+];
 
 export default async function StoryclawAdminPage() {
   const rows = await prisma.aiVideoTask.findMany({
@@ -30,7 +36,7 @@ export default async function StoryclawAdminPage() {
     },
   });
 
-  const portraitPaths = rows.map((r) => r.portraitPath);
+  const portraitPaths = rows.map((r) => r.portraitPath).filter((p): p is string => p !== null);
   const voicePaths = rows.map((r) => r.voicePath).filter((p): p is string => p !== null);
   const outputPaths = rows.map((r) => r.outputPath).filter((p): p is string => p !== null);
 
@@ -50,7 +56,7 @@ export default async function StoryclawAdminPage() {
     outputSignedUrl: r.outputPath ? (outputMap.get(r.outputPath) ?? null) : null,
     notes: r.notes,
     voiceSignedUrl: r.voicePath ? (voiceMap.get(r.voicePath) ?? null) : null,
-    portraitSignedUrl: portraitMap.get(r.portraitPath) ?? null,
+    portraitSignedUrl: r.portraitPath ? (portraitMap.get(r.portraitPath) ?? null) : null,
     createdAt: r.createdAt.toISOString(),
     rowKey: `${r.id}-${r.updatedAt.toISOString()}`,
   }));
@@ -60,7 +66,7 @@ export default async function StoryclawAdminPage() {
       acc[status] = tasks.filter((t) => t.status === status).length;
       return acc;
     },
-    { QUEUED: 0, GENERATING: 0, IN_REVIEW: 0, DELIVERED: 0 }
+    { QUEUED: 0, GENERATING: 0, IN_REVIEW: 0, DELIVERED: 0, FAILED: 0 }
   );
 
   const latestUpdate = rows[0]?.updatedAt;
@@ -102,7 +108,7 @@ export default async function StoryclawAdminPage() {
             ) : null}
           </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
             {STATUS_ORDER.map((status) => {
               const display = STATUS_DISPLAY[status];
               return (

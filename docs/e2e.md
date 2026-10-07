@@ -42,6 +42,16 @@ Plus a deterministic campaign and sample (UUIDs in seed.e2e.ts).
 
 `.e2e/auth/<role>.json` holds a Playwright `storageState` per role, built fresh per run via the gated `/api/test/login?role=<role>` shortcut. Gate: `E2E_EXPLORE=1` AND `NODE_ENV !== 'production'`. Never present in prod.
 
+## AI video generation (mock provider)
+
+E2E never reaches the real, billable video API: the provider factory always returns the mock whenever `E2E_EXPLORE=1` or `E2E_AGENT=1`, even if live credentials are configured (for example in a developer's `.env.local`). The mock:
+
+- finishes about 10 seconds after submission, returning an embedded sample clip;
+- fails (still after about 10 s) when the prompt contains `[mock-fail]`;
+- is stateless, because the task id encodes its own outcome, so it works across serverless instances.
+
+Specs needing state the UI can't create cheaply (e.g. a creator already at the daily cap) use `e2e/_helpers/db.ts`, which is limited to the local test database. The success path needs the `aivideogenerated` bucket: run `node --env-file=.env.e2e-dev scripts/studio-create-buckets.js` once against the local stack.
+
 ## Files & dirs
 
 - `.e2e/auth/` — gitignored storageState
@@ -54,3 +64,9 @@ Plus a deterministic campaign and sample (UUIDs in seed.e2e.ts).
 
 - First-time stack boot takes 5–15 minutes (Supabase CLI + api/web image pulls and builds).
 - `api` and `web` run with `network_mode: host` in `docker/compose.e2e.yml` (not bridge + port mapping) — required so presigned Supabase Storage URLs minted server-side resolve identically for the container and the host-side Playwright browser. Supported on Linux (CI) and OrbStack.
+- **Windows without WSL:** the `web` container can't use host networking. Run the app on the host instead, against the same local Supabase stack, then run Playwright in agent mode. The global setup still resets and seeds the local database, so re-run `npm run dev:seed` afterwards if you use the dev accounts.
+  ```bash
+  # Git Bash; local Supabase already running (npm run dev:infra)
+  NEXTAUTH_URL=http://localhost:12001 npx dotenv -e .env.e2e-dev -- npx next dev -p 12001 &
+  E2E_AGENT=1 npx playwright test e2e/creator/ai-video-generate.spec.ts
+  ```

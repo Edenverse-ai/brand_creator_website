@@ -34,7 +34,7 @@ export type TaskAdminRowData = {
   createdAt: string;
 };
 
-const STATUSES: AiVideoTaskStatus[] = ["QUEUED", "GENERATING", "IN_REVIEW", "DELIVERED"];
+const STATUSES: AiVideoTaskStatus[] = ["QUEUED", "GENERATING", "IN_REVIEW", "DELIVERED", "FAILED"];
 
 function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;

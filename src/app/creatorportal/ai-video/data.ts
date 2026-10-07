@@ -59,6 +59,7 @@ function mapToRecord(item: AiVideoLibraryItemResponse): AiVideoRecord {
     expiresAt,
     videoUrl: item.video_url,
     thumbnailUrl: item.thumbnail_url,
+    prompt: item.prompt,
     tags: item.tags,
     status,
   };

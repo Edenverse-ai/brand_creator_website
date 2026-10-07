@@ -100,7 +100,7 @@ npm run build    # production build
 npm run lint     # ESLint (next/core-web-vitals ruleset)
 ```
 
-See [harness.md](harness.md) for the full pre-commit / pre-push hook chain (not yet wired; lands in PRs 3–4).
+See [harness.md](harness.md) for the full pre-commit / pre-push hook chain.
 
 ---
 

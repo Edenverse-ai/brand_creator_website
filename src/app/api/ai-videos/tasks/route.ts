@@ -20,6 +20,9 @@ import {
   uploadToBucket,
 } from "@/lib/supabase-admin";
 import { isOwnedStoragePath } from "@/lib/storage/path-ownership";
+import { remainingToday, submitTask } from "@/lib/ai-video-generation";
+import { getUnlockedModes } from "@/lib/seedance/models";
+import { generationParamsSchema } from "@/lib/seedance/schema";
 
 // Same charset + cap as the minting route's taskId (src/app/api/ai-videos/tasks/
 // upload-url/route.ts) — taskId becomes both this row's primary key and a storage
@@ -28,15 +31,23 @@ import { isOwnedStoragePath } from "@/lib/storage/path-ownership";
 // ceiling" convention used for id_number in tiktokverification/id-number.ts).
 const TASK_ID_MAX_LENGTH = 32;
 
-const JsonBody = z.object({
-  prompt: z.string(),
-  taskId: z
-    .string()
-    .regex(/^[a-z0-9]+$/, "Invalid taskId")
-    .max(TASK_ID_MAX_LENGTH),
-  portrait_path: z.string().optional(),
-  voice_path: z.string().optional(),
-});
+const JsonBody = z
+  .object({
+    prompt: z.string(),
+    // Required when assets were uploaded (their paths embed it); minted here for
+    // text-only generations.
+    taskId: z
+      .string()
+      .regex(/^[a-z0-9]+$/, "Invalid taskId")
+      .max(TASK_ID_MAX_LENGTH)
+      .optional(),
+    portrait_path: z.string().optional(),
+    voice_path: z.string().optional(),
+    params: z.unknown().optional(),
+  })
+  .refine((body) => body.taskId || !(body.portrait_path?.trim() || body.voice_path?.trim()), {
+    message: "taskId required with uploaded assets",
+  });
 
 /**
  * `isOwnedStoragePath` only constrains the FIRST path segment (the owner id) — it
@@ -52,9 +63,11 @@ function isOwnedTaskPath(path: string, ownerId: string, taskId: string): boolean
 }
 
 /**
- * Native JSON path: portrait/voice bytes were already uploaded direct-to-storage via
- * POST /api/ai-videos/tasks/upload-url, so this only validates ownership of the given
- * paths and writes the AiVideoTask row — same shape the multipart branch below produces.
+ * Native JSON path: the optional reference image was already uploaded
+ * direct-to-storage via POST /api/ai-videos/tasks/upload-url. Validates ownership
+ * and the daily cap, writes the AiVideoTask row, then submits it to the video
+ * provider (mock unless explicitly enabled — see src/lib/seedance/index.ts).
+ * Responds with the post-submit status: GENERATING, or FAILED with a message.
  */
 async function handleJsonTaskCreate(
   request: NextRequest,
@@ -65,46 +78,77 @@ async function handleJsonTaskCreate(
     return NextResponse.json({ error: "Invalid input" }, { status: 400 });
   }
 
+  const paramsResult = generationParamsSchema.safeParse(parsed.data.params ?? {});
+  if (!paramsResult.success) {
+    return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+  }
+  // The picker disables locked models; this is the check that actually holds.
+  if (!getUnlockedModes().includes(paramsResult.data.mode)) {
+    return NextResponse.json({ error: "This model requires an upgrade." }, { status: 403 });
+  }
+
   const promptResult = promptSchema.safeParse(parsed.data.prompt);
   if (!promptResult.success) {
     return NextResponse.json({ error: "Prompt required" }, { status: 400 });
   }
   const prompt = promptResult.data;
 
-  const { taskId } = parsed.data;
+  const taskId = parsed.data.taskId ?? createId();
   const portraitPath = parsed.data.portrait_path?.trim() || "";
   const voicePath = parsed.data.voice_path?.trim() || "";
+  const uploadedPaths = [portraitPath, voicePath].filter(Boolean);
 
-  if (!portraitPath) {
-    return NextResponse.json({ error: "Portrait image required" }, { status: 400 });
-  }
-
-  const pathsToCheck = voicePath ? [portraitPath, voicePath] : [portraitPath];
-  if (pathsToCheck.some((path) => !isOwnedTaskPath(path, sessionUserId, taskId))) {
+  if (uploadedPaths.some((path) => !isOwnedTaskPath(path, sessionUserId, taskId))) {
     return NextResponse.json(
       { error: "Storage path does not belong to the current session" },
       { status: 403 }
     );
   }
 
+  const { remaining, limit } = await remainingToday(sessionUserId);
+  if (remaining <= 0) {
+    return NextResponse.json(
+      { error: "Daily generation limit reached. Try again tomorrow.", remaining: 0, limit },
+      { status: 429 }
+    );
+  }
+
+  let task: { id: string; status: string };
   try {
-    const task = await prisma.aiVideoTask.create({
+    task = await prisma.aiVideoTask.create({
       data: {
         id: taskId,
         creatorId: sessionUserId,
         prompt,
-        portraitPath,
+        portraitPath: portraitPath || null,
         voicePath: voicePath || null,
+        params: paramsResult.data,
       },
       select: { id: true, status: true },
     });
-
-    return NextResponse.json({ id: task.id, status: task.status });
   } catch (error) {
-    await deleteFromBucket(voicePath ? [portraitPath, voicePath] : [portraitPath]);
+    await deleteFromBucket(uploadedPaths);
     console.error("[ai-videos/tasks] JSON path db insert error", error);
     return NextResponse.json({ error: "Failed to create task" }, { status: 500 });
   }
+
+  try {
+    await submitTask(task.id);
+  } catch (error) {
+    // Provider errors are recorded on the task by submitTask itself; reaching here
+    // means the database failed mid-submit.
+    console.error("[ai-videos/tasks] submit error", {
+      taskId: task.id,
+      name: error instanceof Error ? error.name : typeof error,
+    });
+    return NextResponse.json({ error: "Failed to submit task" }, { status: 500 });
+  }
+
+  const submitted = await prisma.aiVideoTask.findUnique({
+    where: { id: task.id },
+    select: { id: true, status: true, errorMessage: true },
+  });
+  return NextResponse.json(submitted ?? { id: task.id, status: task.status, errorMessage: null });
 }
 
 /**
