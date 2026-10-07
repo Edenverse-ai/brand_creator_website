@@ -92,6 +92,19 @@ function VideoTile({ video, selected, canSelect, onToggleSelect, onPreview }: Vi
             className="absolute inset-0 h-full w-full object-cover"
             loading="lazy"
           />
+        ) : video.videoUrl ? (
+          // No stored thumbnail: show the video's own first frame. preload="metadata"
+          // plus the #t fragment makes the browser fetch and paint just that frame.
+          <video
+            src={`${video.videoUrl}#t=0.1`}
+            preload="metadata"
+            muted
+            playsInline
+            tabIndex={-1}
+            aria-hidden="true"
+            data-testid="video-tile-frame"
+            className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+          />
         ) : null}
 
         <div className="absolute inset-0 ph-dark mix-blend-overlay opacity-40" />

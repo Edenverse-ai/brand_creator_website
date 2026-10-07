@@ -36,6 +36,13 @@ test.describe("creator / ai-video generate", () => {
     await asCreator.goto("/creatorportal/ai-video");
     await expect(asCreator.getByText(/1 ready/i).first()).toBeVisible({ timeout: 10_000 });
 
+    // The tile shows the video's first frame, so the creator can tell videos apart.
+    const frame = asCreator.getByTestId("video-tile-frame").first();
+    await expect(frame).toBeVisible();
+    await expect
+      .poll(() => frame.evaluate((el) => (el as HTMLVideoElement).videoWidth), { timeout: 15_000 })
+      .toBeGreaterThan(0);
+
     // Selecting a video offers Download; the link redirects to a signed URL that
     // saves the file (Content-Disposition via Supabase's `download` parameter).
     await asCreator.locator("#library input[type=checkbox]").first().check({ force: true });
