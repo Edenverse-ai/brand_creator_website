@@ -55,7 +55,7 @@ Request fields used: `prompt`, `mode`, `images[{url, role}]`, `resolution`, `rat
 No billable call may happen until the integration is verified, and billable calls are only ever made by a human.
 
 1. **Mock by default.** The live client is used only when `SEEDANCE_LIVE=1`, `VIDEO_API_KEY` and `VIDEO_API_BASE_URL` are all set. None of them are committed to any env file.
-2. **Tests can never go live.** When `NODE_ENV === "test"`, `E2E_EXPLORE=1` or `E2E_AGENT=1`, the client throws instead of calling the provider, even if fully configured. A unit test asserts this.
+2. **Tests can never go live.** When `NODE_ENV === "test"`, `E2E_EXPLORE=1` or `E2E_AGENT=1`, the provider factory always returns the mock, even if fully configured. A unit test asserts this.
 3. **One create call per task.** Because the provider has no idempotency key:
    - The task row is written first.
    - Submission atomically claims `submitStartedAt` (`updateMany … where submitStartedAt is null`), so concurrent requests cannot both submit.

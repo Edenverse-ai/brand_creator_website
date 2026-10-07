@@ -44,7 +44,7 @@ Plus a deterministic campaign and sample (UUIDs in seed.e2e.ts).
 
 ## AI video generation (mock provider)
 
-E2E never reaches the real, billable video API: the provider factory refuses live calls whenever `E2E_EXPLORE=1` or `E2E_AGENT=1`, even if live credentials are configured. The mock:
+E2E never reaches the real, billable video API: the provider factory always returns the mock whenever `E2E_EXPLORE=1` or `E2E_AGENT=1`, even if live credentials are configured (for example in a developer's `.env.local`). The mock:
 
 - finishes about 10 seconds after submission, returning an embedded sample clip;
 - fails (still after about 10 s) when the prompt contains `[mock-fail]`;

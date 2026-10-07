@@ -45,13 +45,6 @@ export class ProviderUnknownOutcomeError extends Error {
   }
 }
 
-export class LiveProviderBlockedError extends Error {
-  constructor() {
-    super("Live video provider is disabled in test/E2E environments");
-    this.name = "LiveProviderBlockedError";
-  }
-}
-
 export const CREATOR_MESSAGES = {
   contentReview: "Your prompt or image didn't pass content review. Please revise and try again.",
   unavailable: "Video generation is temporarily unavailable. Please try again later.",

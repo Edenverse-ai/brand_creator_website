@@ -107,7 +107,7 @@
   - The API key never appears in any thrown error message.
 - [ ] **Step 2:** `index.test.ts`, the live-guard:
   - Mock is selected unless `SEEDANCE_LIVE=1`, `VIDEO_API_KEY` and `VIDEO_API_BASE_URL` are all set.
-  - With all three set but `NODE_ENV=test`, or `E2E_EXPLORE=1`, or `E2E_AGENT=1`, `getVideoProvider()` throws `LiveProviderBlockedError`.
+  - With all three set but `NODE_ENV=test`, or `E2E_EXPLORE=1`, or `E2E_AGENT=1`, `getVideoProvider()` returns the mock (it originally threw; changed so a developer's `.env.local` can't affect E2E runs).
 - [ ] **Step 3:** `mock.test.ts`:
   - Create returns a `mock-` id.
   - Status is `in_progress` before 10 s and `succeeded` after (use fake timers). The `videoUrl` points at the fixture source.

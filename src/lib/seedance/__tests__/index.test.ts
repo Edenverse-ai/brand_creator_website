@@ -1,12 +1,12 @@
 /**
  * @vitest-environment node
  *
- * The token-spend guard: live calls need all three env vars, and are refused
- * outright in test/E2E environments even when fully configured.
+ * The token-spend guard: live calls need all three env vars, and test/E2E
+ * environments always get the mock, even when live is fully configured (a
+ * developer's .env.local must not be able to turn an E2E run live).
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { getVideoProvider, isMockMode } from "../index";
-import { LiveProviderBlockedError } from "../errors";
 
 const LIVE_ENV = {
   SEEDANCE_LIVE: "1",
@@ -33,18 +33,23 @@ describe("getVideoProvider", () => {
     expect(isMockMode()).toBe(true);
   });
 
-  it("refuses the live provider under NODE_ENV=test even when fully configured", () => {
+  it("uses the mock under NODE_ENV=test even when live is fully configured", () => {
     for (const [k, v] of Object.entries(LIVE_ENV)) vi.stubEnv(k, v);
     vi.stubEnv("NODE_ENV", "test");
-    expect(() => getVideoProvider()).toThrow(LiveProviderBlockedError);
+    expect(getVideoProvider().name).toBe("mock");
+    expect(isMockMode()).toBe(true);
   });
 
-  it.each(["E2E_EXPLORE", "E2E_AGENT"])("refuses the live provider when %s=1", (flag) => {
-    for (const [k, v] of Object.entries(LIVE_ENV)) vi.stubEnv(k, v);
-    vi.stubEnv("NODE_ENV", "development");
-    vi.stubEnv(flag, "1");
-    expect(() => getVideoProvider()).toThrow(LiveProviderBlockedError);
-  });
+  it.each(["E2E_EXPLORE", "E2E_AGENT"])(
+    "uses the mock when %s=1 even when live is configured",
+    (flag) => {
+      for (const [k, v] of Object.entries(LIVE_ENV)) vi.stubEnv(k, v);
+      vi.stubEnv("NODE_ENV", "development");
+      vi.stubEnv(flag, "1");
+      expect(getVideoProvider().name).toBe("mock");
+      expect(isMockMode()).toBe(true);
+    }
+  );
 
   it("returns the live provider only when configured outside test/E2E", () => {
     for (const [k, v] of Object.entries(LIVE_ENV)) vi.stubEnv(k, v);
