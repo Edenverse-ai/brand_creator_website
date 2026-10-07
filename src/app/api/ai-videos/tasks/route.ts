@@ -21,6 +21,7 @@ import {
 } from "@/lib/supabase-admin";
 import { isOwnedStoragePath } from "@/lib/storage/path-ownership";
 import { remainingToday, submitTask } from "@/lib/ai-video-generation";
+import { getUnlockedModes } from "@/lib/seedance/models";
 import { generationParamsSchema } from "@/lib/seedance/schema";
 
 // Same charset + cap as the minting route's taskId (src/app/api/ai-videos/tasks/
@@ -80,6 +81,10 @@ async function handleJsonTaskCreate(
   const paramsResult = generationParamsSchema.safeParse(parsed.data.params ?? {});
   if (!paramsResult.success) {
     return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+  }
+  // The picker disables locked models; this is the check that actually holds.
+  if (!getUnlockedModes().includes(paramsResult.data.mode)) {
+    return NextResponse.json({ error: "This model requires an upgrade." }, { status: 403 });
   }
 
   const promptResult = promptSchema.safeParse(parsed.data.prompt);

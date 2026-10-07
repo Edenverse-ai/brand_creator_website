@@ -6,6 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import { authOptions } from "@/lib/auth";
 import { remainingToday } from "@/lib/ai-video-generation";
 import { isMockMode } from "@/lib/seedance";
+import { VIDEO_MODELS, getUnlockedModes } from "@/lib/seedance/models";
 import GenerateVideoForm from "./GenerateVideoForm";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +23,11 @@ export default async function GenerateAiVideoPage() {
   }
 
   const { remaining, limit } = await remainingToday(session.user.id);
+  const unlocked = getUnlockedModes();
+  const models = VIDEO_MODELS.map((model) => ({
+    ...model,
+    locked: !unlocked.includes(model.mode),
+  }));
 
   return (
     <div className="space-y-8 py-8">
@@ -38,12 +44,17 @@ export default async function GenerateAiVideoPage() {
           <p className="text-sm uppercase tracking-[0.2em] text-indigo-500">AI production suite</p>
           <h1 className="text-3xl font-semibold text-slate-900">Generate a new AI video</h1>
           <p className="text-base text-slate-600">
-            Describe the scene, optionally add a reference image, and pick the format. Finished
-            videos land in My Videos, ready to post to TikTok.
+            Describe the scene, optionally add a reference image, and pick the model and format.
+            Finished videos land in My Videos, ready to post to TikTok.
           </p>
         </header>
 
-        <GenerateVideoForm initialRemaining={remaining} limit={limit} isMock={isMockMode()} />
+        <GenerateVideoForm
+          initialRemaining={remaining}
+          limit={limit}
+          isMock={isMockMode()}
+          models={models}
+        />
       </div>
     </div>
   );

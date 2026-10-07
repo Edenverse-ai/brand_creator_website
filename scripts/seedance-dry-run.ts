@@ -7,12 +7,12 @@
  * Usage (Git Bash):
  *   npx tsx scripts/seedance-dry-run.ts
  *   npx tsx --env-file=.env.local scripts/seedance-dry-run.ts --prompt "a cat" --image https://...
+ *   npx tsx scripts/seedance-dry-run.ts --mode seedance2.5 --duration 8
  *
  * Compare the output with the curl examples in the provider doc before any
  * manual live test.
  */
 import { buildCreateRequest } from "../src/lib/seedance/client";
-import { getSeedanceMode } from "../src/lib/seedance/config";
 import { generationParamsSchema } from "../src/lib/seedance/schema";
 
 function arg(name: string): string | undefined {
@@ -28,16 +28,18 @@ function mask(key: string): string {
 const baseUrl = process.env.VIDEO_API_BASE_URL?.trim() || "{BASE_URL}";
 const apiKey = process.env.VIDEO_API_KEY?.trim() ?? "";
 
+const params = generationParamsSchema.parse({
+  mode: arg("mode"),
+  ratio: arg("ratio"),
+  duration: arg("duration") ? Number(arg("duration")) : undefined,
+  resolution: arg("resolution"),
+  generateAudio: arg("audio") ? arg("audio") === "true" : undefined,
+});
+
 const { url, init } = buildCreateRequest(
   {
     prompt: arg("prompt") ?? "A cat running through long grass, cinematic, golden hour",
-    mode: getSeedanceMode(),
-    params: generationParamsSchema.parse({
-      ratio: arg("ratio"),
-      duration: arg("duration") ? Number(arg("duration")) : undefined,
-      resolution: arg("resolution"),
-      generateAudio: arg("audio") ? arg("audio") === "true" : undefined,
-    }),
+    params,
     referenceImageUrl: arg("image") ?? null,
   },
   { baseUrl, apiKey: mask(apiKey) }

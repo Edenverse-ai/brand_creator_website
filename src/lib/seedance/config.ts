@@ -9,7 +9,6 @@
 export const SEEDANCE_MODES = ["fast", "pro", "mini", "seedance2.5"] as const;
 export type SeedanceMode = (typeof SEEDANCE_MODES)[number];
 
-const DEFAULT_MODE: SeedanceMode = "seedance2.5";
 const DEFAULT_DAILY_LIMIT = 5;
 
 export const CREATE_PATH = "/ai-open-platform-api/v1/lz/video/task/create";
@@ -17,13 +16,6 @@ export const STATUS_PATH = "/ai-open-platform-api/v1/lz/video/task/status";
 
 /** Minimum the provider allows; a stuck task fails within an hour, uncharged. */
 export const EXECUTION_EXPIRES_AFTER_SECONDS = 3600;
-
-export function getSeedanceMode(): SeedanceMode {
-  const raw = process.env.SEEDANCE_MODE?.trim();
-  return (SEEDANCE_MODES as readonly string[]).includes(raw ?? "")
-    ? (raw as SeedanceMode)
-    : DEFAULT_MODE;
-}
 
 export function getDailyLimit(): number {
   const parsed = Number.parseInt(process.env.AI_VIDEO_DAILY_LIMIT ?? "", 10);

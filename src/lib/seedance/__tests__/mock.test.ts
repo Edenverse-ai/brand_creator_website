@@ -5,6 +5,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { MOCK_DELAY_MS, mockProvider } from "../mock";
 
 const params = {
+  mode: "mini" as const,
   ratio: "9:16" as const,
   duration: 5 as const,
   resolution: "480p" as const,
@@ -29,7 +30,7 @@ afterEach(() => {
 
 describe("mockProvider", () => {
   it("is in progress until the delay has passed, then succeeds", async () => {
-    const { taskId } = await mockProvider.createTask({ prompt: "cat", mode: "mini", params });
+    const { taskId } = await mockProvider.createTask({ prompt: "cat", params });
     expect(taskId).toMatch(/^mock-/);
 
     expect((await mockProvider.getTaskStatus(taskId)).state).toBe("in_progress");
@@ -42,7 +43,6 @@ describe("mockProvider", () => {
   it("fails after the delay when the prompt contains [mock-fail]", async () => {
     const { taskId } = await mockProvider.createTask({
       prompt: "cat [mock-fail]",
-      mode: "mini",
       params,
     });
     vi.advanceTimersByTime(MOCK_DELAY_MS + 1);
@@ -50,7 +50,7 @@ describe("mockProvider", () => {
   });
 
   it("keeps no state between calls (works across serverless instances)", async () => {
-    const { taskId } = await mockProvider.createTask({ prompt: "cat", mode: "mini", params });
+    const { taskId } = await mockProvider.createTask({ prompt: "cat", params });
     vi.advanceTimersByTime(MOCK_DELAY_MS + 1);
     // A different module instance would only see the id — the id alone must be enough.
     const { mockProvider: fresh } = await import("../mock");
@@ -58,7 +58,7 @@ describe("mockProvider", () => {
   });
 
   it("downloads the embedded sample video without network access", async () => {
-    const { taskId } = await mockProvider.createTask({ prompt: "cat", mode: "mini", params });
+    const { taskId } = await mockProvider.createTask({ prompt: "cat", params });
     vi.advanceTimersByTime(MOCK_DELAY_MS + 1);
     const status = await mockProvider.getTaskStatus(taskId);
     if (status.state !== "succeeded") throw new Error("expected success");

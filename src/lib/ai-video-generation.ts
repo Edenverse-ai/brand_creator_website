@@ -6,7 +6,7 @@ import { buildFinalizeAuthHeaders } from "@/lib/ai-video-finalize-auth";
 import { fetchWithTimeout } from "@/lib/tiktok/fetch-with-timeout";
 import { getVideoProvider } from "@/lib/seedance";
 import { mockProvider } from "@/lib/seedance/mock";
-import { getDailyLimit, getSeedanceMode } from "@/lib/seedance/config";
+import { getDailyLimit } from "@/lib/seedance/config";
 import {
   CREATOR_MESSAGES,
   describeProviderFailure,
@@ -63,7 +63,6 @@ export async function submitTask(taskId: string): Promise<void> {
     select: { id: true, prompt: true, portraitPath: true, params: true },
   });
   const params = generationParamsSchema.parse(task.params ?? {});
-  const mode = getSeedanceMode();
 
   let provider: VideoProvider | null = null;
   try {
@@ -77,7 +76,6 @@ export async function submitTask(taskId: string): Promise<void> {
 
     const created = await provider.createTask({
       prompt: task.prompt,
-      mode,
       params,
       referenceImageUrl,
     });
@@ -89,7 +87,6 @@ export async function submitTask(taskId: string): Promise<void> {
         provider: provider.name,
         providerTaskId: created.taskId,
         traceId: created.traceId,
-        params: { ...params, mode },
         lastCheckedAt: new Date(),
       },
     });

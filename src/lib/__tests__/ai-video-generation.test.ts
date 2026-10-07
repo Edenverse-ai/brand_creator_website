@@ -77,7 +77,13 @@ import {
 } from "../ai-video-generation";
 
 const NOW = new Date("2026-10-05T12:00:00Z");
-const params = { ratio: "9:16", duration: 5, resolution: "720p", generateAudio: true };
+const params = {
+  mode: "mini",
+  ratio: "9:16",
+  duration: 5,
+  resolution: "720p",
+  generateAudio: true,
+};
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -86,7 +92,6 @@ beforeEach(() => {
   liveProvider = fakeProvider("ai-open-platform");
   mock = fakeProvider("mock");
   db.transaction.mockImplementation(async (ops: unknown[]) => Promise.all(ops));
-  vi.stubEnv("SEEDANCE_MODE", "mini");
   vi.stubEnv("DEPLOY_PRIME_URL", "");
   vi.stubEnv("URL", "");
 });
@@ -126,7 +131,6 @@ describe("submitTask", () => {
     expect(liveProvider.createTask).toHaveBeenCalledTimes(1);
     expect(liveProvider.createTask).toHaveBeenCalledWith({
       prompt: "a cat",
-      mode: "mini",
       params,
       referenceImageUrl: null,
     });
@@ -137,10 +141,35 @@ describe("submitTask", () => {
         provider: "ai-open-platform",
         providerTaskId: "kz-1",
         traceId: "tr-1",
-        params: { ...params, mode: "mini" },
         lastCheckedAt: NOW,
       },
     });
+  });
+
+  it("generates with the model saved on the task; older tasks without one use mini", async () => {
+    db.updateMany.mockResolvedValue({ count: 1 });
+    liveProvider.createTask.mockResolvedValue({ taskId: "kz-1", traceId: null });
+
+    db.findUniqueOrThrow.mockResolvedValue({
+      id: "t1",
+      prompt: "a cat",
+      portraitPath: null,
+      params: { ...params, mode: "seedance2.5", duration: 8 },
+    });
+    await submitTask("t1");
+    expect(liveProvider.createTask.mock.calls[0][0].params).toMatchObject({
+      mode: "seedance2.5",
+      duration: 8,
+    });
+
+    db.findUniqueOrThrow.mockResolvedValue({
+      id: "t2",
+      prompt: "a cat",
+      portraitPath: null,
+      params: { ratio: "9:16", duration: 10 },
+    });
+    await submitTask("t2");
+    expect(liveProvider.createTask.mock.calls[1][0].params.mode).toBe("mini");
   });
 
   it("passes a 6-hour signed URL for the reference image", async () => {

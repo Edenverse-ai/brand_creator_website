@@ -10,19 +10,18 @@ import {
   Loader2,
   RotateCcw,
   Sparkles,
-  Volume2,
-  VolumeX,
   X,
 } from "lucide-react";
 import { PORTRAIT_MAX_BYTES, PORTRAIT_MIME_TO_EXT, type PortraitMime } from "@/lib/ai-video-task";
+import type { SeedanceMode } from "@/lib/seedance/config";
+import type { Ratio } from "@/lib/seedance/schema";
 import {
-  DURATIONS,
-  RATIOS,
-  RESOLUTIONS,
-  type Duration,
-  type Ratio,
-  type Resolution,
-} from "@/lib/seedance/schema";
+  FormatFields,
+  FormatPopover,
+  ModelPicker,
+  type FormatValue,
+  type ModelOption,
+} from "./GenerationControls";
 
 const PROMPT_MAX = 5000;
 const POLL_INTERVAL_MS = 10_000;
@@ -32,6 +31,13 @@ const IMAGE_MAX_SIDE = 6000;
 const IMAGE_MIN_ASPECT = 0.4;
 const IMAGE_MAX_ASPECT = 2.5;
 const GENERIC_FAILURE = "Video generation failed. You were not charged — please try again.";
+
+const PROMPT_PLACEHOLDER =
+  'Describe the subject, action, scene, style, camera movement and sound. Example: A barista slides a latte across a sunlit counter, slow push-in, warm film look. She smiles and says "Your usual."';
+
+// Below lg each section is its own card; from lg up they share one composer card.
+const CARD_BELOW_LG =
+  "max-lg:rounded-2xl max-lg:border max-lg:border-slate-100 max-lg:bg-white max-lg:p-6 max-lg:shadow-sm";
 
 const RATIO_ASPECT: Record<Ratio, string> = {
   "9:16": "9 / 16",
@@ -107,63 +113,32 @@ function formatElapsed(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-function OptionGroup<T extends string | number>({
-  label,
-  options,
-  value,
-  onChange,
-  format = (option) => String(option),
-}: {
-  label: string;
-  options: readonly T[];
-  value: T;
-  onChange: (value: T) => void;
-  format?: (option: T) => string;
-}) {
-  return (
-    <div>
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
-      <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label={label}>
-        {options.map((option) => {
-          const selected = option === value;
-          return (
-            <button
-              key={String(option)}
-              type="button"
-              aria-pressed={selected}
-              onClick={() => onChange(option)}
-              className={`rounded-full border px-4 py-1.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                selected
-                  ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900"
-              }`}
-            >
-              {format(option)}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 export default function GenerateVideoForm({
   initialRemaining,
   limit,
   isMock,
+  models,
 }: {
   initialRemaining: number;
   limit: number;
   isMock: boolean;
+  models: ModelOption[];
 }) {
   const [prompt, setPrompt] = useState("");
   const [image, setImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
-  const [ratio, setRatio] = useState<Ratio>("9:16");
-  const [duration, setDuration] = useState<Duration>(5);
-  const [resolution, setResolution] = useState<Resolution>("720p");
-  const [generateAudio, setGenerateAudio] = useState(true);
+  const [mode, setMode] = useState<SeedanceMode>(
+    () => models.find((model) => !model.locked)?.mode ?? "mini"
+  );
+  const [format, setFormat] = useState<FormatValue>({
+    ratio: "9:16",
+    resolution: "720p",
+    duration: 5,
+    generateAudio: true,
+  });
+  const patchFormat = (patch: Partial<FormatValue>) =>
+    setFormat((current) => ({ ...current, ...patch }));
   const [remaining, setRemaining] = useState(initialRemaining);
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [formError, setFormError] = useState<string | null>(null);
@@ -259,7 +234,7 @@ export default function GenerateVideoForm({
         body: JSON.stringify({
           prompt: trimmed,
           ...(upload ? { taskId: upload.taskId, portrait_path: upload.path } : {}),
-          params: { ratio, duration, resolution, generateAudio },
+          params: { mode, ...format },
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -292,6 +267,24 @@ export default function GenerateVideoForm({
     setElapsed(0);
   };
 
+  const generateButton = (
+    <button
+      type="submit"
+      disabled={busy || !prompt.trim() || remaining <= 0}
+      className="group relative inline-flex items-center justify-center overflow-hidden rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 px-6 py-3 text-sm font-semibold text-white shadow-lg transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 disabled:cursor-not-allowed disabled:opacity-60 lg:py-2.5"
+    >
+      <span className="absolute inset-0 bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+      <span className="relative inline-flex items-center gap-2">
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+        {phase.kind === "submitting"
+          ? "Submitting…"
+          : phase.kind === "generating"
+            ? "Generating…"
+            : "Generate video"}
+      </span>
+    </button>
+  );
+
   return (
     <div className="space-y-6">
       {isMock && (
@@ -304,149 +297,164 @@ export default function GenerateVideoForm({
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-[1.25fr_1fr]">
+      <div className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
         <form className="space-y-6" onSubmit={handleSubmit} noValidate>
-          <fieldset disabled={busy} className="space-y-6">
-            <section className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-              <div className="flex items-baseline justify-between gap-4">
-                <label
-                  htmlFor="prompt"
-                  className="text-sm font-semibold uppercase tracking-wide text-slate-500"
-                >
-                  Prompt
-                </label>
-                <span className="text-xs tabular-nums text-slate-400">
-                  {prompt.length}/{PROMPT_MAX}
-                </span>
-              </div>
-              <p className="mt-2 text-sm text-slate-600">
-                Describe the subject, action, scene, style, camera movement and sound. Put spoken
-                lines in quotes.
-              </p>
-              <textarea
-                id="prompt"
-                name="prompt"
-                rows={7}
-                maxLength={PROMPT_MAX}
-                placeholder='Example: A barista slides a latte across a sunlit counter, slow push-in, warm film look. She smiles and says "Your usual."'
-                className="mt-4 w-full rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3 text-sm text-slate-700 transition focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100"
-                value={prompt}
-                onChange={(event) => setPrompt(event.target.value)}
-              />
-            </section>
-
-            <section className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                Reference image <span className="normal-case text-slate-400">· optional</span>
-              </h2>
-              <p className="mt-2 text-sm text-slate-600">
-                Guide the look, a product or a character — including yourself. Only upload images
-                you have the rights to use.
-              </p>
-
-              {previewUrl ? (
-                <div className="mt-4 flex items-center gap-4 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
-                  <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-slate-100">
-                    <Image
-                      src={previewUrl}
-                      alt="Reference image preview"
-                      fill
-                      unoptimized
-                      sizes="80px"
-                      className="object-cover"
-                    />
-                  </div>
-                  <p className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">
-                    {image?.name}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={clearImage}
-                    className="grid h-8 w-8 place-items-center rounded-full text-slate-500 transition hover:bg-slate-200 hover:text-slate-900"
-                    aria-label="Remove reference image"
+          <fieldset
+            disabled={busy}
+            className="space-y-6 lg:space-y-4 lg:rounded-2xl lg:border lg:border-slate-100 lg:bg-white lg:p-5 lg:shadow-sm"
+          >
+            <div className="space-y-6 lg:flex lg:flex-row-reverse lg:items-start lg:gap-4 lg:space-y-0">
+              <section className={`${CARD_BELOW_LG} lg:min-w-0 lg:flex-1`}>
+                <div className="flex items-baseline justify-between gap-4 lg:sr-only">
+                  <label
+                    htmlFor="prompt"
+                    className="text-sm font-semibold uppercase tracking-wide text-slate-500"
                   >
-                    <X className="h-4 w-4" />
-                  </button>
+                    Prompt
+                  </label>
+                  <span className="text-xs tabular-nums text-slate-400">
+                    {prompt.length}/{PROMPT_MAX}
+                  </span>
                 </div>
-              ) : (
-                <label
-                  htmlFor="reference-image"
-                  className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-indigo-200 bg-indigo-50/40 p-6 text-center transition hover:border-indigo-400 hover:bg-indigo-50"
-                >
-                  <ImagePlus className="h-9 w-9 text-indigo-500" />
-                  <span className="mt-3 text-sm font-semibold text-indigo-700">
-                    Upload reference image
-                  </span>
-                  <span className="mt-1 text-xs text-slate-500">
-                    JPG, PNG or WebP · up to 10 MB · at least 300 px per side
-                  </span>
-                </label>
-              )}
-              <input
-                id="reference-image"
-                name="reference-image"
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                className="hidden"
-                ref={imageInputRef}
-                onChange={handleImageChange}
-              />
-              {imageError && <p className="mt-3 text-xs font-medium text-rose-600">{imageError}</p>}
-            </section>
+                <p className="mt-2 text-sm text-slate-600 lg:hidden">
+                  Describe the subject, action, scene, style, camera movement and sound. Put spoken
+                  lines in quotes.
+                </p>
+                <textarea
+                  id="prompt"
+                  name="prompt"
+                  rows={7}
+                  maxLength={PROMPT_MAX}
+                  placeholder={PROMPT_PLACEHOLDER}
+                  className="mt-4 w-full rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3 text-sm text-slate-700 transition focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100 lg:mt-0 lg:resize-none lg:border-transparent lg:bg-transparent lg:px-1 lg:py-1 lg:focus:border-transparent lg:focus:ring-0"
+                  value={prompt}
+                  onChange={(event) => setPrompt(event.target.value)}
+                />
+              </section>
 
-            <section className="space-y-5 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+              <section className={`${CARD_BELOW_LG} lg:w-28 lg:shrink-0`}>
+                <div className="lg:hidden">
+                  <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                    Reference image <span className="normal-case text-slate-400">· optional</span>
+                  </h2>
+                  <p className="mt-2 text-sm text-slate-600">
+                    Guide the look, a product or a character — including yourself. Only upload
+                    images you have the rights to use.
+                  </p>
+                </div>
+
+                {previewUrl ? (
+                  <>
+                    <div className="mt-4 flex items-center gap-4 rounded-xl border border-slate-200 bg-slate-50/60 p-3 lg:hidden">
+                      <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-lg bg-slate-100">
+                        <Image
+                          src={previewUrl}
+                          alt="Reference image preview"
+                          fill
+                          unoptimized
+                          sizes="80px"
+                          className="object-cover"
+                        />
+                      </div>
+                      <p className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700">
+                        {image?.name}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={clearImage}
+                        className="grid h-8 w-8 place-items-center rounded-full text-slate-500 transition hover:bg-slate-200 hover:text-slate-900"
+                        aria-label="Remove reference image"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="relative hidden h-28 w-28 overflow-hidden rounded-xl bg-slate-100 lg:block">
+                      <Image
+                        src={previewUrl}
+                        alt="Reference image preview"
+                        fill
+                        unoptimized
+                        sizes="112px"
+                        className="object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={clearImage}
+                        className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-white transition hover:bg-black/80"
+                        aria-label="Remove reference image"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <label
+                    htmlFor="reference-image"
+                    title="JPG, PNG or WebP · up to 10 MB · at least 300 px per side. Only upload images you have the rights to use."
+                    className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-indigo-200 bg-indigo-50/40 p-6 text-center transition hover:border-indigo-400 hover:bg-indigo-50 lg:mt-0 lg:h-28 lg:w-28 lg:p-2"
+                  >
+                    <ImagePlus className="h-9 w-9 text-indigo-500 lg:h-6 lg:w-6" />
+                    <span className="mt-3 text-sm font-semibold text-indigo-700 lg:hidden">
+                      Upload reference image
+                    </span>
+                    <span className="mt-1 text-xs text-slate-500 lg:hidden">
+                      JPG, PNG or WebP · up to 10 MB · at least 300 px per side
+                    </span>
+                    <span className="mt-1.5 hidden text-[11px] font-semibold leading-tight text-indigo-700 lg:block">
+                      Reference image
+                    </span>
+                    <span className="hidden text-[10px] text-slate-400 lg:block">optional</span>
+                  </label>
+                )}
+                <input
+                  id="reference-image"
+                  name="reference-image"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  ref={imageInputRef}
+                  onChange={handleImageChange}
+                />
+                {imageError && (
+                  <p className="mt-3 text-xs font-medium text-rose-600 lg:hidden">{imageError}</p>
+                )}
+              </section>
+            </div>
+
+            {imageError && (
+              <p className="hidden text-xs font-medium text-rose-600 lg:block">{imageError}</p>
+            )}
+
+            {/* Small screens: model and format as their own card. */}
+            <section className={`${CARD_BELOW_LG} space-y-5 lg:hidden`}>
               <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
                 Format
               </h2>
-              <OptionGroup
-                label="Aspect ratio"
-                options={RATIOS}
-                value={ratio}
-                onChange={setRatio}
-              />
-              <OptionGroup
-                label="Duration"
-                options={DURATIONS}
-                value={duration}
-                onChange={setDuration}
-                format={(seconds) => `${seconds}s`}
-              />
-              <OptionGroup
-                label="Resolution"
-                options={RESOLUTIONS}
-                value={resolution}
-                onChange={setResolution}
-              />
-              <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3">
-                <div className="flex items-center gap-3">
-                  {generateAudio ? (
-                    <Volume2 className="h-4 w-4 text-indigo-500" />
-                  ) : (
-                    <VolumeX className="h-4 w-4 text-slate-400" />
-                  )}
-                  <div>
-                    <p className="text-sm font-semibold text-slate-700">Generate audio</p>
-                    <p className="text-xs text-slate-500">Voices, sound effects and music.</p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={generateAudio}
-                  aria-label="Generate audio"
-                  onClick={() => setGenerateAudio((value) => !value)}
-                  className={`relative h-6 w-11 shrink-0 rounded-full transition disabled:opacity-60 ${
-                    generateAudio ? "bg-indigo-500" : "bg-slate-300"
-                  }`}
-                >
-                  <span
-                    className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
-                      generateAudio ? "left-[22px]" : "left-0.5"
-                    }`}
-                  />
-                </button>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Model
+                </p>
+                <ModelPicker
+                  models={models}
+                  value={mode}
+                  onChange={setMode}
+                  className="mt-2 w-full"
+                />
               </div>
+              <FormatFields value={format} onChange={patchFormat} />
             </section>
+
+            {/* Large screens: model and format tucked under the prompt. */}
+            <div className="hidden flex-wrap items-center gap-2 lg:flex">
+              <ModelPicker models={models} value={mode} onChange={setMode} />
+              <FormatPopover value={format} onChange={patchFormat} />
+              <div className="ml-auto flex items-center gap-3">
+                <span className="text-xs tabular-nums text-slate-400">
+                  {prompt.length}/{PROMPT_MAX}
+                </span>
+                {generateButton}
+              </div>
+            </div>
           </fieldset>
 
           {formError && (
@@ -467,36 +475,18 @@ export default function GenerateVideoForm({
                 Generation can&apos;t be cancelled once started.
               </p>
             </div>
-            <button
-              type="submit"
-              disabled={busy || !prompt.trim() || remaining <= 0}
-              className="group relative inline-flex items-center justify-center overflow-hidden rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 px-6 py-3 text-sm font-semibold text-white shadow-lg transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <span className="absolute inset-0 bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
-              <span className="relative inline-flex items-center gap-2">
-                {busy ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Sparkles className="h-4 w-4" />
-                )}
-                {phase.kind === "submitting"
-                  ? "Submitting…"
-                  : phase.kind === "generating"
-                    ? "Generating…"
-                    : "Generate video"}
-              </span>
-            </button>
+            <div className="lg:hidden">{generateButton}</div>
           </div>
         </form>
 
-        <aside className="h-fit space-y-4 lg:sticky lg:top-6">
+        <aside className="h-fit space-y-4 xl:sticky xl:top-6">
           <section className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
               Preview
             </h2>
             <div
               className="relative mx-auto mt-4 w-full max-w-sm overflow-hidden rounded-xl bg-slate-900"
-              style={{ aspectRatio: RATIO_ASPECT[ratio] }}
+              style={{ aspectRatio: RATIO_ASPECT[format.ratio] }}
             >
               {phase.kind === "delivered" && phase.videoUrl ? (
                 <video

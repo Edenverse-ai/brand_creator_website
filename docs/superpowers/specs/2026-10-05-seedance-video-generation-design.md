@@ -42,8 +42,8 @@ Each creator has a daily generation cap.
 
 Request fields used: `prompt`, `mode`, `images[{url, role}]`, `resolution`, `ratio`, `duration`, `generate_audio`, `watermark`, `output_format`, `execution_expires_after`.
 
-- `mode` is always sent explicitly (default `seedance2.5` via `SEEDANCE_MODE`). Without it the gateway validates as `fast`.
-- `seedance2.5` supports only `480p` / `720p` and 4–30 s. The UI offers `480p` / `720p` and 5 / 10 / 15 s, valid for every mode.
+- `mode` is always sent explicitly: the model the creator picked, saved on the task's `params`. Without it the gateway validates as `fast`.
+- `seedance2.5` supports only `480p` / `720p` and 4–30 s. The UI offers `480p` / `720p` and 4–15 s, valid for every mode.
 - Reference images use `role: "reference_image"`, so any `ratio` is allowed. (`first_frame` would force `adaptive` on 2.5.)
 - Image `url` must be HTTP(S) or `asset://`. We pass a Supabase signed URL valid for 6 hours.
 - The platform auto-whitelists real people in directly passed image URLs, so a creator may use their own photo.
@@ -196,14 +196,17 @@ Creators are told why a generation failed. For reasons that aren't recognised, t
 
 ## 8. UI — `/creatorportal/ai-video/generate`
 
-Existing portal styling (white `rounded-2xl` cards, slate text, indigo accents, the existing gradient primary button). Two columns on desktop, stacked on mobile.
+Existing portal styling (white `rounded-2xl` cards, slate text, indigo accents, the existing gradient primary button).
+
+From `lg` up the inputs are one composer card: reference-image tile and prompt on top, and underneath a toolbar with the model picker (dropdown), the format button (popover with ratio, resolution, duration, audio), the character counter and Generate. Below `lg` the inputs stay stacked as separate cards (Prompt, Reference image, Format) with the same model picker and format fields inline. The preview sits beside the inputs from `xl` up and below them otherwise.
 
 **Left column — inputs:**
 
 - Prompt textarea with a character counter (5000) and a hint line: subject + action + scene + style + camera + sound.
 - Optional reference image upload: preview, remove, client-side validation (jpg/png/webp, ≤ 10 MB, 300–6000 px per side, aspect ratio 0.4–2.5). Note: "Only upload images you have the rights to use."
-- Aspect ratio segmented control: 9:16 (default), 16:9, 1:1, 3:4, 4:3.
-- Duration: 5 / 10 / 15 s. Resolution: 720p / 480p.
+- Model: Seedance 2.0 Mini (free, default), Seedance 2.0 Fast, Seedance 2.0 Pro, Seedance 2.5 (`src/lib/seedance/models.ts`). Models outside `getUnlockedModes()` carry a PRO badge and are disabled; `POST /api/ai-videos/tasks` rejects them with 403. There is no upgrade purchase yet, so the unlocked set is site-wide (`AI_VIDEO_UNLOCKED_MODELS`).
+- Aspect ratio: 9:16 (default), 16:9, 1:1, 3:4, 4:3, each with a glyph drawn at the ratio's proportions.
+- Duration: slider, any whole second from 4 to 15 (default 5). Resolution: 720p / 480p.
 - "Generate audio" toggle (on by default).
 - "N generations left today".
 - Generate button: disabled while submitting or when the cap is reached; small print "Generation can't be cancelled once started."
@@ -222,13 +225,13 @@ Existing portal styling (white `rounded-2xl` cards, slate text, indigo accents, 
 
 ## 9. Configuration
 
-| Variable               | Default       | Notes                                         |
-| ---------------------- | ------------- | --------------------------------------------- |
-| `VIDEO_API_BASE_URL`   | —             | From the provider console. Required for live. |
-| `VIDEO_API_KEY`        | —             | Required for live. Never logged or committed. |
-| `SEEDANCE_LIVE`        | off           | `1` enables live calls (with the two above).  |
-| `SEEDANCE_MODE`        | `seedance2.5` | `fast` / `pro` / `mini` / `seedance2.5`.      |
-| `AI_VIDEO_DAILY_LIMIT` | `5`           | Per creator per UTC day.                      |
+| Variable                   | Default | Notes                                            |
+| -------------------------- | ------- | ------------------------------------------------ |
+| `VIDEO_API_BASE_URL`       | —       | From the provider console. Required for live.    |
+| `VIDEO_API_KEY`            | —       | Required for live. Never logged or committed.    |
+| `SEEDANCE_LIVE`            | off     | `1` enables live calls (with the two above).     |
+| `AI_VIDEO_UNLOCKED_MODELS` | (none)  | Extra model ids creators may use besides `mini`. |
+| `AI_VIDEO_DAILY_LIMIT`     | `5`     | Per creator per UTC day.                         |
 
 **Production note:** Netlify functions have no fixed egress IP. The production key must not have a source-IP allowlist (or a static egress must be arranged).
 

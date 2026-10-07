@@ -1,9 +1,7 @@
-import type { SeedanceMode } from "./config";
 import type { GenerationParams } from "./schema";
 
 export interface CreateVideoTaskInput {
   prompt: string;
-  mode: SeedanceMode;
   params: GenerationParams;
   /** Publicly readable HTTPS URL (signed Supabase URL). Omitted for text-to-video. */
   referenceImageUrl?: string | null;

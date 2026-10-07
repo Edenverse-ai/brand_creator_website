@@ -45,7 +45,7 @@ export function buildCreateBody(input: CreateVideoTaskInput): Record<string, unk
   return {
     prompt: input.prompt,
     // Always explicit: without it the gateway validates against `fast` limits.
-    mode: input.mode,
+    mode: input.params.mode,
     resolution: input.params.resolution,
     ratio: input.params.ratio,
     duration: input.params.duration,

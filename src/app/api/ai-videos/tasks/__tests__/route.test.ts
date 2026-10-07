@@ -68,7 +68,13 @@ const validBody = {
   voice_path: `${OWNER}/taskabc/voice.mp3`,
 };
 
-const DEFAULT_PARAMS = { ratio: "9:16", duration: 5, resolution: "720p", generateAudio: true };
+const DEFAULT_PARAMS = {
+  mode: "mini",
+  ratio: "9:16",
+  duration: 5,
+  resolution: "720p",
+  generateAudio: true,
+};
 
 describe("POST /api/ai-videos/tasks (JSON path)", () => {
   beforeEach(() => {
@@ -110,6 +116,33 @@ describe("POST /api/ai-videos/tasks (JSON path)", () => {
 
     expect(res.status).toBe(400);
     expect(aiVideoTaskCreate).not.toHaveBeenCalled();
+  });
+
+  it("returns 403 for a model that is not unlocked, without creating a task", async () => {
+    (getServerSession as any).mockResolvedValue({ user: { id: OWNER } });
+
+    const res = await POST(jsonRequest({ ...validBody, params: { mode: "pro" } }) as never);
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: "This model requires an upgrade." });
+    expect(aiVideoTaskCreate).not.toHaveBeenCalled();
+    expect(submitTask).not.toHaveBeenCalled();
+  });
+
+  it("accepts a model unlocked through AI_VIDEO_UNLOCKED_MODELS", async () => {
+    vi.stubEnv("AI_VIDEO_UNLOCKED_MODELS", "mini, seedance2.5");
+    aiVideoTaskCreate.mockResolvedValue({ id: "taskabc", status: "QUEUED" });
+    (getServerSession as any).mockResolvedValue({ user: { id: OWNER } });
+
+    const res = await POST(jsonRequest({ ...validBody, params: { mode: "seedance2.5" } }) as never);
+    vi.unstubAllEnvs();
+
+    expect(res.status).toBe(200);
+    expect(aiVideoTaskCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ params: { ...DEFAULT_PARAMS, mode: "seedance2.5" } }),
+      })
+    );
   });
 
   it("returns 429 with remaining 0 when the daily cap is reached", async () => {

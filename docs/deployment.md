@@ -52,13 +52,13 @@ Additional secrets (Supabase, TikTok, email) mirror what you have in `.env.local
 
 ### AI video generation
 
-| Variable               | Purpose                                                                             |
-| ---------------------- | ----------------------------------------------------------------------------------- |
-| `SEEDANCE_LIVE`        | `1` enables real, billable generation. Leave unset (mock) until launch is approved. |
-| `VIDEO_API_BASE_URL`   | Base URL from the AI Open Platform console. No default in code.                     |
-| `VIDEO_API_KEY`        | Provider `ApiKey`. Never logged.                                                    |
-| `SEEDANCE_MODE`        | `fast` / `pro` / `mini` / `seedance2.5` (default `seedance2.5`).                    |
-| `AI_VIDEO_DAILY_LIMIT` | Generations per creator per UTC day (default 5).                                    |
+| Variable                   | Purpose                                                                                                                                                     |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SEEDANCE_LIVE`            | `1` enables real, billable generation. Leave unset (mock) until launch is approved.                                                                         |
+| `VIDEO_API_BASE_URL`       | Base URL from the AI Open Platform console. No default in code.                                                                                             |
+| `VIDEO_API_KEY`            | Provider `ApiKey`. Never logged.                                                                                                                            |
+| `AI_VIDEO_UNLOCKED_MODELS` | Comma-separated model ids creators may use besides the free `mini` (`fast`, `pro`, `seedance2.5`). Default: none — the others show as PRO and are rejected. |
+| `AI_VIDEO_DAILY_LIMIT`     | Generations per creator per UTC day (default 5).                                                                                                            |
 
 Live calls need all three of `SEEDANCE_LIVE`, `VIDEO_API_BASE_URL` and `VIDEO_API_KEY`; otherwise the app uses the mock provider.
 

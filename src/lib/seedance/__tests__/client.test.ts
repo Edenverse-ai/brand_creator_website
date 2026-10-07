@@ -17,8 +17,8 @@ const KEY = "sk-test-SECRET-KEY";
 
 const input = {
   prompt: "a cat running through long grass",
-  mode: "seedance2.5" as const,
   params: {
+    mode: "seedance2.5" as const,
     ratio: "9:16" as const,
     duration: 5 as const,
     resolution: "720p" as const,
