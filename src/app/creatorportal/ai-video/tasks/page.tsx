@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getServerSession } from "next-auth";
@@ -27,7 +28,9 @@ export default async function TasksPage() {
     take: SYNC_ON_RENDER_LIMIT,
     select: { id: true },
   });
-  await Promise.allSettled(inProgress.map((task) => syncTask(task.id)));
+  const host = (await headers()).get("host");
+  const origin = host ? `https://${host}` : undefined;
+  await Promise.allSettled(inProgress.map((task) => syncTask(task.id, { origin })));
 
   const rows = await prisma.aiVideoTask.findMany({
     where: { creatorId: session.user.id },

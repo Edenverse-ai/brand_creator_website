@@ -114,7 +114,7 @@ export async function submitTask(taskId: string): Promise<void> {
   }
 }
 
-export async function syncTask(taskId: string): Promise<void> {
+export async function syncTask(taskId: string, options: { origin?: string } = {}): Promise<void> {
   const task = await prisma.aiVideoTask.findUnique({
     where: { id: taskId },
     select: {
@@ -176,16 +176,49 @@ export async function syncTask(taskId: string): Promise<void> {
   }
 
   await prisma.aiVideoTask.update({ where: { id: taskId }, data: { lastCheckedAt: now } });
-  await requestFinalize(taskId);
+  await requestFinalize(taskId, options.origin);
+}
+
+/**
+ * Base URL of the deploy whose background function should run the finalize, or
+ * null off Netlify.
+ *
+ * Netlify's function runtime only exposes URL, which is always the production
+ * site — DEPLOY_PRIME_URL exists at build time only. Dispatching to URL from a
+ * deploy preview therefore hits production (a different build, and a 404 when the
+ * function isn't released there yet). Prefer the origin the request arrived on,
+ * but only when it is this site's own host, so a forged Host header can't point
+ * the signed dispatch elsewhere.
+ */
+function finalizeDispatchBase(origin: string | undefined): string | null {
+  const siteUrl = process.env.URL;
+  if (!siteUrl) return null;
+
+  if (origin) {
+    try {
+      const host = new URL(origin).host;
+      const siteName = process.env.SITE_NAME;
+      const isSiteHost = host === new URL(siteUrl).host;
+      const isDeployHost = siteName
+        ? host === `${siteName}.netlify.app` || host.endsWith(`--${siteName}.netlify.app`)
+        : // SITE_NAME not exposed: the site can't be checked, so accept any Netlify
+          // deploy host. Worst case a forged host receives a 5-minute signature that
+          // can only finalize this one task (a no-op once it is finalized).
+          /^[a-z0-9-]+--[a-z0-9-]+\.netlify\.app$/.test(host);
+      if (isSiteHost || isDeployHost) return `https://${host}`;
+    } catch {
+      // unparseable origin: fall through to the site URL
+    }
+  }
+  return siteUrl.replace(/\/$/, "");
 }
 
 /**
  * On Netlify, hands the copy to the background function (15-minute budget);
- * elsewhere (local `next dev`) runs it inline. Same base-URL detection as
- * src/lib/tiktok/background-dispatch.ts.
+ * elsewhere (local `next dev`) runs it inline.
  */
-async function requestFinalize(taskId: string): Promise<void> {
-  const base = process.env.DEPLOY_PRIME_URL || process.env.URL;
+async function requestFinalize(taskId: string, origin?: string): Promise<void> {
+  const base = finalizeDispatchBase(origin);
   if (!base) {
     await finalizeTask(taskId);
     return;
@@ -193,7 +226,7 @@ async function requestFinalize(taskId: string): Promise<void> {
 
   try {
     const res = await fetchWithTimeout(
-      `${base.replace(/\/$/, "")}/.netlify/functions/ai-video-finalize-background`,
+      `${base}/.netlify/functions/ai-video-finalize-background`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json", ...buildFinalizeAuthHeaders(taskId) },

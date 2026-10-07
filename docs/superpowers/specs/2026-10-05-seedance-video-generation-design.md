@@ -84,7 +84,9 @@ Netlify scheduled function, every 10 min
   └─ for each GENERATING task: syncTask()      (no reliance on the creator returning)
 ```
 
-**Where finalize runs.** A 15 s 720p video can be tens of MB, too risky for a normal Netlify function timeout. On Netlify, `syncTask` dispatches `netlify/functions/ai-video-finalize-background.ts` (15-minute budget) with only `{ taskId }`. The background function re-reads the task and the provider status, so the payload carries no URLs. The dispatch is HMAC-signed with a new `src/lib/ai-video-finalize-auth.ts`. It follows the same pattern as `src/lib/tiktok/relay-auth.ts` (secret derived from `NEXTAUTH_SECRET`, timestamp window), with its own context string, because the TikTok signer is typed to the TikTok relay payload. Off Netlify (local `next dev`), finalize runs inline, using the same environment detection as `src/lib/tiktok/background-dispatch.ts`.
+**Where finalize runs.** A 15 s 720p video can be tens of MB, too risky for a normal Netlify function timeout. On Netlify, `syncTask` dispatches `netlify/functions/ai-video-finalize-background.ts` (15-minute budget) with only `{ taskId }`. The background function re-reads the task and the provider status, so the payload carries no URLs. The dispatch is HMAC-signed with a new `src/lib/ai-video-finalize-auth.ts`. It follows the same pattern as `src/lib/tiktok/relay-auth.ts` (secret derived from `NEXTAUTH_SECRET`, timestamp window), with its own context string, because the TikTok signer is typed to the TikTok relay payload. Off Netlify (local `next dev`, no `URL` env), finalize runs inline.
+
+**Dispatch target.** The dispatch goes to the deploy the request arrived on (taken from the `Host` header, accepted only if it is this site's own host or one of its Netlify deploy hosts), falling back to `URL`. Netlify's function runtime exposes only `URL`, which is always the production site; `DEPLOY_PRIME_URL` exists at build time only. Dispatching to `URL` from a deploy preview would run production's build of the function, or 404 if it isn't released there yet.
 
 **Scheduled sweep.** `netlify/functions/ai-video-sync-scheduled.ts` (`schedule: "*/10 * * * *"`):
 

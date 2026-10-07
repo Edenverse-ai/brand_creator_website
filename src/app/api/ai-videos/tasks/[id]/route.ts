@@ -13,7 +13,7 @@ import { createAiVideoSignedUrl } from "@/lib/supabase-admin";
  * then returns its status. Another creator's task is reported as 404 so the
  * route never reveals which task ids exist.
  */
-export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -29,7 +29,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   }
 
   try {
-    await syncTask(id);
+    // The origin tells syncTask which deploy's background function to dispatch to —
+    // on a deploy preview that must be the preview itself, not the production site.
+    const host = request.headers.get("host");
+    await syncTask(id, { origin: host ? `https://${host}` : undefined });
   } catch (error) {
     // Report the last known state; the next poll or the scheduled sweep retries.
     console.error("[ai-videos/tasks/:id] sync failed", {

@@ -336,6 +336,66 @@ describe("syncTask", () => {
     expect(init.headers["x-finalize-signature"]).toMatch(/^[0-9a-f]{64}$/);
     expect(db.updateMany).not.toHaveBeenCalled(); // no inline finalize
   });
+
+  describe("finalize dispatch target", () => {
+    const PREVIEW = "https://deploy-preview-29--cricher-ai.netlify.app";
+    const succeeded = {
+      state: "succeeded",
+      videoUrl: "https://cdn/v.mp4",
+      durationSec: 5,
+      completionTokens: 100,
+      traceId: "tr",
+    };
+    let fetchMock: Mock;
+
+    beforeEach(() => {
+      // Netlify's runtime only exposes URL (always the production site), never
+      // DEPLOY_PRIME_URL — the bug this guards against sent preview dispatches
+      // to production, where the function may not exist (404).
+      vi.stubEnv("URL", "https://cricher.ai");
+      vi.stubEnv("SITE_NAME", "cricher-ai");
+      vi.stubEnv("NEXTAUTH_SECRET", "s");
+      fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 202 }));
+      vi.stubGlobal("fetch", fetchMock);
+      db.findUnique.mockResolvedValue(generating);
+      liveProvider.getTaskStatus.mockResolvedValue(succeeded);
+    });
+
+    it("dispatches to the deploy the request came from, not the production URL", async () => {
+      await syncTask("t1", { origin: PREVIEW });
+      expect(fetchMock.mock.calls[0][0]).toBe(
+        `${PREVIEW}/.netlify/functions/ai-video-finalize-background`
+      );
+    });
+
+    it("accepts a preview origin when SITE_NAME is not exposed", async () => {
+      vi.stubEnv("SITE_NAME", "");
+      await syncTask("t1", { origin: PREVIEW });
+      expect(fetchMock.mock.calls[0][0]).toContain(PREVIEW);
+    });
+
+    it("falls back to the site URL for an origin that is not this site", async () => {
+      await syncTask("t1", { origin: "https://evil.example" });
+      expect(fetchMock.mock.calls[0][0]).toBe(
+        "https://cricher.ai/.netlify/functions/ai-video-finalize-background"
+      );
+    });
+
+    it("rejects another Netlify site's preview host", async () => {
+      await syncTask("t1", { origin: "https://deploy-preview-1--other-site.netlify.app" });
+      expect(fetchMock.mock.calls[0][0]).toContain("https://cricher.ai/");
+    });
+
+    it("still runs inline off Netlify even when an origin is given", async () => {
+      vi.stubEnv("URL", "");
+      db.updateMany.mockResolvedValue({ count: 0 });
+      await syncTask("t1", { origin: "http://localhost:12000" });
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(db.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ data: { finalizeStartedAt: NOW } })
+      );
+    });
+  });
 });
 
 describe("finalizeTask", () => {

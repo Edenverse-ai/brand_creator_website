@@ -73,7 +73,7 @@ describe("GET /api/ai-videos/tasks/[id]", () => {
 
     const res = await call();
 
-    expect(syncTask).toHaveBeenCalledWith("task1");
+    expect(syncTask).toHaveBeenCalledWith("task1", { origin: undefined });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
       id: "task1",
@@ -82,6 +82,28 @@ describe("GET /api/ai-videos/tasks/[id]", () => {
       videoUrl: null,
     });
     expect(createAiVideoSignedUrl).not.toHaveBeenCalled();
+  });
+
+  it("passes the request host to syncTask so finalize runs on the same deploy", async () => {
+    (getServerSession as any).mockResolvedValue({ user: { id: OWNER } });
+    findUnique.mockResolvedValue({
+      id: "task1",
+      creatorId: OWNER,
+      status: "GENERATING",
+      errorMessage: null,
+      aiVideoId: null,
+    });
+
+    await GET(
+      new Request("http://localhost/api/ai-videos/tasks/task1", {
+        headers: { host: "deploy-preview-29--cricher-ai.netlify.app" },
+      }) as never,
+      { params: Promise.resolve({ id: "task1" }) }
+    );
+
+    expect(syncTask).toHaveBeenCalledWith("task1", {
+      origin: "https://deploy-preview-29--cricher-ai.netlify.app",
+    });
   });
 
   it("returns a signed library URL once delivered", async () => {
