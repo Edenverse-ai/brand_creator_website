@@ -40,6 +40,31 @@ function traceIdOf(error: unknown): string | null {
   return typeof traceId === "string" ? traceId : null;
 }
 
+/**
+ * Why a provider call failed, for the server log: HTTP status, or the underlying
+ * network error (timeout, DNS, refused connection, malformed base URL). These
+ * never contain the API key — it travels in a header, not in the URL.
+ */
+function failureDetailOf(error: unknown): Record<string, unknown> {
+  const { httpStatus, code, providerMessage, cause } = (error ?? {}) as {
+    httpStatus?: unknown;
+    code?: unknown;
+    providerMessage?: unknown;
+    cause?: unknown;
+  };
+  const detail: Record<string, unknown> = {};
+  if (typeof httpStatus === "number") detail.httpStatus = httpStatus;
+  if (typeof code === "number") detail.providerCode = code;
+  if (typeof providerMessage === "string") detail.providerMessage = providerMessage.slice(0, 300);
+  if (cause instanceof Error) {
+    detail.cause = `${cause.name}: ${cause.message}`.slice(0, 300);
+    // undici wraps the socket error ("fetch failed") one level further down.
+    const inner = (cause as { cause?: { code?: unknown } }).cause;
+    if (typeof inner?.code === "string") detail.causeCode = inner.code;
+  }
+  return detail;
+}
+
 /** Tasks are resolved by the provider that created them, whatever the current config. */
 function providerForTask(name: string | null): VideoProvider | null {
   if (name === "mock") return mockProvider;
@@ -97,6 +122,7 @@ export async function submitTask(taskId: string): Promise<void> {
       failureCode,
       name: error instanceof Error ? error.name : typeof error,
       traceId: traceIdOf(error),
+      ...failureDetailOf(error),
     });
     await prisma.aiVideoTask.update({
       where: { id: taskId },

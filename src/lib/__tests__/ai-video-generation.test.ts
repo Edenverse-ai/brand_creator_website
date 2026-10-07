@@ -210,6 +210,27 @@ describe("submitTask", () => {
     });
   });
 
+  it("logs why the create call failed, so an unknown outcome can be diagnosed", async () => {
+    db.updateMany.mockResolvedValue({ count: 1 });
+    const socketError = Object.assign(new Error("getaddrinfo ENOTFOUND"), { code: "ENOTFOUND" });
+    liveProvider.createTask.mockRejectedValue(
+      new ProviderUnknownOutcomeError(new TypeError("fetch failed", { cause: socketError }))
+    );
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await submitTask("t1");
+
+    expect(logged).toHaveBeenCalledWith(
+      "[ai-video-generation] submit failed",
+      expect.objectContaining({
+        failureCode: "unknown_outcome",
+        cause: "TypeError: fetch failed",
+        causeCode: "ENOTFOUND",
+      })
+    );
+    logged.mockRestore();
+  });
+
   it("marks an unknown outcome FAILED/unknown_outcome and never retries", async () => {
     db.updateMany.mockResolvedValue({ count: 1 });
     liveProvider.createTask.mockRejectedValue(new ProviderUnknownOutcomeError(new Error("x")));
