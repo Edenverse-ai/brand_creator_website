@@ -182,15 +182,17 @@ Body:
 
 ### Error mapping (creator-facing, English)
 
-| Provider condition                                  | Message                                                                             |
-| --------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| Content review rejection                            | "Your prompt or image didn't pass content review. Please revise and try again."     |
-| Insufficient balance (429/40001), auth or IP errors | "Video generation is temporarily unavailable. Please try again later."              |
-| Other business errors (`code != 0`)                 | "We couldn't start this video. Please adjust your settings and try again."          |
-| Timeout or unknown outcome on create                | "We couldn't confirm your submission. Please check your tasks before trying again." |
-| Expired / no result after 75 min                    | "Generation timed out. You were not charged."                                       |
+| Provider condition                                  | Message                                                                                                                                                                                          |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Copyright restriction (e.g. a named film character) | "This video couldn't be generated because it may involve copyrighted material, such as a well-known character, brand or artwork. Please change your prompt and try again. You were not charged." |
+| Content review rejection                            | "Your prompt or image didn't pass content review. Please revise and try again."                                                                                                                  |
+| Any other failure reported after acceptance         | "Video generation failed: `<the provider's reason>`. You were not charged."                                                                                                                      |
+| Insufficient balance (429/40001), auth or IP errors | "Video generation is temporarily unavailable. Please try again later."                                                                                                                           |
+| Other business errors (`code != 0`)                 | "We couldn't start this video. Please adjust your settings and try again."                                                                                                                       |
+| Timeout or unknown outcome on create                | "We couldn't confirm your submission. Please check your tasks before trying again."                                                                                                              |
+| Expired / no result after 75 min                    | "Generation timed out. You were not charged."                                                                                                                                                    |
 
-Raw provider messages and `trace_id` go to server logs only. The API key is never logged.
+Creators are told why a generation failed. For reasons that aren't recognised, the provider's own text is shown, with the trailing `Request id: …` removed and capped at 300 characters. The full raw reason, the provider task id and `trace_id` are written to the server log (`[ai-video-generation] provider reported failure`). `scripts/seedance-task-status.ts` looks up a task's raw status at the provider (free). The API key is never logged.
 
 ## 8. UI — `/creatorportal/ai-video/generate`
 

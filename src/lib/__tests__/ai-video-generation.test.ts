@@ -281,6 +281,26 @@ describe("syncTask", () => {
     });
   });
 
+  it("logs the provider's raw failure reason with its ids, for support", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    db.findUnique.mockResolvedValue(generating);
+    liveProvider.getTaskStatus.mockResolvedValue({
+      state: "failed",
+      error: "raw provider reason",
+      traceId: "tr-f",
+    });
+
+    await syncTask("t1");
+
+    expect(errorSpy).toHaveBeenCalledWith("[ai-video-generation] provider reported failure", {
+      taskId: "t1",
+      providerTaskId: "kz-1",
+      traceId: "tr-f",
+      providerError: "raw provider reason",
+    });
+    errorSpy.mockRestore();
+  });
+
   it("swallows status lookup errors (next poll retries)", async () => {
     db.findUnique.mockResolvedValue(generating);
     liveProvider.getTaskStatus.mockRejectedValue(new Error("network"));

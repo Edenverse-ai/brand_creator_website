@@ -144,6 +144,13 @@ export async function syncTask(taskId: string, options: { origin?: string } = {}
   const now = new Date();
 
   if (status.state === "failed") {
+    // Creators see a mapped message; the raw reason is only kept here for support.
+    console.error("[ai-video-generation] provider reported failure", {
+      taskId,
+      providerTaskId: task.providerTaskId,
+      traceId: status.traceId,
+      providerError: status.error,
+    });
     await prisma.aiVideoTask.updateMany({
       where: { id: taskId, status: "GENERATING" },
       data: {

@@ -46,6 +46,8 @@ export class ProviderUnknownOutcomeError extends Error {
 }
 
 export const CREATOR_MESSAGES = {
+  copyright:
+    "This video couldn't be generated because it may involve copyrighted material, such as a well-known character, brand or artwork. Please change your prompt and try again. You were not charged.",
   contentReview: "Your prompt or image didn't pass content review. Please revise and try again.",
   unavailable: "Video generation is temporarily unavailable. Please try again later.",
   startFailed: "We couldn't start this video. Please adjust your settings and try again.",
@@ -57,7 +59,17 @@ export const CREATOR_MESSAGES = {
 
 export type SubmitFailureCode = "submit_rejected" | "unknown_outcome";
 
-const CONTENT_REVIEW_PATTERN = /审核|content[_ ]?policy|moderation|safety/i;
+// The provider reports reasons as free text (English or Chinese) or as upstream
+// error codes such as InputTextSensitiveContentDetected.
+const COPYRIGHT_PATTERN = /copyright|版权|侵权/i;
+const CONTENT_REVIEW_PATTERN = /审核|违规|敏感|content[_ ]?policy|moderation|safety|sensitive/i;
+const PASSTHROUGH_REASON_MAX_LENGTH = 300;
+
+function knownReasonMessage(providerText: string): string | null {
+  if (COPYRIGHT_PATTERN.test(providerText)) return CREATOR_MESSAGES.copyright;
+  if (CONTENT_REVIEW_PATTERN.test(providerText)) return CREATOR_MESSAGES.contentReview;
+  return null;
+}
 
 export function describeSubmitError(error: unknown): {
   failureCode: SubmitFailureCode;
@@ -69,17 +81,28 @@ export function describeSubmitError(error: unknown): {
   if (error instanceof ProviderRequestError) {
     return {
       failureCode: "submit_rejected",
-      message: CONTENT_REVIEW_PATTERN.test(error.providerMessage)
-        ? CREATOR_MESSAGES.contentReview
-        : CREATOR_MESSAGES.startFailed,
+      message: knownReasonMessage(error.providerMessage) ?? CREATOR_MESSAGES.startFailed,
     };
   }
   return { failureCode: "submit_rejected", message: CREATOR_MESSAGES.unavailable };
 }
 
-/** Message for a task the provider accepted and later reported as failed. */
+/**
+ * Message for a task the provider accepted and later reported as failed. Creators
+ * see why: a specific message for copyright and content-review rejections,
+ * otherwise the provider's own reason. The trailing "Request id: …" is support
+ * detail and is dropped here; it stays in the server log and on the task's traceId.
+ */
 export function describeProviderFailure(providerError: string): string {
-  return CONTENT_REVIEW_PATTERN.test(providerError)
-    ? CREATOR_MESSAGES.contentReview
+  const known = knownReasonMessage(providerError);
+  if (known) return known;
+
+  const reason = providerError
+    .replace(/\s*Request id:[\s\S]*$/i, "")
+    .trim()
+    .slice(0, PASSTHROUGH_REASON_MAX_LENGTH)
+    .replace(/[.。]+$/, "");
+  return reason
+    ? `Video generation failed: ${reason}. You were not charged.`
     : CREATOR_MESSAGES.generationFailed;
 }
