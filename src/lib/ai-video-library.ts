@@ -34,7 +34,7 @@ type AiVideoRow = {
   thumbnail_url: string | null;
 };
 
-// Field-for-field mirror of backend/app/main/models/ai_video.py AiVideoLibraryItem.
+// Mirror of backend/app/main/models/ai_video.py AiVideoLibraryItem, plus `prompt`.
 export type AiVideoLibraryItemResponse = {
   id: string;
   creator_id: string;
@@ -43,7 +43,32 @@ export type AiVideoLibraryItemResponse = {
   tags: string[];
   created_at: string | null;
   thumbnail_url: string | null;
+  /** Prompt of the generation task that produced the video; null for other videos. */
+  prompt: string | null;
 };
+
+/**
+ * Prompts of the generation tasks behind these videos, keyed by video id. The
+ * library shows them as the video's name. Best effort: a failed lookup leaves the
+ * videos unnamed rather than hiding them.
+ */
+async function loadPrompts(videoIds: string[]): Promise<Map<string, string>> {
+  try {
+    const tasks = await prisma.aiVideoTask.findMany({
+      where: { aiVideoId: { in: videoIds } },
+      select: { aiVideoId: true, prompt: true },
+    });
+    return new Map(
+      tasks.flatMap((task) => (task.aiVideoId ? [[task.aiVideoId, task.prompt]] : []))
+    );
+  } catch (error) {
+    console.error(
+      "ai-video-library: prompt lookup failed",
+      error instanceof Error ? error.name : typeof error
+    );
+    return new Map();
+  }
+}
 
 /**
  * Mirrors AiVideoService._deserialize_tags (ai_video_service.py:263-273) exactly,
@@ -160,6 +185,8 @@ export async function getAiVideoLibrary(creatorId: string): Promise<AiVideoLibra
 
   if (rows.length === 0) return [];
 
+  const prompts = await loadPrompts(rows.map((row) => row.id));
+
   const results: AiVideoLibraryItemResponse[] = [];
   for (const row of rows) {
     try {
@@ -176,6 +203,7 @@ export async function getAiVideoLibrary(creatorId: string): Promise<AiVideoLibra
         tags: deserializeTags(row.tag),
         created_at: row.created_at.toISOString(),
         thumbnail_url: thumbnailUrl,
+        prompt: prompts.get(row.id) ?? null,
       });
     } catch (error) {
       console.error(

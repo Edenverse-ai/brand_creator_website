@@ -13,6 +13,7 @@ test.describe("creator / ai-video generate", () => {
   test.beforeEach(async () => {
     const db = testDb();
     await db.aiVideoTask.deleteMany({ where: { creatorId: E2E_CREATOR_ID } });
+    await db.aiVideo.deleteMany({ where: { creator_id: E2E_CREATOR_ID } });
     await db.$disconnect();
   });
 
@@ -24,9 +25,27 @@ test.describe("creator / ai-video generate", () => {
     await expect(asCreator.getByText(/Mock mode/i)).toBeVisible();
 
     await asCreator.getByLabel(/^Prompt$/i).fill(prompt);
+
+    // Model picker: the cheapest model is free, the rest are shown as PRO and locked.
+    await asCreator.getByRole("button", { name: "Model" }).click();
+    await expect(asCreator.getByRole("menuitem", { name: "Seedance 2.0 Mini" })).toBeEnabled();
+    for (const locked of ["Seedance 2.0 Fast", "Seedance 2.0 Pro", "Seedance 2.5"]) {
+      const item = asCreator.getByRole("menuitem", { name: locked });
+      await expect(item).toContainText("PRO");
+      await expect(item).toBeDisabled();
+    }
+    await asCreator.keyboard.press("Escape");
+
+    // Format popover: ratio (with shape glyphs), resolution, duration slider.
+    const format = asCreator.getByRole("button", { name: "Format" });
+    await format.click();
     await asCreator.getByRole("button", { name: "9:16", exact: true }).click();
-    await asCreator.getByRole("button", { name: "5s", exact: true }).click();
     await asCreator.getByRole("button", { name: "480p", exact: true }).click();
+    await asCreator.getByRole("slider", { name: "Duration" }).fill("4");
+    await asCreator.keyboard.press("Escape");
+    await expect(format).toContainText("480p");
+    await expect(format).toContainText("4s");
+
     await asCreator.getByRole("button", { name: /Generate video/i }).click();
 
     await expect(asCreator.getByText(/Generating/i).first()).toBeVisible({ timeout: 15_000 });
@@ -43,9 +62,32 @@ test.describe("creator / ai-video generate", () => {
       .poll(() => frame.evaluate((el) => (el as HTMLVideoElement).videoWidth), { timeout: 15_000 })
       .toBeGreaterThan(0);
 
+    // Clicking anywhere on the frame plays it in a dialog named after the prompt,
+    // no taller than 90% of the viewport, with the details under the player.
+    await asCreator.getByRole("button", { name: `Play ${prompt}` }).click();
+    const dialog = asCreator.getByRole("dialog", { name: prompt });
+    await expect(dialog).toBeVisible();
+    const viewport = asCreator.viewportSize()!;
+    const box = (await dialog.boundingBox())!;
+    expect(box.height).toBeLessThanOrEqual(viewport.height * 0.9 + 1);
+    expect(Math.abs(box.y + box.height / 2 - viewport.height / 2)).toBeLessThan(2);
+    const player = (await dialog.locator("video").boundingBox())!;
+    const details = (await dialog.getByText(/Download window ends/).boundingBox())!;
+    expect(player.height).toBeGreaterThan(100);
+    expect(details.y).toBeGreaterThan(player.y + player.height);
+    await dialog.getByRole("button", { name: "Close" }).click();
+    await expect(dialog).toBeHidden();
+
+    // The tile's own download button, and selecting without opening the player.
+    await expect(asCreator.getByRole("link", { name: "Download video" })).toHaveAttribute(
+      "href",
+      /^\/api\/ai-videos\/library\/[0-9a-f-]{36}\/download$/
+    );
+
     // Selecting a video offers Download; the link redirects to a signed URL that
     // saves the file (Content-Disposition via Supabase's `download` parameter).
     await asCreator.locator("#library input[type=checkbox]").first().check({ force: true });
+    await expect(dialog).toBeHidden();
     const download = asCreator.getByRole("link", { name: "Download", exact: true });
     await expect(download).toBeVisible();
     const href = await download.getAttribute("href");
@@ -57,6 +99,16 @@ test.describe("creator / ai-video generate", () => {
     expect(file.status()).toBe(200);
     expect(file.headers()["content-disposition"]).toContain("attachment");
 
+    const db = testDb();
+    const task = await db.aiVideoTask.findFirst({ where: { creatorId: E2E_CREATOR_ID, prompt } });
+    await db.$disconnect();
+    expect(task?.params).toMatchObject({
+      mode: "mini",
+      ratio: "9:16",
+      resolution: "480p",
+      duration: 4,
+    });
+
     await asCreator.goto("/creatorportal/ai-video/tasks");
     const row = asCreator.locator("li", { hasText: prompt });
     await expect(row.getByText("Delivered")).toBeVisible();
@@ -64,6 +116,29 @@ test.describe("creator / ai-video generate", () => {
       "href",
       /^https?:/
     );
+  });
+
+  test("keeps the stacked layout on small screens, with model and ratio glyphs", async ({
+    asCreator,
+  }) => {
+    await asCreator.setViewportSize({ width: 390, height: 844 });
+    await asCreator.goto("/creatorportal/ai-video/generate");
+
+    await expect(asCreator.getByRole("heading", { name: "Format" })).toBeVisible();
+    await expect(asCreator.getByRole("button", { name: "Format" })).toBeHidden();
+    await expect(asCreator.getByRole("button", { name: "Model" })).toContainText(
+      "Seedance 2.0 Mini"
+    );
+    await asCreator.getByRole("button", { name: "16:9", exact: true }).click();
+    await expect(asCreator.getByRole("button", { name: "16:9", exact: true })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    await expect(asCreator.getByRole("slider", { name: "Duration" })).toBeVisible();
+
+    await asCreator.getByLabel(/^Prompt$/i).fill("E2E small screen");
+    await asCreator.getByRole("button", { name: /Generate video/i }).click();
+    await expect(asCreator.getByText(/Generating your video/i)).toBeVisible({ timeout: 15_000 });
   });
 
   test("shows a failure and lets the creator try again", async ({ asCreator }) => {
