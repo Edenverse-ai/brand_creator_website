@@ -297,7 +297,7 @@ export default function GenerateVideoForm({
         </div>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
+      <div className="grid gap-6 2xl:grid-cols-[1.5fr_1fr]">
         <form className="space-y-6" onSubmit={handleSubmit} noValidate>
           <fieldset
             disabled={busy}
@@ -571,7 +571,7 @@ export default function GenerateVideoForm({
 
           <Link
             href="/creatorportal/ai-video/tasks"
-            className="block text-center text-xs font-semibold text-slate-500 hover:text-slate-800"
+            className="block text-center text-md font-semibold text-slate-500 hover:text-slate-800"
           >
             View all generation tasks →
           </Link>
