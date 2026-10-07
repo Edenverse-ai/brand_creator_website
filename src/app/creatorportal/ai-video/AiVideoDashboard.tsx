@@ -7,6 +7,7 @@ import {
   ArrowRight,
   Check,
   Clock,
+  Download,
   Info,
   Pause,
   Play,
@@ -570,7 +571,7 @@ export default function AiVideoDashboard({ videos, tikTokBinding }: DashboardPro
 
       {/* SelectionBar — sticky bottom action when a video is selected */}
       {selectedVideoIds.length > 0 && (
-        <div className="sticky bottom-4 z-30 flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-3 pl-5 shadow-lg shadow-slate-900/10">
+        <div className="sticky bottom-4 z-30 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 rounded-2xl border border-slate-200 bg-white p-3 pl-5 shadow-lg shadow-slate-900/10">
           <div className="flex items-center gap-3">
             <span className="grid h-9 w-9 place-items-center rounded-full bg-indigo-50 text-indigo-700">
               <Check className="h-4 w-4" strokeWidth={3} />
@@ -581,12 +582,12 @@ export default function AiVideoDashboard({ videos, tikTokBinding }: DashboardPro
               </p>
               <p className="text-xs text-slate-500">
                 {hasTikTokBinding
-                  ? "Review captions on the next screen."
-                  : "Connect TikTok to enable posting."}
+                  ? "Download it, or review captions on the next screen."
+                  : "Download it, or connect TikTok to enable posting."}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={clearSelection}
@@ -594,6 +595,18 @@ export default function AiVideoDashboard({ videos, tikTokBinding }: DashboardPro
             >
               Clear
             </button>
+            {selectedVideoIds.map((videoId) => (
+              // A plain link: the route redirects to a short-lived signed URL that the
+              // browser saves as a file, so no client-side fetching is needed.
+              <a
+                key={videoId}
+                href={`/api/ai-videos/library/${videoId}/download`}
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+              >
+                <Download className="h-4 w-4" />
+                Download
+              </a>
+            ))}
             <button
               type="button"
               onClick={handlePost}

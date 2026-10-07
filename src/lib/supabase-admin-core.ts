@@ -116,6 +116,26 @@ export async function createAiVideoSignedUrl(
   return data.signedUrl;
 }
 
+/**
+ * Signed URL that makes the browser save the video under `filename` instead of
+ * playing it (Supabase sets Content-Disposition: attachment via `download`).
+ */
+export async function createAiVideoDownloadUrl(
+  path: string,
+  filename: string,
+  expiresInSec = 60
+): Promise<string | null> {
+  const client = getSupabaseAdmin();
+  const { data, error } = await client.storage
+    .from(AI_VIDEO_BUCKET)
+    .createSignedUrl(path, expiresInSec, { download: filename });
+  if (error || !data?.signedUrl) {
+    console.error("[supabase-admin] ai video download URL failed", { message: error?.message });
+    return null;
+  }
+  return data.signedUrl;
+}
+
 export async function createSignedUrls(
   paths: string[],
   expiresInSec = 3600

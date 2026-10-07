@@ -36,6 +36,20 @@ test.describe("creator / ai-video generate", () => {
     await asCreator.goto("/creatorportal/ai-video");
     await expect(asCreator.getByText(/1 ready/i).first()).toBeVisible({ timeout: 10_000 });
 
+    // Selecting a video offers Download; the link redirects to a signed URL that
+    // saves the file (Content-Disposition via Supabase's `download` parameter).
+    await asCreator.locator("#library input[type=checkbox]").first().check({ force: true });
+    const download = asCreator.getByRole("link", { name: "Download", exact: true });
+    await expect(download).toBeVisible();
+    const href = await download.getAttribute("href");
+    expect(href).toMatch(/^\/api\/ai-videos\/library\/[0-9a-f-]{36}\/download$/);
+    const redirect = await asCreator.request.get(href!, { maxRedirects: 0 });
+    expect(redirect.status()).toBe(307);
+    expect(redirect.headers()["location"]).toContain("download=cricher-ai-video-");
+    const file = await asCreator.request.get(href!);
+    expect(file.status()).toBe(200);
+    expect(file.headers()["content-disposition"]).toContain("attachment");
+
     await asCreator.goto("/creatorportal/ai-video/tasks");
     const row = asCreator.locator("li", { hasText: prompt });
     await expect(row.getByText("Delivered")).toBeVisible();
