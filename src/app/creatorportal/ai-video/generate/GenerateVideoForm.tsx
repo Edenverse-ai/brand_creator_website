@@ -13,15 +13,9 @@ import {
   X,
 } from "lucide-react";
 import { PORTRAIT_MAX_BYTES, PORTRAIT_MIME_TO_EXT, type PortraitMime } from "@/lib/ai-video-task";
-import type { SeedanceMode } from "@/lib/seedance/config";
+import { DEFAULT_MODE, limitsFor, type VideoMode, type VideoModel } from "@/lib/seedance/models";
 import type { Ratio } from "@/lib/seedance/schema";
-import {
-  FormatFields,
-  FormatPopover,
-  ModelPicker,
-  type FormatValue,
-  type ModelOption,
-} from "./GenerationControls";
+import { FormatFields, FormatPopover, ModelPicker, type FormatValue } from "./GenerationControls";
 
 const PROMPT_MAX = 5000;
 const POLL_INTERVAL_MS = 10_000;
@@ -122,15 +116,13 @@ export default function GenerateVideoForm({
   initialRemaining: number;
   limit: number;
   isMock: boolean;
-  models: ModelOption[];
+  models: readonly VideoModel[];
 }) {
   const [prompt, setPrompt] = useState("");
   const [image, setImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
-  const [mode, setMode] = useState<SeedanceMode>(
-    () => models.find((model) => !model.locked)?.mode ?? "mini"
-  );
+  const [mode, setMode] = useState<VideoMode>(DEFAULT_MODE);
   const [format, setFormat] = useState<FormatValue>({
     ratio: "9:16",
     resolution: "720p",
@@ -139,6 +131,21 @@ export default function GenerateVideoForm({
   });
   const patchFormat = (patch: Partial<FormatValue>) =>
     setFormat((current) => ({ ...current, ...patch }));
+  const limits = limitsFor(mode);
+
+  // Models differ in what they can produce, so switching pulls the format back
+  // inside the new model's limits instead of leaving an impossible combination.
+  const changeMode = (next: VideoMode) => {
+    const nextLimits = limitsFor(next);
+    setMode(next);
+    setFormat((current) => ({
+      ...current,
+      duration: Math.min(current.duration, nextLimits.maxDuration),
+      resolution: nextLimits.resolutions.includes(current.resolution)
+        ? current.resolution
+        : nextLimits.resolutions[0],
+    }));
+  };
   const [remaining, setRemaining] = useState(initialRemaining);
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [formError, setFormError] = useState<string | null>(null);
@@ -437,17 +444,17 @@ export default function GenerateVideoForm({
                 <ModelPicker
                   models={models}
                   value={mode}
-                  onChange={setMode}
+                  onChange={changeMode}
                   className="mt-2 w-full"
                 />
               </div>
-              <FormatFields value={format} onChange={patchFormat} />
+              <FormatFields value={format} limits={limits} onChange={patchFormat} />
             </section>
 
             {/* Large screens: model and format tucked under the prompt. */}
             <div className="hidden flex-wrap items-center gap-2 lg:flex">
-              <ModelPicker models={models} value={mode} onChange={setMode} />
-              <FormatPopover value={format} onChange={patchFormat} />
+              <ModelPicker models={models} value={mode} onChange={changeMode} />
+              <FormatPopover value={format} limits={limits} onChange={patchFormat} />
               <div className="ml-auto flex items-center gap-3">
                 <span className="text-xs tabular-nums text-slate-400">
                   {prompt.length}/{PROMPT_MAX}

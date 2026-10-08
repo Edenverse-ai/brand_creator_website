@@ -69,7 +69,7 @@ const validBody = {
 };
 
 const DEFAULT_PARAMS = {
-  mode: "mini",
+  mode: "seedance2.5",
   ratio: "9:16",
   duration: 5,
   resolution: "720p",
@@ -109,38 +109,34 @@ describe("POST /api/ai-videos/tasks (JSON path)", () => {
     expect(aiVideoTaskCreate).not.toHaveBeenCalled();
   });
 
-  it("returns 400 when params contain a value the UI does not offer", async () => {
+  it.each([
+    ["a model that isn't offered", { mode: "pro" }],
+    ["a resolution the model can't produce", { mode: "seedance2.5", resolution: "1080p" }],
+    ["a duration beyond the model's limit", { mode: "mini", duration: 20 }],
+    ["a resolution nothing offers", { resolution: "4k" }],
+  ])("returns 400 for %s, without creating a task", async (_label, params) => {
     (getServerSession as any).mockResolvedValue({ user: { id: OWNER } });
 
-    const res = await POST(jsonRequest({ ...validBody, params: { resolution: "1080p" } }) as never);
+    const res = await POST(jsonRequest({ ...validBody, params }) as never);
 
     expect(res.status).toBe(400);
-    expect(aiVideoTaskCreate).not.toHaveBeenCalled();
-  });
-
-  it("returns 403 for a model that is not unlocked, without creating a task", async () => {
-    (getServerSession as any).mockResolvedValue({ user: { id: OWNER } });
-
-    const res = await POST(jsonRequest({ ...validBody, params: { mode: "pro" } }) as never);
-
-    expect(res.status).toBe(403);
-    expect(await res.json()).toEqual({ error: "This model requires an upgrade." });
     expect(aiVideoTaskCreate).not.toHaveBeenCalled();
     expect(submitTask).not.toHaveBeenCalled();
   });
 
-  it("accepts a model unlocked through AI_VIDEO_UNLOCKED_MODELS", async () => {
-    vi.stubEnv("AI_VIDEO_UNLOCKED_MODELS", "mini, seedance2.5");
+  it.each([
+    ["Seedance 2.5 at 30 s", { mode: "seedance2.5", duration: 30 }],
+    ["Mini at 1080p", { mode: "mini", resolution: "1080p", duration: 15 }],
+  ])("accepts %s", async (_label, params) => {
     aiVideoTaskCreate.mockResolvedValue({ id: "taskabc", status: "QUEUED" });
     (getServerSession as any).mockResolvedValue({ user: { id: OWNER } });
 
-    const res = await POST(jsonRequest({ ...validBody, params: { mode: "seedance2.5" } }) as never);
-    vi.unstubAllEnvs();
+    const res = await POST(jsonRequest({ ...validBody, params }) as never);
 
     expect(res.status).toBe(200);
     expect(aiVideoTaskCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ params: { ...DEFAULT_PARAMS, mode: "seedance2.5" } }),
+        data: expect.objectContaining({ params: { ...DEFAULT_PARAMS, ...params } }),
       })
     );
   });

@@ -1,32 +1,41 @@
-import { SEEDANCE_MODES, type SeedanceMode } from "./config";
+import type { Resolution } from "./schema";
 
 /**
- * Models a creator can pick on the generate page, cheapest first. `mode` is the
- * provider's tier id (API doc v1.1, "分档参数矩阵"); the label is ours.
+ * Models a creator can pick on the generate page, default first, with what each
+ * one can produce. `mode` is the provider's tier id and the limits follow its
+ * matrix (API doc v1.1, "分档参数矩阵"), minus 4k: the longest clips need
+ * seedance2.5, the sharpest need mini. Every model is free to use; the daily
+ * cap (AI_VIDEO_DAILY_LIMIT) is the only limit.
  */
-export const VIDEO_MODELS: readonly { mode: SeedanceMode; label: string }[] = [
-  { mode: "mini", label: "Seedance 2.0 Mini" },
-  { mode: "fast", label: "Seedance 2.0 Fast" },
-  { mode: "pro", label: "Seedance 2.0 Pro" },
-  { mode: "seedance2.5", label: "Seedance 2.5" },
-];
+export const VIDEO_MODELS = [
+  {
+    mode: "seedance2.5",
+    label: "Seedance 2.5",
+    resolutions: ["720p", "480p"],
+    maxDuration: 30,
+  },
+  {
+    mode: "mini",
+    label: "Seedance 2.0 Mini",
+    resolutions: ["1080p", "720p", "480p"],
+    maxDuration: 15,
+  },
+] as const satisfies readonly {
+  mode: string;
+  label: string;
+  resolutions: readonly Resolution[];
+  maxDuration: number;
+}[];
 
-/** The cheapest model: always available, and the default. */
-export const FREE_MODE: SeedanceMode = "mini";
+export type VideoModel = (typeof VIDEO_MODELS)[number];
+export type VideoMode = VideoModel["mode"];
 
-export function modelLabel(mode: SeedanceMode): string {
-  return VIDEO_MODELS.find((model) => model.mode === mode)?.label ?? mode;
-}
+export const VIDEO_MODES = VIDEO_MODELS.map((model) => model.mode) as [VideoMode, ...VideoMode[]];
+export const DEFAULT_MODE: VideoMode = "seedance2.5";
 
-/**
- * Modes creators may generate with. Everything else is shown as PRO and
- * rejected by POST /api/ai-videos/tasks. There is no upgrade purchase yet, so
- * this is site-wide: AI_VIDEO_UNLOCKED_MODELS (comma-separated mode ids) widens
- * it, e.g. to test another model on a deploy preview. Server-only.
- */
-export function getUnlockedModes(): SeedanceMode[] {
-  const requested = (process.env.AI_VIDEO_UNLOCKED_MODELS ?? "")
-    .split(",")
-    .map((value) => value.trim());
-  return SEEDANCE_MODES.filter((mode) => mode === FREE_MODE || requested.includes(mode));
+/** What a model can produce. */
+export type ModelLimits = { resolutions: readonly Resolution[]; maxDuration: number };
+
+export function limitsFor(mode: VideoMode): ModelLimits {
+  return VIDEO_MODELS.find((model) => model.mode === mode) ?? VIDEO_MODELS[0];
 }
