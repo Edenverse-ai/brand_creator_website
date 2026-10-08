@@ -146,7 +146,7 @@ describe("submitTask", () => {
     });
   });
 
-  it("generates with the model saved on the task; older tasks without one use mini", async () => {
+  it("generates with the model and format saved on the task", async () => {
     db.updateMany.mockResolvedValue({ count: 1 });
     liveProvider.createTask.mockResolvedValue({ taskId: "kz-1", traceId: null });
 
@@ -154,22 +154,25 @@ describe("submitTask", () => {
       id: "t1",
       prompt: "a cat",
       portraitPath: null,
-      params: { ...params, mode: "seedance2.5", duration: 8 },
+      params: { ...params, mode: "seedance2.5", duration: 30 },
     });
     await submitTask("t1");
     expect(liveProvider.createTask.mock.calls[0][0].params).toMatchObject({
       mode: "seedance2.5",
-      duration: 8,
+      duration: 30,
     });
 
     db.findUniqueOrThrow.mockResolvedValue({
       id: "t2",
       prompt: "a cat",
       portraitPath: null,
-      params: { ratio: "9:16", duration: 10 },
+      params: { ...params, mode: "mini", resolution: "1080p" },
     });
     await submitTask("t2");
-    expect(liveProvider.createTask.mock.calls[1][0].params.mode).toBe("mini");
+    expect(liveProvider.createTask.mock.calls[1][0].params).toMatchObject({
+      mode: "mini",
+      resolution: "1080p",
+    });
   });
 
   it("passes a 6-hour signed URL for the reference image", async () => {
@@ -208,6 +211,27 @@ describe("submitTask", () => {
       status: "FAILED",
       failureCode: "submit_rejected",
     });
+  });
+
+  it("logs why the create call failed, so an unknown outcome can be diagnosed", async () => {
+    db.updateMany.mockResolvedValue({ count: 1 });
+    const socketError = Object.assign(new Error("getaddrinfo ENOTFOUND"), { code: "ENOTFOUND" });
+    liveProvider.createTask.mockRejectedValue(
+      new ProviderUnknownOutcomeError(new TypeError("fetch failed", { cause: socketError }))
+    );
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await submitTask("t1");
+
+    expect(logged).toHaveBeenCalledWith(
+      "[ai-video-generation] submit failed",
+      expect.objectContaining({
+        failureCode: "unknown_outcome",
+        cause: "TypeError: fetch failed",
+        causeCode: "ENOTFOUND",
+      })
+    );
+    logged.mockRestore();
   });
 
   it("marks an unknown outcome FAILED/unknown_outcome and never retries", async () => {

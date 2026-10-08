@@ -3,17 +3,11 @@
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
 import * as Popover from "@radix-ui/react-popover";
 import { Box, Check, ChevronDown, Volume2, VolumeX } from "lucide-react";
-import type { SeedanceMode } from "@/lib/seedance/config";
-import {
-  DURATION_MAX,
-  DURATION_MIN,
-  RATIOS,
-  RESOLUTIONS,
-  type Ratio,
-  type Resolution,
-} from "@/lib/seedance/schema";
+import type { ModelLimits, VideoMode, VideoModel } from "@/lib/seedance/models";
+import { DURATION_MIN, RATIOS, type Ratio, type Resolution } from "@/lib/seedance/schema";
 
-export type ModelOption = { mode: SeedanceMode; label: string; locked: boolean };
+/** What the selected model can produce; the format controls offer nothing beyond it. */
+export type FormatLimits = ModelLimits;
 
 export type FormatValue = {
   ratio: Ratio;
@@ -51,13 +45,12 @@ export function ModelPicker({
   onChange,
   className = "",
 }: {
-  models: ModelOption[];
-  value: SeedanceMode;
-  onChange: (mode: SeedanceMode) => void;
+  models: readonly VideoModel[];
+  value: VideoMode;
+  onChange: (mode: VideoMode) => void;
   className?: string;
 }) {
   const current = models.find((model) => model.mode === value);
-  const hasLocked = models.some((model) => model.locked);
 
   return (
     <DropdownMenu.Root>
@@ -73,47 +66,47 @@ export function ModelPicker({
             return (
               <DropdownMenu.Item
                 key={model.mode}
-                disabled={model.locked}
                 onSelect={() => onChange(model.mode)}
-                className={`flex cursor-pointer select-none items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-semibold outline-none data-[disabled]:cursor-not-allowed data-[highlighted]:bg-slate-50 ${
+                className={`flex cursor-pointer select-none items-center gap-2 rounded-xl px-3 py-2.5 outline-none data-[highlighted]:bg-slate-50 ${
                   selected ? "bg-indigo-50 text-indigo-700" : "text-slate-700"
-                } ${model.locked ? "text-slate-400" : ""}`}
+                }`}
               >
-                <span className="truncate">{model.label}</span>
-                {model.locked ? (
-                  <span className="ml-auto rounded-full bg-gradient-to-r from-indigo-500 to-pink-500 px-2 py-0.5 text-[10px] font-bold tracking-wider text-white">
-                    PRO
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold">{model.label}</span>
+                  <span
+                    className={`block text-xs ${selected ? "text-indigo-500" : "text-slate-500"}`}
+                  >
+                    Up to {model.maxDuration}s · up to {model.resolutions[0]}
                   </span>
-                ) : selected ? (
-                  <Check className="ml-auto h-4 w-4" />
-                ) : null}
+                </span>
+                {selected && <Check className="ml-auto h-4 w-4 shrink-0" />}
               </DropdownMenu.Item>
             );
           })}
-          {hasLocked && (
-            <p className="mt-1 border-t border-slate-100 px-3 pb-1 pt-2.5 text-xs text-slate-500">
-              PRO models need an upgrade — coming soon.
-            </p>
-          )}
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>
   );
 }
 
-function clampDuration(value: number): number {
+function clampDuration(value: number, max: number): number {
   if (!Number.isFinite(value)) return DURATION_MIN;
-  return Math.min(DURATION_MAX, Math.max(DURATION_MIN, Math.round(value)));
+  return Math.min(max, Math.max(DURATION_MIN, Math.round(value)));
 }
 
 /** Ratio, resolution, duration and audio. Inline on small screens, in a popover on large ones. */
 export function FormatFields({
   value,
+  limits,
   onChange,
 }: {
   value: FormatValue;
+  limits: FormatLimits;
   onChange: (patch: Partial<FormatValue>) => void;
 }) {
+  const setDuration = (raw: string) =>
+    onChange({ duration: clampDuration(Number(raw), limits.maxDuration) });
+
   return (
     <div className="space-y-5">
       <div>
@@ -145,11 +138,12 @@ export function FormatFields({
       <div>
         <p className={FIELD_LABEL}>Resolution</p>
         <div
-          className="mt-2 grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1"
+          className="mt-2 grid gap-1 rounded-xl bg-slate-100 p-1"
+          style={{ gridTemplateColumns: `repeat(${limits.resolutions.length}, minmax(0, 1fr))` }}
           role="group"
           aria-label="Resolution"
         >
-          {RESOLUTIONS.map((resolution) => {
+          {limits.resolutions.map((resolution) => {
             const selected = resolution === value.resolution;
             return (
               <button
@@ -178,17 +172,15 @@ export function FormatFields({
               type="range"
               aria-label="Duration"
               min={DURATION_MIN}
-              max={DURATION_MAX}
+              max={limits.maxDuration}
               step={1}
               value={value.duration}
-              onChange={(event) =>
-                onChange({ duration: clampDuration(Number(event.target.value)) })
-              }
+              onChange={(event) => setDuration(event.target.value)}
               className="block w-full accent-indigo-500 disabled:opacity-60"
             />
             <div className="mt-1 flex justify-between text-[11px] text-slate-400">
               <span>{DURATION_MIN}s</span>
-              <span>{DURATION_MAX}s</span>
+              <span>{limits.maxDuration}s</span>
             </div>
           </div>
           <label className="flex shrink-0 items-center gap-1 self-start rounded-lg border border-slate-200 bg-slate-50/60 px-2 py-1 text-sm text-slate-500">
@@ -196,12 +188,10 @@ export function FormatFields({
               type="number"
               aria-label="Duration in seconds"
               min={DURATION_MIN}
-              max={DURATION_MAX}
+              max={limits.maxDuration}
               step={1}
               value={value.duration}
-              onChange={(event) =>
-                onChange({ duration: clampDuration(Number(event.target.value)) })
-              }
+              onChange={(event) => setDuration(event.target.value)}
               className="w-9 bg-transparent text-right font-semibold tabular-nums text-slate-900 focus:outline-none"
             />
             s
@@ -244,9 +234,11 @@ export function FormatFields({
 
 export function FormatPopover({
   value,
+  limits,
   onChange,
 }: {
   value: FormatValue;
+  limits: FormatLimits;
   onChange: (patch: Partial<FormatValue>) => void;
 }) {
   return (
@@ -262,7 +254,7 @@ export function FormatPopover({
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content align="start" sideOffset={8} className={`${PANEL} w-[22rem] p-5`}>
-          <FormatFields value={value} onChange={onChange} />
+          <FormatFields value={value} limits={limits} onChange={onChange} />
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>

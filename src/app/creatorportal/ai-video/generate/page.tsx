@@ -6,7 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import { authOptions } from "@/lib/auth";
 import { remainingToday } from "@/lib/ai-video-generation";
 import { isMockMode } from "@/lib/seedance";
-import { VIDEO_MODELS, getUnlockedModes } from "@/lib/seedance/models";
+import { VIDEO_MODELS } from "@/lib/seedance/models";
 import GenerateVideoForm from "./GenerateVideoForm";
 
 export const dynamic = "force-dynamic";
@@ -23,11 +23,6 @@ export default async function GenerateAiVideoPage() {
   }
 
   const { remaining, limit } = await remainingToday(session.user.id);
-  const unlocked = getUnlockedModes();
-  const models = VIDEO_MODELS.map((model) => ({
-    ...model,
-    locked: !unlocked.includes(model.mode),
-  }));
 
   return (
     <div className="space-y-8 py-8">
@@ -53,7 +48,7 @@ export default async function GenerateAiVideoPage() {
           initialRemaining={remaining}
           limit={limit}
           isMock={isMockMode()}
-          models={models}
+          models={VIDEO_MODELS}
         />
       </div>
     </div>

@@ -26,22 +26,44 @@ test.describe("creator / ai-video generate", () => {
 
     await asCreator.getByLabel(/^Prompt$/i).fill(prompt);
 
-    // Model picker: the cheapest model is free, the rest are shown as PRO and locked.
-    await asCreator.getByRole("button", { name: "Model" }).click();
-    await expect(asCreator.getByRole("menuitem", { name: "Seedance 2.0 Mini" })).toBeEnabled();
-    for (const locked of ["Seedance 2.0 Fast", "Seedance 2.0 Pro", "Seedance 2.5"]) {
-      const item = asCreator.getByRole("menuitem", { name: locked });
-      await expect(item).toContainText("PRO");
-      await expect(item).toBeDisabled();
-    }
+    const model = asCreator.getByRole("button", { name: "Model" });
+    const format = asCreator.getByRole("button", { name: "Format" });
+    const slider = asCreator.getByRole("slider", { name: "Duration" });
+    const pickModel = async (name: RegExp) => {
+      await model.click();
+      await asCreator.getByRole("menuitem", { name }).click();
+    };
+
+    // Seedance 2.5 is the default: up to 30 s, but no 1080p.
+    await expect(model).toContainText("Seedance 2.5");
+    await format.click();
+    await expect(slider).toHaveAttribute("max", "30");
+    await expect(asCreator.getByRole("button", { name: "1080p", exact: true })).toHaveCount(0);
+    await slider.fill("30");
     await asCreator.keyboard.press("Escape");
+    await expect(format).toContainText("30s");
+
+    // Two models, both free to pick. Mini trades length for 1080p, and switching
+    // pulls the format back inside the new model's limits.
+    await model.click();
+    await expect(asCreator.getByRole("menuitem")).toHaveCount(2);
+    await expect(asCreator.getByRole("menu")).not.toContainText("PRO");
+    await asCreator.getByRole("menuitem", { name: /Seedance 2\.0 Mini/ }).click();
+    await expect(format).toContainText("15s");
+    await format.click();
+    await expect(slider).toHaveAttribute("max", "15");
+    await asCreator.getByRole("button", { name: "1080p", exact: true }).click();
+    await asCreator.keyboard.press("Escape");
+    await expect(format).toContainText("1080p");
+
+    await pickModel(/Seedance 2\.5/);
+    await expect(format).toContainText("720p");
 
     // Format popover: ratio (with shape glyphs), resolution, duration slider.
-    const format = asCreator.getByRole("button", { name: "Format" });
     await format.click();
     await asCreator.getByRole("button", { name: "9:16", exact: true }).click();
     await asCreator.getByRole("button", { name: "480p", exact: true }).click();
-    await asCreator.getByRole("slider", { name: "Duration" }).fill("4");
+    await slider.fill("4");
     await asCreator.keyboard.press("Escape");
     await expect(format).toContainText("480p");
     await expect(format).toContainText("4s");
@@ -103,7 +125,7 @@ test.describe("creator / ai-video generate", () => {
     const task = await db.aiVideoTask.findFirst({ where: { creatorId: E2E_CREATOR_ID, prompt } });
     await db.$disconnect();
     expect(task?.params).toMatchObject({
-      mode: "mini",
+      mode: "seedance2.5",
       ratio: "9:16",
       resolution: "480p",
       duration: 4,
@@ -126,9 +148,7 @@ test.describe("creator / ai-video generate", () => {
 
     await expect(asCreator.getByRole("heading", { name: "Format" })).toBeVisible();
     await expect(asCreator.getByRole("button", { name: "Format" })).toBeHidden();
-    await expect(asCreator.getByRole("button", { name: "Model" })).toContainText(
-      "Seedance 2.0 Mini"
-    );
+    await expect(asCreator.getByRole("button", { name: "Model" })).toContainText("Seedance 2.5");
     await asCreator.getByRole("button", { name: "16:9", exact: true }).click();
     await expect(asCreator.getByRole("button", { name: "16:9", exact: true })).toHaveAttribute(
       "aria-pressed",

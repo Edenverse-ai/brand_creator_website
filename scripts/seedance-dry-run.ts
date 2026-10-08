@@ -7,7 +7,7 @@
  * Usage (Git Bash):
  *   npx tsx scripts/seedance-dry-run.ts
  *   npx tsx --env-file=.env.local scripts/seedance-dry-run.ts --prompt "a cat" --image https://...
- *   npx tsx scripts/seedance-dry-run.ts --mode seedance2.5 --duration 8
+ *   npx tsx scripts/seedance-dry-run.ts --mode mini --resolution 1080p --duration 8
  *
  * Compare the output with the curl examples in the provider doc before any
  * manual live test.
