@@ -20,6 +20,7 @@ const db = {
   update: vi.fn(),
   count: vi.fn(),
   aiVideoCreate: vi.fn(),
+  aiVideoFindMany: vi.fn(),
   transaction: vi.fn(),
 };
 
@@ -32,7 +33,10 @@ vi.mock("@/lib/prisma", () => ({
       update: (...a: unknown[]) => db.update(...a),
       count: (...a: unknown[]) => db.count(...a),
     },
-    aiVideo: { create: (...a: unknown[]) => db.aiVideoCreate(...a) },
+    aiVideo: {
+      create: (...a: unknown[]) => db.aiVideoCreate(...a),
+      findMany: (...a: unknown[]) => db.aiVideoFindMany(...a),
+    },
     $transaction: (...a: unknown[]) => db.transaction(...a),
   },
 }));
@@ -92,6 +96,7 @@ beforeEach(() => {
   liveProvider = fakeProvider("ai-open-platform");
   mock = fakeProvider("mock");
   db.transaction.mockImplementation(async (ops: unknown[]) => Promise.all(ops));
+  db.aiVideoFindMany.mockResolvedValue([]);
   vi.stubEnv("DEPLOY_PRIME_URL", "");
   vi.stubEnv("URL", "");
 });
@@ -523,6 +528,7 @@ describe("finalizeTask", () => {
       generated_time: NOW,
       video: "u1/t1.mp4",
       tag: '["ai-generated"]',
+      name: "ai-video-1",
     });
     expect(db.update).toHaveBeenCalledWith({
       where: { id: "t1" },
@@ -535,6 +541,54 @@ describe("finalizeTask", () => {
       },
     });
     expect(db.transaction).toHaveBeenCalledWith(["create-op", "update-op"]);
+  });
+
+  it("names the video one past the creator's highest ai-video number", async () => {
+    db.updateMany.mockResolvedValue({ count: 1 });
+    db.findUniqueOrThrow.mockResolvedValue(task);
+    liveProvider.getTaskStatus.mockResolvedValue(succeeded);
+    liveProvider.downloadVideo.mockResolvedValue({
+      bytes: new ArrayBuffer(1),
+      contentType: "video/mp4",
+    });
+    db.aiVideoFindMany.mockResolvedValue([
+      { name: "ai-video-1" },
+      { name: "ai-video-5" },
+      { name: "ai-video-final-cut" },
+    ]);
+
+    await finalizeTask("t1");
+
+    expect(db.aiVideoFindMany).toHaveBeenCalledWith({
+      where: { creator_id: "u1", name: { startsWith: "ai-video-" } },
+      select: { name: true },
+    });
+    expect(db.aiVideoCreate.mock.calls[0][0].data.name).toBe("ai-video-6");
+  });
+
+  it("moves to the next number when another video took the name first", async () => {
+    db.updateMany.mockResolvedValue({ count: 1 });
+    db.findUniqueOrThrow.mockResolvedValue(task);
+    liveProvider.getTaskStatus.mockResolvedValue(succeeded);
+    liveProvider.downloadVideo.mockResolvedValue({
+      bytes: new ArrayBuffer(1),
+      contentType: "video/mp4",
+    });
+    db.aiVideoFindMany.mockResolvedValue([{ name: "ai-video-2" }]);
+    db.transaction
+      .mockRejectedValueOnce(Object.assign(new Error("unique"), { code: "P2002" }))
+      .mockResolvedValueOnce([]);
+
+    await finalizeTask("t1");
+
+    expect(db.aiVideoCreate.mock.calls.map((call) => call[0].data.name)).toEqual([
+      "ai-video-3",
+      "ai-video-4",
+    ]);
+    // Same video row both times: only the name changed.
+    expect(db.aiVideoCreate.mock.calls[1][0].data.id).toBe(
+      db.aiVideoCreate.mock.calls[0][0].data.id
+    );
   });
 
   it("releases the claim when the upload fails so the next sync retries", async () => {

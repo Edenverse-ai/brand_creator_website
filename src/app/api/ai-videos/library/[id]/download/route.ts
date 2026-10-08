@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { fallbackVideoName, videoFileName } from "@/lib/ai-video-name";
 import { createAiVideoDownloadUrl } from "@/lib/supabase-admin";
 
 /**
@@ -16,10 +17,10 @@ import { createAiVideoDownloadUrl } from "@/lib/supabase-admin";
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DOWNLOAD_URL_TTL_SECONDS = 60;
 
-function downloadFilename(id: string, storagePath: string, generatedAt: Date): string {
+/** The file is saved under the video's name, e.g. "ai-video-3.mp4". */
+function downloadFilename(name: string, storagePath: string): string {
   const extension = /\.([a-z0-9]{2,5})$/i.exec(storagePath)?.[1]?.toLowerCase() ?? "mp4";
-  const day = generatedAt.toISOString().slice(0, 10);
-  return `cricher-ai-video-${day}-${id.slice(0, 8)}.${extension}`;
+  return videoFileName(name, extension);
 }
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -35,7 +36,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   const video = await prisma.aiVideo.findUnique({
     where: { id },
-    select: { id: true, creator_id: true, video: true, generated_time: true, created_at: true },
+    select: { id: true, creator_id: true, video: true, name: true },
   });
   if (!video || video.creator_id !== session.user.id || !video.video) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -43,7 +44,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
 
   const url = await createAiVideoDownloadUrl(
     video.video,
-    downloadFilename(video.id, video.video, video.generated_time ?? video.created_at),
+    downloadFilename(video.name?.trim() || fallbackVideoName(video.id), video.video),
     DOWNLOAD_URL_TTL_SECONDS
   );
   if (!url) {

@@ -70,45 +70,52 @@ describe("GET /api/ai-videos/library/[id]/download", () => {
     expect(createAiVideoDownloadUrl).not.toHaveBeenCalled();
   });
 
-  it("redirects to a short-lived signed URL that downloads with a readable filename", async () => {
+  it("redirects to a short-lived signed URL that saves the file under the video's name", async () => {
     (getServerSession as any).mockResolvedValue({ user: { id: OWNER } });
     findUnique.mockResolvedValue({
       id: VIDEO_ID,
       creator_id: OWNER,
       video: "user-1/t1.mp4",
-      generated_time: new Date("2026-10-07T10:00:00Z"),
-      created_at: new Date("2026-10-07T09:00:00Z"),
+      name: "ai-video-3",
     });
     createAiVideoDownloadUrl.mockResolvedValue(SIGNED);
 
     const res = await call();
 
-    expect(createAiVideoDownloadUrl).toHaveBeenCalledWith(
-      "user-1/t1.mp4",
-      "cricher-ai-video-2026-10-07-11111111.mp4",
-      60
-    );
+    expect(createAiVideoDownloadUrl).toHaveBeenCalledWith("user-1/t1.mp4", "ai-video-3.mp4", 60);
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toBe(SIGNED);
     expect(res.headers.get("cache-control")).toBe("no-store");
   });
 
-  it("keeps the stored file extension in the download name", async () => {
+  it("keeps the stored extension and replaces characters a filename can't hold", async () => {
     (getServerSession as any).mockResolvedValue({ user: { id: OWNER } });
     findUnique.mockResolvedValue({
       id: VIDEO_ID,
       creator_id: OWNER,
       video: "user-1/legacy-clip.mov",
-      generated_time: null,
-      created_at: new Date("2026-09-30T23:30:00Z"),
+      name: 'Launch: "take 2" / final?',
     });
     createAiVideoDownloadUrl.mockResolvedValue(SIGNED);
 
     await call();
 
-    expect(createAiVideoDownloadUrl.mock.calls[0][1]).toBe(
-      "cricher-ai-video-2026-09-30-11111111.mov"
-    );
+    expect(createAiVideoDownloadUrl.mock.calls[0][1]).toBe("Launch- -take 2- - final-.mov");
+  });
+
+  it("falls back to an id-based name for a video without one", async () => {
+    (getServerSession as any).mockResolvedValue({ user: { id: OWNER } });
+    findUnique.mockResolvedValue({
+      id: VIDEO_ID,
+      creator_id: OWNER,
+      video: "user-1/t1.mp4",
+      name: null,
+    });
+    createAiVideoDownloadUrl.mockResolvedValue(SIGNED);
+
+    await call();
+
+    expect(createAiVideoDownloadUrl.mock.calls[0][1]).toBe("ai-video-11111111.mp4");
   });
 
   it("returns 502 when the storage URL cannot be signed", async () => {

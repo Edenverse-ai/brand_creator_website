@@ -84,11 +84,17 @@ test.describe("creator / ai-video generate", () => {
       .poll(() => frame.evaluate((el) => (el as HTMLVideoElement).videoWidth), { timeout: 15_000 })
       .toBeGreaterThan(0);
 
-    // Clicking anywhere on the frame plays it in a dialog named after the prompt,
-    // no taller than 90% of the viewport, with the details under the player.
-    await asCreator.getByRole("button", { name: `Play ${prompt}` }).click();
-    const dialog = asCreator.getByRole("dialog", { name: prompt });
+    // A creator's first video is named ai-video-1. Clicking anywhere on the frame
+    // plays it in a dialog headed by name, prompt and format, no taller than 90% of
+    // the viewport, with the browser's own player and the details underneath.
+    await expect(asCreator.locator("#library article").getByText("ai-video-1")).toBeVisible();
+    await asCreator.getByRole("button", { name: "Play ai-video-1" }).click();
+    const dialog = asCreator.getByRole("dialog", { name: "ai-video-1" });
     await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole("heading", { name: "ai-video-1" })).toBeVisible();
+    await expect(dialog.getByText(prompt)).toBeVisible();
+    await expect(dialog.getByText("Seedance 2.5 · 9:16 · 480p · 4s")).toBeVisible();
+    await expect(dialog.locator("video")).toHaveJSProperty("controls", true);
     const viewport = asCreator.viewportSize()!;
     const box = (await dialog.boundingBox())!;
     expect(box.height).toBeLessThanOrEqual(viewport.height * 0.9 + 1);
@@ -116,7 +122,7 @@ test.describe("creator / ai-video generate", () => {
     expect(href).toMatch(/^\/api\/ai-videos\/library\/[0-9a-f-]{36}\/download$/);
     const redirect = await asCreator.request.get(href!, { maxRedirects: 0 });
     expect(redirect.status()).toBe(307);
-    expect(redirect.headers()["location"]).toContain("download=cricher-ai-video-");
+    expect(redirect.headers()["location"]).toContain("download=ai-video-1.mp4");
     const file = await asCreator.request.get(href!);
     expect(file.status()).toBe(200);
     expect(file.headers()["content-disposition"]).toContain("attachment");
@@ -138,6 +144,104 @@ test.describe("creator / ai-video generate", () => {
       "href",
       /^https?:/
     );
+  });
+
+  test("renames and deletes a video in My Videos", async ({ asCreator }) => {
+    test.setTimeout(90_000);
+    const prompt = `E2E manage ${Date.now()}`;
+
+    await asCreator.goto("/creatorportal/ai-video/generate");
+    await asCreator.getByLabel(/^Prompt$/i).fill(prompt);
+    await asCreator.getByRole("button", { name: /Generate video/i }).click();
+    await expect(asCreator.locator("video")).toBeVisible({ timeout: 45_000 });
+
+    // A second library entry (sharing the first one's file) to collide names with.
+    const db = testDb();
+    const first = await db.aiVideo.findFirstOrThrow({ where: { creator_id: E2E_CREATOR_ID } });
+    await db.aiVideo.create({
+      data: {
+        creator_id: E2E_CREATOR_ID,
+        generated_time: new Date(Date.now() - 60_000),
+        video: first.video,
+        name: "Older clip",
+      },
+    });
+    await db.$disconnect();
+
+    await asCreator.goto("/creatorportal/ai-video");
+    const library = asCreator.locator("#library");
+    await expect(library.locator("article")).toHaveCount(2);
+
+    // Rename from the player: a name another video has is refused, a new one is saved.
+    await asCreator.getByRole("button", { name: "Play ai-video-1" }).click();
+    const player = asCreator.getByRole("dialog");
+    await player.getByRole("button", { name: "Edit name" }).click();
+    const nameField = player.getByRole("textbox", { name: "Video name" });
+    await expect(nameField).toHaveValue("ai-video-1");
+
+    await nameField.fill("Older clip");
+    await player.getByRole("button", { name: "Save" }).click();
+    await expect(player.getByRole("alert")).toHaveText("You already have a video with this name.");
+
+    await nameField.fill("   ");
+    await player.getByRole("button", { name: "Save" }).click();
+    await expect(player.getByRole("alert")).toHaveText("A video needs a name.");
+
+    await nameField.fill("Launch teaser");
+    await player.getByRole("button", { name: "Save" }).click();
+    await expect(player.getByRole("heading", { name: "Launch teaser" })).toBeVisible();
+    await player.getByRole("button", { name: "Close" }).click();
+    await expect(library.locator("article").getByText("Launch teaser")).toBeVisible();
+
+    await asCreator.reload();
+    await expect(library.locator("article").getByText("Launch teaser")).toBeVisible();
+    await expect(library.getByText("ai-video-1")).toHaveCount(0);
+
+    // Selecting shows the actions inside the library, between its header and the
+    // grid: Clear, Delete, Download, Post to TikTok.
+    const tile = library.locator("article", { hasText: "Launch teaser" });
+    await tile.locator("input[type=checkbox]").check({ force: true });
+    const toolbar = library.getByRole("toolbar", { name: "Selected video" });
+    await expect(toolbar).toContainText("Launch teaser");
+    const actions = await toolbar
+      .locator("button, a")
+      .evaluateAll((nodes) =>
+        nodes.map((node) => node.getAttribute("aria-label") ?? node.textContent?.trim())
+      );
+    expect(actions).toEqual(["Clear", "Delete", "Download", "Post to TikTok"]);
+    const header = (await library.getByRole("heading", { name: "My videos" }).boundingBox())!;
+    const bar = (await toolbar.boundingBox())!;
+    const grid = (await tile.boundingBox())!;
+    expect(bar.y).toBeGreaterThan(header.y);
+    expect(bar.y + bar.height).toBeLessThanOrEqual(grid.y);
+
+    // Deleting asks first and says it can't be undone.
+    await toolbar.getByRole("button", { name: "Delete" }).click();
+    const confirm = asCreator.getByRole("alertdialog");
+    await expect(confirm).toContainText("Delete Launch teaser?");
+    await expect(confirm).toContainText("can't be recovered");
+    await confirm.getByRole("button", { name: "Cancel" }).click();
+    await expect(confirm).toBeHidden();
+    await expect(library.locator("article")).toHaveCount(2);
+
+    await toolbar.getByRole("button", { name: "Delete" }).click();
+    await confirm.getByRole("button", { name: "Delete" }).click();
+    await expect(confirm).toBeHidden();
+    await expect(library.getByText("Launch teaser")).toHaveCount(0);
+    await expect(toolbar).toBeHidden();
+
+    // Only that video's row is gone. (The other entry shared its file, so the page
+    // can no longer show it; the database is what tells the two apart.)
+    const after = testDb();
+    const remaining = await after.aiVideo.findMany({ where: { creator_id: E2E_CREATOR_ID } });
+    await after.$disconnect();
+    expect(remaining.map((video) => video.name)).toEqual(["Older clip"]);
+
+    // The generation task stays on record, without a video to open.
+    await asCreator.goto("/creatorportal/ai-video/tasks");
+    const row = asCreator.locator("li", { hasText: prompt });
+    await expect(row.getByText("Delivered")).toBeVisible();
+    await expect(row.getByRole("link", { name: /View output/i })).toHaveCount(0);
   });
 
   test("keeps the stacked layout on small screens, with model and ratio glyphs", async ({

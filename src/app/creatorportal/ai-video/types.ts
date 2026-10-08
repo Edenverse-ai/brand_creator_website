@@ -7,8 +7,11 @@ export type AiVideoRecord = {
   expiresAt: string;
   videoUrl?: string;
   thumbnailUrl?: string | null;
-  /** Prompt the video was generated from, shown as its name. */
+  name: string;
+  /** Prompt the video was generated from; absent for videos that weren't generated here. */
   prompt?: string | null;
+  /** Model and settings, e.g. "Seedance 2.5 · 9:16 · 720p · 5s". */
+  format?: string | null;
   tags: string[];
   status: VideoStatus;
 };

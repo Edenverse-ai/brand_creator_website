@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
+import { isUniqueViolation, nextVideoName } from "@/lib/ai-video-name";
 import { buildLibraryVideoPath } from "@/lib/ai-video-task";
 import { createSignedUrl, uploadToAiVideoBucket } from "@/lib/supabase-admin-core";
 import { buildFinalizeAuthHeaders } from "@/lib/ai-video-finalize-auth";
@@ -34,6 +35,7 @@ const GENERATION_TIMEOUT_MS = 75 * 60_000;
 const FINALIZE_CLAIM_TTL_MS = 20 * 60_000;
 const DISPATCH_TIMEOUT_MS = 10_000;
 const LIBRARY_TAGS = JSON.stringify(["ai-generated"]);
+const NAME_ATTEMPTS = 5;
 
 function traceIdOf(error: unknown): string | null {
   const traceId = (error as { traceId?: unknown } | null)?.traceId;
@@ -323,27 +325,38 @@ export async function finalizeTask(taskId: string): Promise<void> {
     await uploadToAiVideoBucket(path, video.bytes, "video/mp4");
 
     const aiVideoId = randomUUID();
-    await prisma.$transaction([
-      prisma.aiVideo.create({
-        data: {
-          id: aiVideoId,
-          creator_id: task.creatorId,
-          generated_time: now,
-          video: path,
-          tag: LIBRARY_TAGS,
-        },
-      }),
-      prisma.aiVideoTask.update({
-        where: { id: taskId },
-        data: {
-          status: "DELIVERED",
-          aiVideoId,
-          completionTokens: status.completionTokens,
-          traceId: status.traceId,
-          lastCheckedAt: now,
-        },
-      }),
-    ]);
+    // Names are unique per creator. Two of a creator's videos finishing together
+    // can pick the same number; the loser of that race moves on to the next one.
+    for (let attempt = 0; ; attempt += 1) {
+      const name = await nextVideoName(task.creatorId, attempt);
+      try {
+        await prisma.$transaction([
+          prisma.aiVideo.create({
+            data: {
+              id: aiVideoId,
+              creator_id: task.creatorId,
+              generated_time: now,
+              video: path,
+              tag: LIBRARY_TAGS,
+              name,
+            },
+          }),
+          prisma.aiVideoTask.update({
+            where: { id: taskId },
+            data: {
+              status: "DELIVERED",
+              aiVideoId,
+              completionTokens: status.completionTokens,
+              traceId: status.traceId,
+              lastCheckedAt: now,
+            },
+          }),
+        ]);
+        break;
+      } catch (error) {
+        if (!isUniqueViolation(error) || attempt + 1 >= NAME_ATTEMPTS) throw error;
+      }
+    }
   } catch (error) {
     console.error("[ai-video-generation] finalize failed", {
       taskId,

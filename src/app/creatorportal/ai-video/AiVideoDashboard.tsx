@@ -2,40 +2,27 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { useMemo, useState } from "react";
 import {
   ArrowRight,
   Check,
   Clock,
   Download,
   Info,
-  Pause,
-  Play,
   Plus,
   Sparkles,
+  Trash2,
   Upload,
   Video,
-  X,
 } from "lucide-react";
-import { AiVideoRecord, TikTokBindingInfo, VideoStatus } from "./types";
+import { VIDEO_LIFETIME_DAYS } from "./lifetime";
+import { DeleteDialog, PreviewModal, expiresFormatter, generatedFormatter } from "./LibraryDialogs";
+import { AiVideoRecord, TikTokBindingInfo } from "./types";
 
 interface DashboardProps {
   videos: AiVideoRecord[];
   tikTokBinding: TikTokBindingInfo | null;
 }
-
-const generatedFormatter = new Intl.DateTimeFormat(undefined, {
-  month: "short",
-  day: "numeric",
-  hour: "numeric",
-  minute: "numeric",
-});
-
-const expiresFormatter = new Intl.DateTimeFormat(undefined, {
-  month: "short",
-  day: "numeric",
-});
 
 type LibraryFilter = "All" | "Ready" | "Expired";
 
@@ -65,23 +52,15 @@ function paletteFor(id: string) {
 type VideoTileProps = {
   video: AiVideoRecord;
   selected: boolean;
-  canSelect: boolean;
   onToggleSelect: (videoId: string) => void;
   onPreview: (video: AiVideoRecord) => void;
 };
-
-/** Videos have no name of their own yet, so they go by the prompt that made them. */
-function videoName(video: AiVideoRecord): string {
-  return (
-    video.prompt?.trim() || `AI video · ${generatedFormatter.format(new Date(video.generatedAt))}`
-  );
-}
 
 // Label that slides in beside an icon-only control on hover or keyboard focus.
 const HOVER_LABEL =
   "pointer-events-none absolute right-full top-1/2 mr-2 -translate-y-1/2 whitespace-nowrap rounded-full bg-black/70 px-2 py-0.5 text-[11px] font-semibold text-white opacity-0 transition-opacity group-hover/tip:opacity-100 group-focus-within/tip:opacity-100";
 
-function VideoTile({ video, selected, canSelect, onToggleSelect, onPreview }: VideoTileProps) {
+function VideoTile({ video, selected, onToggleSelect, onPreview }: VideoTileProps) {
   const ready = video.status === "ready";
   const playable = ready && Boolean(video.videoUrl);
   const expiresLabel = ready ? expiresFormatter.format(new Date(video.expiresAt)) : "expired";
@@ -126,10 +105,18 @@ function VideoTile({ video, selected, canSelect, onToggleSelect, onPreview }: Vi
         {playable && (
           <button
             type="button"
-            aria-label={`Play ${videoName(video)}`}
+            aria-label={`Play ${video.name}`}
             onClick={() => onPreview(video)}
             className="absolute inset-0 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-indigo-400"
           />
+        )}
+
+        {!ready && (
+          <div className="pointer-events-none absolute inset-0 grid place-items-center bg-slate-900/60">
+            <span className="rounded-full bg-white/90 px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-slate-700">
+              Expired
+            </span>
+          </div>
         )}
 
         <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-3">
@@ -138,9 +125,9 @@ function VideoTile({ video, selected, canSelect, onToggleSelect, onPreview }: Vi
               9:16
             </span>
             <label
-              className={`group/tip relative grid h-7 w-7 cursor-pointer place-items-center rounded-full text-white transition ${
+              className={`group/tip pointer-events-auto relative grid h-7 w-7 cursor-pointer place-items-center rounded-full text-white transition ${
                 selected ? "bg-indigo-500" : "bg-black/40 hover:bg-black/60"
-              } ${canSelect ? "pointer-events-auto" : "opacity-50"}`}
+              }`}
             >
               <input
                 type="checkbox"
@@ -148,7 +135,6 @@ function VideoTile({ video, selected, canSelect, onToggleSelect, onPreview }: Vi
                 aria-label="Select video"
                 checked={selected}
                 onChange={() => onToggleSelect(video.id)}
-                disabled={!canSelect}
               />
               {selected ? (
                 <Check className="h-3.5 w-3.5" strokeWidth={3} />
@@ -181,17 +167,12 @@ function VideoTile({ video, selected, canSelect, onToggleSelect, onPreview }: Vi
             ) : null}
           </div>
         </div>
-
-        {!ready && (
-          <div className="absolute inset-0 grid place-items-center bg-slate-900/60">
-            <span className="rounded-full bg-white/90 px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-slate-700">
-              Expired
-            </span>
-          </div>
-        )}
       </div>
 
-      <div className="flex items-center justify-between gap-2 px-3 py-2.5 text-xs">
+      <p className="truncate px-3 pt-2.5 text-sm font-semibold text-slate-900" title={video.name}>
+        {video.name}
+      </p>
+      <div className="flex items-center justify-between gap-2 px-3 pb-2.5 pt-1 text-xs">
         <span className="flex items-center gap-1.5 text-slate-500">
           <Clock className="h-3.5 w-3.5" />
           {generatedFormatter.format(new Date(video.generatedAt))}
@@ -204,130 +185,26 @@ function VideoTile({ video, selected, canSelect, onToggleSelect, onPreview }: Vi
   );
 }
 
-type PreviewModalProps = {
-  video: AiVideoRecord;
-  onClose: () => void;
-};
-
-const statusTokens: Record<VideoStatus, { label: string; tone: string }> = {
-  ready: { label: "Ready to download", tone: "bg-emerald-50 text-emerald-700 ring-emerald-200" },
-  expired: { label: "Expired", tone: "bg-slate-100 text-slate-500 ring-slate-200" },
-};
-
-function PreviewModal({ video, onClose }: PreviewModalProps) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [isPlaying, setIsPlaying] = useState(true);
-  const statusToken = statusTokens[video.status];
-  const name = videoName(video);
-
-  useEffect(() => {
-    const el = videoRef.current;
-    if (!el) return;
-    el.currentTime = 0;
-    el.play().catch(() => setIsPlaying(false));
-  }, [video]);
-
-  const togglePlayback = () => {
-    const el = videoRef.current;
-    if (!el) return;
-    if (el.paused) {
-      el.play();
-      setIsPlaying(true);
-    } else {
-      el.pause();
-      setIsPlaying(false);
-    }
-  };
-
-  // Portalled to <body>: the portal layout has a transformed ancestor, which would
-  // otherwise make "fixed" relative to it and leave the dialog off-centre.
-  return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-      <div className="absolute inset-0 bg-slate-900/80" onClick={onClose} />
-      {/* Never taller than 90% of the viewport: the video gives up height, the rest keeps its own. */}
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={name}
-        className="relative z-10 flex max-h-[90vh] w-full max-w-2xl flex-col rounded-3xl bg-white p-5 shadow-2xl"
-      >
-        <div className="flex shrink-0 items-start justify-between gap-4">
-          <h2 className="line-clamp-2 text-base font-semibold text-slate-900" title={name}>
-            {name}
-          </h2>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="shrink-0 rounded-full border border-slate-200 p-2 text-slate-500 hover:text-slate-900"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="mt-4 flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-100 bg-slate-900">
-          <video
-            ref={videoRef}
-            src={video.videoUrl}
-            playsInline
-            className="min-h-0 w-full flex-1 object-contain"
-          />
-          <div className="flex shrink-0 flex-wrap items-center justify-center gap-3 bg-slate-900/80 px-4 py-3 text-white">
-            <button
-              onClick={togglePlayback}
-              className="inline-flex items-center gap-2 rounded-full border border-white/30 px-4 py-1 text-sm font-medium"
-            >
-              {isPlaying ? (
-                <>
-                  <Pause className="h-4 w-4" /> Pause
-                </>
-              ) : (
-                <>
-                  <Play className="h-4 w-4" /> Play
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-4 flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2">
-          <div className="flex flex-wrap gap-2">
-            {video.tags.length ? (
-              video.tags.map((tag) => (
-                <span
-                  key={`${video.id}-modal-tag-${tag}`}
-                  className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500"
-                >
-                  #{tag}
-                </span>
-              ))
-            ) : (
-              <span className="text-xs font-medium uppercase tracking-[0.2em] text-slate-300">
-                Untagged
-              </span>
-            )}
-          </div>
-          <span
-            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ${statusToken.tone}`}
-          >
-            {statusToken.label}
-          </span>
-          <p className="text-sm text-slate-500">
-            Generated {generatedFormatter.format(new Date(video.generatedAt))} · Download window
-            ends {expiresFormatter.format(new Date(video.expiresAt))}
-          </p>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-}
-
-export default function AiVideoDashboard({ videos, tikTokBinding }: DashboardProps) {
+export default function AiVideoDashboard({ videos: loadedVideos, tikTokBinding }: DashboardProps) {
   const router = useRouter();
-  const [preview, setPreview] = useState<AiVideoRecord | null>(null);
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  // Names changed in this visit, shown at once without re-fetching (and re-signing) the library.
+  const [renamed, setRenamed] = useState<Record<string, string>>({});
   const [selectedVideoIds, setSelectedVideoIds] = useState<string[]>([]);
   const [isRedirectingToTikTok, setIsRedirectingToTikTok] = useState(false);
   const [filter, setFilter] = useState<LibraryFilter>("All");
+
+  const videos = useMemo(
+    () =>
+      loadedVideos.map((video) =>
+        renamed[video.id] ? { ...video, name: renamed[video.id] } : video
+      ),
+    [loadedVideos, renamed]
+  );
+  const preview = videos.find((video) => video.id === previewId) ?? null;
+  const deleting = videos.find((video) => video.id === deletingId) ?? null;
+  const selectedVideo = videos.find((video) => selectedVideoIds.includes(video.id)) ?? null;
 
   const readyVideoIds = useMemo(
     () =>
@@ -353,6 +230,15 @@ export default function AiVideoDashboard({ videos, tikTokBinding }: DashboardPro
 
   const hasTikTokBinding = Boolean(tikTokBinding);
   const tikTokName = tikTokBinding?.displayName || tikTokBinding?.handle || tikTokBinding?.openId;
+
+  const selectedIsReady = selectedVideo ? readyVideoIds.includes(selectedVideo.id) : false;
+
+  const handleDeleted = () => {
+    setDeletingId(null);
+    setPreviewId(null);
+    clearSelection();
+    router.refresh();
+  };
 
   const handlePost = () => {
     const selectedReady = selectedVideoIds.filter((id) => readyVideoIds.includes(id));
@@ -548,7 +434,7 @@ export default function AiVideoDashboard({ videos, tikTokBinding }: DashboardPro
             <p className="mt-0.5 text-xs text-slate-500">
               {counts.ready} ready · {counts.expired} expired ·{" "}
               <span className="ml-1 font-mono text-slate-400">
-                downloads expire 7 days after generation
+                downloads expire {VIDEO_LIFETIME_DAYS} days after generation
               </span>
             </p>
           </div>
@@ -569,6 +455,68 @@ export default function AiVideoDashboard({ videos, tikTokBinding }: DashboardPro
           </div>
         </header>
 
+        {/* SelectionBar: actions for the selected video, between the header and the grid. */}
+        {selectedVideo && (
+          <div
+            role="toolbar"
+            aria-label="Selected video"
+            className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b border-slate-100 bg-indigo-50/50 px-5 py-3"
+          >
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-indigo-100 text-indigo-700">
+                <Check className="h-4 w-4" strokeWidth={3} />
+              </span>
+              <p className="min-w-0 truncate text-sm text-slate-600">
+                <span className="font-semibold text-slate-900">1 video selected</span> ·{" "}
+                {selectedVideo.name}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={clearSelection}
+                className="rounded-full px-3 py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-900"
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                aria-label="Delete"
+                onClick={() => setDeletingId(selectedVideo.id)}
+                className="group/tip relative grid h-9 w-9 place-items-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:border-rose-300 hover:text-rose-600"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span className="pointer-events-none absolute bottom-full left-1/2 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-full bg-slate-900 px-2 py-0.5 text-[11px] font-semibold text-white opacity-0 transition-opacity group-hover/tip:opacity-100 group-focus-visible/tip:opacity-100">
+                  Delete
+                </span>
+              </button>
+              {selectedIsReady && (
+                // A plain link: the route redirects to a short-lived signed URL that the
+                // browser saves as a file, so no client-side fetching is needed.
+                <a
+                  href={`/api/ai-videos/library/${selectedVideo.id}/download`}
+                  aria-label="Download"
+                  className="group/tip relative grid h-9 w-9 place-items-center rounded-full border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
+                >
+                  <Download className="h-4 w-4" />
+                  <span className="pointer-events-none absolute bottom-full left-1/2 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded-full bg-slate-900 px-2 py-0.5 text-[11px] font-semibold text-white opacity-0 transition-opacity group-hover/tip:opacity-100 group-focus-visible/tip:opacity-100">
+                    Download
+                  </span>
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={handlePost}
+                disabled={!hasTikTokBinding || !selectedIsReady}
+                className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:bg-slate-300"
+              >
+                <Upload className="h-4 w-4" />
+                Post to TikTok
+              </button>
+            </div>
+          </div>
+        )}
+
         {videos.length === 0 ? (
           <div className="p-10 text-center text-sm text-slate-500">
             No AI videos yet. Generate a new brief to see your clips here.
@@ -579,21 +527,17 @@ export default function AiVideoDashboard({ videos, tikTokBinding }: DashboardPro
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-4 p-5 md:grid-cols-3 lg:grid-cols-4">
-            {visibleVideos.map((video) => {
-              const canSelect = video.status === "ready" && Boolean(video.videoUrl);
-              return (
-                <VideoTile
-                  key={video.id}
-                  video={video}
-                  selected={selectedVideoIds.includes(video.id)}
-                  canSelect={canSelect}
-                  onToggleSelect={toggleSelect}
-                  onPreview={(record) => {
-                    if (record.videoUrl) setPreview(record);
-                  }}
-                />
-              );
-            })}
+            {visibleVideos.map((video) => (
+              <VideoTile
+                key={video.id}
+                video={video}
+                selected={selectedVideoIds.includes(video.id)}
+                onToggleSelect={toggleSelect}
+                onPreview={(record) => {
+                  if (record.videoUrl) setPreviewId(record.id);
+                }}
+              />
+            ))}
           </div>
         )}
       </section>
@@ -621,59 +565,19 @@ export default function AiVideoDashboard({ videos, tikTokBinding }: DashboardPro
         </span>
       </Link>
 
-      {/* SelectionBar — sticky bottom action when a video is selected */}
-      {selectedVideoIds.length > 0 && (
-        <div className="sticky bottom-4 z-30 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 rounded-2xl border border-slate-200 bg-white p-3 pl-5 shadow-lg shadow-slate-900/10">
-          <div className="flex items-center gap-3">
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-indigo-50 text-indigo-700">
-              <Check className="h-4 w-4" strokeWidth={3} />
-            </span>
-            <div>
-              <p className="text-sm font-semibold text-slate-900">
-                {selectedVideoIds.length} video{selectedVideoIds.length > 1 ? "s" : ""} selected
-              </p>
-              <p className="text-xs text-slate-500">
-                {hasTikTokBinding
-                  ? "Download it, or review captions on the next screen."
-                  : "Download it, or connect TikTok to enable posting."}
-              </p>
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={clearSelection}
-              className="rounded-full px-3 py-1.5 text-xs font-semibold text-slate-500 hover:text-slate-900"
-            >
-              Clear
-            </button>
-            {selectedVideoIds.map((videoId) => (
-              // A plain link: the route redirects to a short-lived signed URL that the
-              // browser saves as a file, so no client-side fetching is needed.
-              <a
-                key={videoId}
-                href={`/api/ai-videos/library/${videoId}/download`}
-                className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:text-slate-900"
-              >
-                <Download className="h-4 w-4" />
-                Download
-              </a>
-            ))}
-            <button
-              type="button"
-              onClick={handlePost}
-              disabled={!hasTikTokBinding}
-              className="inline-flex items-center gap-1.5 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:bg-slate-300"
-            >
-              <Upload className="h-4 w-4" />
-              Post to TikTok
-            </button>
-          </div>
-        </div>
-      )}
-
       {preview && preview.videoUrl && (
-        <PreviewModal video={preview} onClose={() => setPreview(null)} />
+        <PreviewModal
+          video={preview}
+          onRenamed={(name) => setRenamed((current) => ({ ...current, [preview.id]: name }))}
+          onClose={() => setPreviewId(null)}
+        />
+      )}
+      {deleting && (
+        <DeleteDialog
+          video={deleting}
+          onDeleted={handleDeleted}
+          onClose={() => setDeletingId(null)}
+        />
       )}
     </div>
   );

@@ -92,6 +92,8 @@ Consequences:
 | `lastCheckedAt`                        | Last provider status check; orders the scheduled sweep.                                                                             |
 | `aiVideoId`                            | The `AiVideo` (My Videos) row created on delivery. The migration also creates `AiVideo` if missing (`IF NOT EXISTS`) for local/E2E. |
 
+**`AiVideo.name`** (migration `20261008180000_ai_video_name`). Every video in My Videos has a name, unique per creator (`AiVideo_creator_id_name_key` on `creator_id` + `name`). New videos are named `ai-video-<n>` by `nextVideoName` (`src/lib/ai-video-name.ts`), one past the creator's highest number; creators rename them through `PATCH /api/ai-videos/library/:id`. The column is nullable only so a writer that predates it can't fail; the migration back-fills existing rows. Like the migration above it is hand-written and re-runnable, and production gets it by running the SQL directly (production has no migration history table).
+
 See [the design spec](superpowers/specs/2026-10-05-seedance-video-generation-design.md) §6.
 
 ---

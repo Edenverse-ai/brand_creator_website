@@ -1,8 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const aiVideoFindMany = vi.fn();
+const aiVideoTaskFindMany = vi.fn();
 vi.mock("@/lib/prisma", () => ({
-  prisma: { aiVideo: { findMany: (...args: unknown[]) => aiVideoFindMany(...args) } },
+  prisma: {
+    aiVideo: { findMany: (...args: unknown[]) => aiVideoFindMany(...args) },
+    aiVideoTask: { findMany: (...args: unknown[]) => aiVideoTaskFindMany(...args) },
+  },
 }));
 
 const createSignedUrl = vi.fn();
@@ -11,7 +15,7 @@ vi.mock("@/lib/supabase-admin", () => ({
   getSupabaseAdmin: () => ({ storage: { from: storageFrom } }),
 }));
 
-import { deserializeTags, getAiVideoLibrary } from "../ai-video-library";
+import { describeFormat, deserializeTags, getAiVideoLibrary } from "../ai-video-library";
 
 function row(overrides: Partial<Record<string, unknown>> = {}) {
   return {
@@ -22,12 +26,14 @@ function row(overrides: Partial<Record<string, unknown>> = {}) {
     video: "creator-1/video-1.mp4",
     tag: null,
     thumbnail_url: null,
+    name: "ai-video-1",
     ...overrides,
   };
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
+  aiVideoTaskFindMany.mockResolvedValue([]);
   createSignedUrl.mockResolvedValue({
     data: { signedUrl: "https://signed.example/mock" },
     error: null,
@@ -204,6 +210,53 @@ describe("getAiVideoLibrary", () => {
     expect(result[0].tags).toEqual(["dance", "comedy"]);
   });
 
+  it("returns the video's name, falling back to an id-based one when it has none", async () => {
+    aiVideoFindMany.mockResolvedValue([
+      row({ name: "Summer launch" }),
+      row({ id: "abcdef12-0000-0000-0000-000000000000", name: null }),
+    ]);
+
+    const result = await getAiVideoLibrary("creator-1");
+
+    expect(result.map((item) => item.name)).toEqual(["Summer launch", "ai-video-abcdef12"]);
+  });
+
+  it("adds the prompt and format of the task that generated the video", async () => {
+    aiVideoFindMany.mockResolvedValue([row(), row({ id: "video-2", name: "ai-video-2" })]);
+    aiVideoTaskFindMany.mockResolvedValue([
+      {
+        aiVideoId: "video-1",
+        prompt: "a cat on a beach",
+        params: { mode: "seedance2.5", ratio: "9:16", resolution: "720p", duration: 5 },
+      },
+    ]);
+
+    const result = await getAiVideoLibrary("creator-1");
+
+    expect(aiVideoTaskFindMany).toHaveBeenCalledWith({
+      where: { aiVideoId: { in: ["video-1", "video-2"] } },
+      select: { aiVideoId: true, prompt: true, params: true },
+    });
+    expect(result[0]).toMatchObject({
+      prompt: "a cat on a beach",
+      format: "Seedance 2.5 · 9:16 · 720p · 5s",
+    });
+    // No generation task behind it: the video is still listed, without those details.
+    expect(result[1]).toMatchObject({ prompt: null, format: null });
+  });
+
+  it("still lists the videos when the task lookup fails", async () => {
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    aiVideoFindMany.mockResolvedValue([row()]);
+    aiVideoTaskFindMany.mockRejectedValue(new Error("db down"));
+
+    const result = await getAiVideoLibrary("creator-1");
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ name: "ai-video-1", prompt: null, format: null });
+    consoleSpy.mockRestore();
+  });
+
   it("always stamps creator_id from the trusted input parameter, not the row", async () => {
     // Defense in depth: even if a row's own creator_id column somehow diverged
     // from the scope we queried by, the response must reflect the identity we
@@ -226,5 +279,23 @@ describe("getAiVideoLibrary", () => {
     expect(loggedArgs).not.toContain("leaked-secret-token");
     expect(loggedArgs).not.toContain("secret-path");
     consoleSpy.mockRestore();
+  });
+});
+
+describe("describeFormat", () => {
+  it("names the model and lists ratio, resolution and duration", () => {
+    expect(describeFormat({ mode: "mini", ratio: "16:9", resolution: "1080p", duration: 12 })).toBe(
+      "Seedance 2.0 Mini · 16:9 · 1080p · 12s"
+    );
+  });
+
+  it("shows an unlisted model id as it is, and skips what is missing", () => {
+    expect(describeFormat({ mode: "fast", ratio: "1:1" })).toBe("fast · 1:1");
+  });
+
+  it("returns null when there are no settings", () => {
+    expect(describeFormat(null)).toBeNull();
+    expect(describeFormat({})).toBeNull();
+    expect(describeFormat("9:16")).toBeNull();
   });
 });
