@@ -1,6 +1,8 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
 import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { fallbackVideoName } from "@/lib/ai-video-name";
+import { VIDEO_MODELS } from "@/lib/seedance/models";
 
 // Matches backend/app/main/services/ai_video_service.py AiVideoService.BUCKET_NAME.
 const BUCKET_NAME = "aivideogenerated";
@@ -32,9 +34,11 @@ type AiVideoRow = {
   video: string | null;
   tag: string | null;
   thumbnail_url: string | null;
+  name: string | null;
 };
 
-// Mirror of backend/app/main/models/ai_video.py AiVideoLibraryItem, plus `prompt`.
+// Mirror of backend/app/main/models/ai_video.py AiVideoLibraryItem, plus `name`,
+// `prompt` and `format`.
 export type AiVideoLibraryItemResponse = {
   id: string;
   creator_id: string;
@@ -43,27 +47,51 @@ export type AiVideoLibraryItemResponse = {
   tags: string[];
   created_at: string | null;
   thumbnail_url: string | null;
+  name: string;
   /** Prompt of the generation task that produced the video; null for other videos. */
   prompt: string | null;
+  /** Model and settings it was generated with, e.g. "Seedance 2.5 · 9:16 · 720p · 5s". */
+  format: string | null;
 };
 
+type TaskInfo = { prompt: string; format: string | null };
+
+/** One line describing a task's saved generation settings; null when there are none. */
+export function describeFormat(params: unknown): string | null {
+  if (!params || typeof params !== "object") return null;
+  const { mode, ratio, resolution, duration } = params as Record<string, unknown>;
+  const parts = [
+    typeof mode === "string"
+      ? (VIDEO_MODELS.find((model) => model.mode === mode)?.label ?? mode)
+      : null,
+    typeof ratio === "string" ? ratio : null,
+    typeof resolution === "string" ? resolution : null,
+    typeof duration === "number" ? `${duration}s` : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
 /**
- * Prompts of the generation tasks behind these videos, keyed by video id. The
- * library shows them as the video's name. Best effort: a failed lookup leaves the
- * videos unnamed rather than hiding them.
+ * Prompt and format of the generation tasks behind these videos, keyed by video
+ * id. Best effort: a failed lookup leaves the videos without those details rather
+ * than hiding them.
  */
-async function loadPrompts(videoIds: string[]): Promise<Map<string, string>> {
+async function loadTaskInfo(videoIds: string[]): Promise<Map<string, TaskInfo>> {
   try {
     const tasks = await prisma.aiVideoTask.findMany({
       where: { aiVideoId: { in: videoIds } },
-      select: { aiVideoId: true, prompt: true },
+      select: { aiVideoId: true, prompt: true, params: true },
     });
     return new Map(
-      tasks.flatMap((task) => (task.aiVideoId ? [[task.aiVideoId, task.prompt]] : []))
+      tasks.flatMap((task) =>
+        task.aiVideoId
+          ? [[task.aiVideoId, { prompt: task.prompt, format: describeFormat(task.params) }]]
+          : []
+      )
     );
   } catch (error) {
     console.error(
-      "ai-video-library: prompt lookup failed",
+      "ai-video-library: task lookup failed",
       error instanceof Error ? error.name : typeof error
     );
     return new Map();
@@ -185,7 +213,7 @@ export async function getAiVideoLibrary(creatorId: string): Promise<AiVideoLibra
 
   if (rows.length === 0) return [];
 
-  const prompts = await loadPrompts(rows.map((row) => row.id));
+  const taskInfo = await loadTaskInfo(rows.map((row) => row.id));
 
   const results: AiVideoLibraryItemResponse[] = [];
   for (const row of rows) {
@@ -203,7 +231,9 @@ export async function getAiVideoLibrary(creatorId: string): Promise<AiVideoLibra
         tags: deserializeTags(row.tag),
         created_at: row.created_at.toISOString(),
         thumbnail_url: thumbnailUrl,
-        prompt: prompts.get(row.id) ?? null,
+        name: row.name?.trim() || fallbackVideoName(row.id),
+        prompt: taskInfo.get(row.id)?.prompt ?? null,
+        format: taskInfo.get(row.id)?.format ?? null,
       });
     } catch (error) {
       console.error(

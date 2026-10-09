@@ -103,3 +103,6 @@ export const STATUS_DISPLAY = {
   DELIVERED: { label: "Delivered", className: "bg-emerald-100 text-emerald-700" },
   FAILED: { label: "Failed", className: "bg-rose-100 text-rose-700" },
 } as const;
+
+/** Longest name a video in My Videos can have. */
+export const VIDEO_NAME_MAX_LENGTH = 80;

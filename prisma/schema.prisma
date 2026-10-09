@@ -209,6 +209,10 @@ model AiVideo {
   video          String?
   tag            String?
   thumbnail_url  String?
+  // Shown in My Videos; "ai-video-<n>" until the creator renames it.
+  name           String?
+
+  @@unique([creator_id, name])
 }
 
 /// This model contains row level security and requires additional setup for migrations. Visit https://pris.ly/d/row-level-security for more info.

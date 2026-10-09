@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getAiVideoLibrary, type AiVideoLibraryItemResponse } from "@/lib/ai-video-library";
+import { VIDEO_LIFETIME_DAYS } from "./lifetime";
 import { AiVideoRecord, TikTokBindingInfo, VideoStatus } from "./types";
 
 const TIKTOK_TOKEN_ENDPOINT = "https://open.tiktokapis.com/v2/oauth/token/";
@@ -48,7 +49,7 @@ export async function fetchAiVideos(userId: string | null): Promise<AiVideoRecor
 
 function mapToRecord(item: AiVideoLibraryItemResponse): AiVideoRecord {
   const expiresAt = new Date(
-    new Date(item.generated_time).getTime() + 7 * 24 * 60 * 60 * 1000
+    new Date(item.generated_time).getTime() + VIDEO_LIFETIME_DAYS * 24 * 60 * 60 * 1000
   ).toISOString();
   const status: VideoStatus = new Date(expiresAt).getTime() < Date.now() ? "expired" : "ready";
 
@@ -59,7 +60,9 @@ function mapToRecord(item: AiVideoLibraryItemResponse): AiVideoRecord {
     expiresAt,
     videoUrl: item.video_url,
     thumbnailUrl: item.thumbnail_url,
+    name: item.name,
     prompt: item.prompt,
+    format: item.format,
     tags: item.tags,
     status,
   };

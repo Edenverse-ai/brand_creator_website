@@ -28,7 +28,9 @@
       "PowerShell($env:Path = [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"User\"\\); gh repo view Edenverse-ai/brand_creator_website --json nameWithOwner,isFork,parent,createdAt,pushedAt,url 2>&1; \"-----\"; gh repo view robotx-ai/brand_creator_website --json nameWithOwner,isFork,createdAt,pushedAt,url,defaultBranchRef 2>&1; \"-----\"; gh api repos/robotx-ai/brand_creator_website --jq '.full_name' 2>&1)",
       "Bash(cd 'C:\\\\Users\\\\qingy_fr6f9x6\\\\.claude\\\\projects\\\\d--Work-BorderX-Cricher-Creator-Web-brand-creator-website\\\\memory' && ls; cat MEMORY.md 2>/dev/null)",
       "Read(//c/Users/qingy_fr6f9x6/.claude/projects/d--Work-BorderX-Cricher-Creator-Web-brand-creator-website/memory/**)",
-      "PowerShell($env:Path = [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"User\"\\); gh pr view 29 --repo Edenverse-ai/brand_creator_website --json state,mergeable,reviewDecision --jq '\"state=\\\\\\(.state\\) mergeable=\\\\\\(.mergeable\\) review=\\\\\\(.reviewDecision\\)\"'; gh pr checks 29 --repo Edenverse-ai/brand_creator_website 2>&1 | ForEach-Object { \\($_ -split \"`t\"\\)[0..1] -join \": \" })"
+      "PowerShell($env:Path = [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"User\"\\); gh pr view 29 --repo Edenverse-ai/brand_creator_website --json state,mergeable,reviewDecision --jq '\"state=\\\\\\(.state\\) mergeable=\\\\\\(.mergeable\\) review=\\\\\\(.reviewDecision\\)\"'; gh pr checks 29 --repo Edenverse-ai/brand_creator_website 2>&1 | ForEach-Object { \\($_ -split \"`t\"\\)[0..1] -join \": \" })",
+      "Bash(git fetch *)",
+      "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" pr view 29 --json body,title,mergeStateStatus --jq '.title, .mergeStateStatus, .body')"
     ]
   },
   "hooks": {

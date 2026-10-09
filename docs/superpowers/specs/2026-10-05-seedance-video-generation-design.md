@@ -223,6 +223,15 @@ From `lg` up the inputs are one composer card: reference-image tile and prompt o
 - `/creatorportal/ai-video/tasks`: handles a null reference image and the `FAILED` status, and calls `syncTask` once for `GENERATING` rows when rendering.
 - `/storyclaw-admin`: tolerates a null reference image and the new status.
 
+### My Videos — `/creatorportal/ai-video`
+
+- Each tile shows the video's first frame and its name. Clicking the frame opens the player; the corner button downloads the file under the video's name.
+- Videos are named `ai-video-<n>` when generated (see `docs/database.md`). Names are never empty and never repeat within one creator's library.
+- The player dialog is headed by the name, the prompt and the format (model · ratio · resolution · duration), uses the browser's own video controls, and never exceeds 90% of the viewport height. An edit button turns the name into a field with Save and Cancel; a name another of the creator's videos has is refused (409).
+- Selecting a video shows a toolbar inside the library, between its header and the grid: Clear, Delete (icon), Download (icon), Post to TikTok.
+- Delete asks for confirmation and states that it is permanent. `DELETE /api/ai-videos/library/:id` removes the row and the stored file and clears `aiVideoId` on the generation task. The task itself stays, so deleting a video does not give back a daily generation.
+- A video is "ready" for 60 days after generation (`VIDEO_LIFETIME_DAYS`), then "expired": it can no longer be played, downloaded or posted, but it can still be selected and deleted. Expiry is a display state only; nothing removes the file.
+
 ## 9. Configuration
 
 | Variable               | Default | Notes                                         |

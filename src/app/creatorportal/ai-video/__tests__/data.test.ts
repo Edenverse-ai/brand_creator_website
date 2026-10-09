@@ -51,9 +51,57 @@ describe("fetchAiVideos", () => {
     expect(record.videoUrl).toBe("https://signed.example/video-1.mp4");
     expect(record.thumbnailUrl).toBe("https://signed.example/thumb-1.jpg");
     expect(record.tags).toEqual(["dance", "comedy"]);
-    // Generated over 7 days before the fixed system date in this suite -> expired.
+    // Generated years before today -> expired.
     expect(record.status).toBe("expired");
     expect(typeof record.expiresAt).toBe("string");
+  });
+
+  it("keeps a video ready for 60 days after it was generated", async () => {
+    const daysAgo = (days: number) =>
+      new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    const item = (id: string, generated: string) => ({
+      id,
+      creator_id: "user-1",
+      generated_time: generated,
+      video_url: "https://signed.example/v.mp4",
+      tags: [],
+      created_at: generated,
+      thumbnail_url: null,
+      name: id,
+      prompt: null,
+      format: null,
+    });
+    getAiVideoLibrary.mockResolvedValue([item("recent", daysAgo(59)), item("old", daysAgo(61))]);
+
+    const [recent, old] = await fetchAiVideos("user-1");
+
+    expect(recent.status).toBe("ready");
+    expect(old.status).toBe("expired");
+  });
+
+  it("passes the name, prompt and format through", async () => {
+    getAiVideoLibrary.mockResolvedValue([
+      {
+        id: "video-3",
+        creator_id: "user-1",
+        generated_time: new Date().toISOString(),
+        video_url: "https://signed.example/video-3.mp4",
+        tags: [],
+        created_at: null,
+        thumbnail_url: null,
+        name: "ai-video-3",
+        prompt: "a cat",
+        format: "Seedance 2.5 · 9:16 · 720p · 5s",
+      },
+    ]);
+
+    const [record] = await fetchAiVideos("user-1");
+
+    expect(record).toMatchObject({
+      name: "ai-video-3",
+      prompt: "a cat",
+      format: "Seedance 2.5 · 9:16 · 720p · 5s",
+    });
   });
 
   it("marks a just-generated video as ready", async () => {

@@ -101,6 +101,23 @@ export async function uploadToAiVideoBucket(
   }
 }
 
+/** Removes library videos. Never throws: a file left behind is logged, not fatal. */
+export async function deleteFromAiVideoBucket(paths: string[]): Promise<void> {
+  if (paths.length === 0) return;
+  try {
+    const client = getSupabaseAdmin();
+    const { error } = await client.storage.from(AI_VIDEO_BUCKET).remove(paths);
+    if (error) {
+      console.error("[supabase-admin] ai video delete failed", { paths, message: error.message });
+    }
+  } catch (err) {
+    console.error("[supabase-admin] ai video delete unexpected error", {
+      paths,
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+}
+
 export async function createAiVideoSignedUrl(
   path: string,
   expiresInSec = 3600
