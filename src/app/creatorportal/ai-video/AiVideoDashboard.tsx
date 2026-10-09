@@ -8,7 +8,6 @@ import {
   Check,
   Clock,
   Download,
-  Info,
   Plus,
   Sparkles,
   Trash2,
@@ -17,6 +16,7 @@ import {
 } from "lucide-react";
 import { VIDEO_LIFETIME_DAYS } from "./lifetime";
 import { DeleteDialog, PreviewModal, expiresFormatter, generatedFormatter } from "./LibraryDialogs";
+import SampleVideos from "./SampleVideos";
 import { AiVideoRecord, TikTokBindingInfo } from "./types";
 
 interface DashboardProps {
@@ -25,14 +25,6 @@ interface DashboardProps {
 }
 
 type LibraryFilter = "All" | "Ready" | "Expired";
-
-function TikTokGlyph({ className = "h-5 w-5" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden="true">
-      <path d="M16.5 2h-2.7v13.6a3.3 3.3 0 11-3.3-3.3c.24 0 .47.02.7.07V9.7a6 6 0 105.3 5.95V8.55a7.4 7.4 0 004.5 1.55V7.3a4.6 4.6 0 01-4.5-4.5V2z" />
-    </svg>
-  );
-}
 
 // Stable color palette per video id, used as a placeholder gradient when no thumbnail is available.
 const palettes = [
@@ -230,6 +222,7 @@ export default function AiVideoDashboard({ videos: loadedVideos, tikTokBinding }
 
   const hasTikTokBinding = Boolean(tikTokBinding);
   const tikTokName = tikTokBinding?.displayName || tikTokBinding?.handle || tikTokBinding?.openId;
+  const postActive = hasTikTokBinding && selectedVideoIds.length > 0;
 
   const selectedIsReady = selectedVideo ? readyVideoIds.includes(selectedVideo.id) : false;
 
@@ -259,84 +252,12 @@ export default function AiVideoDashboard({ videos: loadedVideos, tikTokBinding }
   const filters: LibraryFilter[] = ["All", "Ready", "Expired"];
 
   return (
-    <div className="mx-auto max-w-[1200px] space-y-6 py-8">
-      {/* PageHeader */}
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-500">
-            Creator workspace
-          </p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight text-slate-900">AI Video</h1>
-          <p className="mt-1.5 max-w-xl text-sm text-slate-600">
-            Three things live here: generate a clip, browse what you&apos;ve already made, send the
-            best ones to TikTok.
-          </p>
-        </div>
-        <Link
-          href="/creatorportal/ai-video/learn-more"
-          className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-indigo-200 hover:text-indigo-700"
-        >
-          <Info className="h-3.5 w-3.5" />
-          How AI video works
-          <ArrowRight className="h-3 w-3" />
-        </Link>
-      </div>
-
-      {/* TikTokStatus */}
-      <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-slate-900 text-white">
-            <TikTokGlyph className="h-5 w-5" />
-          </div>
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
-              TikTok account
-            </p>
-            {hasTikTokBinding ? (
-              <p className="mt-0.5 flex items-center gap-2 text-sm font-semibold text-emerald-700">
-                <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-                Connected
-                {tikTokName ? (
-                  <>
-                    {" "}
-                    as <span className="text-slate-900">{tikTokName}</span>
-                  </>
-                ) : null}
-              </p>
-            ) : (
-              <p className="mt-0.5 flex items-center gap-2 text-sm font-semibold text-amber-700">
-                <span className="inline-flex h-2 w-2 rounded-full bg-amber-500" />
-                Not connected
-              </p>
-            )}
-          </div>
-        </div>
-        {hasTikTokBinding ? (
-          <button
-            type="button"
-            onClick={redirectToTikTokAuth}
-            disabled={isRedirectingToTikTok}
-            className="text-xs font-semibold text-slate-500 hover:text-slate-900 disabled:opacity-50"
-          >
-            {isRedirectingToTikTok ? "Redirecting…" : "Switch account"}
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={redirectToTikTokAuth}
-            disabled={isRedirectingToTikTok}
-            className="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
-          >
-            {isRedirectingToTikTok ? "Redirecting…" : "Connect TikTok"}
-          </button>
-        )}
-      </div>
-
+    <div className="mx-auto max-w-[1200px] space-y-3">
       {/* ActionCards */}
       <div className="grid gap-4 md:grid-cols-3">
         <Link
           href="/creatorportal/ai-video/generate"
-          className="group relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 p-5 text-left text-white shadow-sm transition hover:shadow-lg"
+          className="group relative flex flex-col overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600 to-violet-600 p-5 text-left text-white shadow-sm transition hover:shadow-lg"
         >
           <div className="flex items-center justify-between">
             <span className="grid h-10 w-10 place-items-center rounded-xl bg-white/15 ring-1 ring-white/20">
@@ -346,11 +267,11 @@ export default function AiVideoDashboard({ videos: loadedVideos, tikTokBinding }
               Step 01
             </span>
           </div>
-          <p className="mt-5 text-lg font-semibold">Generate AI video</p>
+          <p className="mt-2 text-lg font-semibold">Generate AI video</p>
           <p className="mt-1 text-sm text-white/80">
             Drop a script, voice or reference image. We mint a ready-to-post 9:16 clip.
           </p>
-          <span className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold">
+          <span className="mt-auto inline-flex items-center gap-1.5 pt-2 text-sm font-semibold">
             New brief <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
           </span>
         </Link>
@@ -358,7 +279,7 @@ export default function AiVideoDashboard({ videos: loadedVideos, tikTokBinding }
         <button
           type="button"
           onClick={scrollToLibrary}
-          className="group relative rounded-2xl border border-slate-200 bg-white p-5 text-left transition hover:border-indigo-200 hover:shadow-sm"
+          className="group relative flex flex-col rounded-2xl border border-slate-200 bg-white p-5 text-left transition hover:border-indigo-200 hover:shadow-sm"
         >
           <div className="flex items-center justify-between">
             <span className="grid h-10 w-10 place-items-center rounded-xl bg-indigo-50 text-indigo-700">
@@ -368,63 +289,91 @@ export default function AiVideoDashboard({ videos: loadedVideos, tikTokBinding }
               Step 02
             </span>
           </div>
-          <p className="mt-5 text-lg font-semibold text-slate-900">Browse my videos</p>
+          <p className="mt-2 text-lg font-semibold text-slate-900">Browse my videos</p>
           <p className="mt-1 text-sm text-slate-600">
             {counts.ready} ready · {counts.expired} expired. Preview or select to post.
           </p>
-          <span className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-700">
+          <span className="mt-auto inline-flex items-center gap-1.5 pt-2 text-sm font-semibold text-indigo-700">
             Open library <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
           </span>
         </button>
 
-        <button
-          type="button"
-          onClick={handlePost}
-          disabled={!hasTikTokBinding || selectedVideoIds.length === 0}
-          className={`group relative rounded-2xl border p-5 text-left transition ${
-            selectedVideoIds.length > 0 && hasTikTokBinding
-              ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
-              : "border-slate-200 bg-white text-slate-900"
-          } disabled:cursor-not-allowed`}
+        {/* The whole card is one action; "Switch account" sits on top of it. */}
+        <div
+          className={`group relative flex flex-col rounded-2xl bg-gradient-to-br from-slate-800 to-slate-700 p-5 text-left text-white shadow-sm transition ${
+            postActive || !hasTikTokBinding ? "hover:shadow-lg" : ""
+          }`}
         >
-          <div className="flex items-center justify-between">
+          <button
+            type="button"
+            aria-label={hasTikTokBinding ? "Post to TikTok" : "Connect TikTok"}
+            onClick={hasTikTokBinding ? handlePost : redirectToTikTokAuth}
+            disabled={hasTikTokBinding ? selectedVideoIds.length === 0 : isRedirectingToTikTok}
+            className="absolute inset-0 rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 disabled:cursor-not-allowed"
+          />
+          <div className="pointer-events-none relative flex flex-1 flex-col">
+            <div className="flex items-center justify-between">
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-white/15 ring-1 ring-white/20">
+                <Upload className="h-5 w-5" />
+              </span>
+              <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/70">
+                Step 03
+              </span>
+            </div>
+            <p className="mt-2 text-lg font-semibold">Post to TikTok</p>
+            <div className="mt-1 flex items-center justify-between gap-2">
+              {hasTikTokBinding ? (
+                <p className="flex min-w-0 items-center gap-2 text-sm font-semibold text-emerald-300">
+                  <span className="inline-flex h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
+                  <span className="truncate">
+                    Connected
+                    {tikTokName ? (
+                      <>
+                        {" "}
+                        as <span className="text-white">{tikTokName}</span>
+                      </>
+                    ) : null}
+                  </span>
+                </p>
+              ) : (
+                <p className="flex items-center gap-2 text-sm font-semibold text-amber-300">
+                  <span className="inline-flex h-2 w-2 rounded-full bg-amber-500" />
+                  Not connected
+                </p>
+              )}
+              {hasTikTokBinding && (
+                <button
+                  type="button"
+                  onClick={redirectToTikTokAuth}
+                  disabled={isRedirectingToTikTok}
+                  className="pointer-events-auto shrink-0 text-xs font-semibold text-white/70 hover:text-white disabled:opacity-50"
+                >
+                  {isRedirectingToTikTok ? "Redirecting…" : "Switch account"}
+                </button>
+              )}
+            </div>
+            <p className="mt-1 text-sm text-white/80">
+              {selectedVideoIds.length > 0
+                ? `${selectedVideoIds.length} video${selectedVideoIds.length > 1 ? "s" : ""} selected — review captions & post.`
+                : "Pick a ready video from your library, then send it straight to TikTok."}
+            </p>
             <span
-              className={`grid h-10 w-10 place-items-center rounded-xl ${
-                selectedVideoIds.length > 0 && hasTikTokBinding
-                  ? "bg-white/15 ring-1 ring-white/20"
-                  : "bg-slate-900 text-white"
+              className={`mt-auto inline-flex items-center gap-1.5 pt-2 text-sm font-semibold ${
+                postActive || !hasTikTokBinding ? "text-white" : "text-white/50"
               }`}
             >
-              <Upload className="h-5 w-5" />
-            </span>
-            <span
-              className={`text-[10px] font-semibold uppercase tracking-[0.2em] ${
-                selectedVideoIds.length > 0 && hasTikTokBinding ? "text-white/70" : "text-slate-400"
-              }`}
-            >
-              Step 03
+              {hasTikTokBinding
+                ? "Continue"
+                : isRedirectingToTikTok
+                  ? "Redirecting…"
+                  : "Connect TikTok first"}
+              <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
             </span>
           </div>
-          <p className="mt-5 text-lg font-semibold">Post to TikTok</p>
-          <p
-            className={`mt-1 text-sm ${
-              selectedVideoIds.length > 0 && hasTikTokBinding ? "text-white/80" : "text-slate-600"
-            }`}
-          >
-            {selectedVideoIds.length > 0
-              ? `${selectedVideoIds.length} video${selectedVideoIds.length > 1 ? "s" : ""} selected — review captions & post.`
-              : "Pick a ready video from your library, then send it straight to TikTok."}
-          </p>
-          <span
-            className={`mt-5 inline-flex items-center gap-1.5 text-sm font-semibold ${
-              selectedVideoIds.length > 0 && hasTikTokBinding ? "text-white" : "text-slate-400"
-            }`}
-          >
-            {hasTikTokBinding ? "Continue" : "Connect TikTok first"}
-            <ArrowRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
-          </span>
-        </button>
+        </div>
       </div>
+
+      <SampleVideos />
 
       {/* VideoLibrary */}
       <section id="library" className="rounded-2xl border border-slate-200 bg-white">
