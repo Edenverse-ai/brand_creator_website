@@ -4,7 +4,7 @@ test.describe("creator / ai-video dashboard", () => {
   test("loads AI Video Library for authenticated creator", async ({ asCreator }) => {
     await asCreator.goto("/creatorportal/ai-video");
     await expect(asCreator).toHaveURL(/\/creatorportal\/ai-video/);
-    await expect(asCreator.getByRole("heading", { name: /ai video/i }).first()).toBeVisible({
+    await expect(asCreator.getByRole("heading", { name: "My videos" })).toBeVisible({
       timeout: 10_000,
     });
   });
