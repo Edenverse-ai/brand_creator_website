@@ -46,11 +46,7 @@ export default function DigitalHumanSection({ lang = "en" }: DigitalHumanSection
   const prefix = lang === "zh" ? "/zh" : "";
 
   return (
-    <section
-      id="dh"
-      aria-labelledby="dh-heading"
-      className="border-b border-line bg-surface py-[--space-section]"
-    >
+    <section id="dh" aria-labelledby="dh-heading" className="bg-surface py-[--space-section]">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="text-center">
           <span className="inline-flex items-center gap-2 rounded-full border border-accent-soft bg-accent-soft px-4 py-1.5 text-micro font-bold uppercase tracking-micro text-accent">
