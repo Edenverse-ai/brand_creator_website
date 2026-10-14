@@ -104,7 +104,7 @@ export default function AiVideoLaunchSection({
             className="h-full w-full object-contain"
           />
         </div>
-        <p className="mt-4 text-sm text-ink-muted">{COPY.caption[lang]}</p>
+        {/* <p className="mt-4 text-sm text-ink-muted">{COPY.caption[lang]}</p> */}
 
         <Link
           href="/creatorportal/ai-video"
