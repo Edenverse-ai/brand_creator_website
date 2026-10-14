@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { ArrowRight, BarChart3, ChevronLeft, ChevronRight, Search, Users } from "lucide-react";
+import AiVideoLaunchSection from "@/components/home/AiVideoLaunchSection";
 import DigitalHumanSection from "@/components/home/DigitalHumanSection";
 import HeroSection from "@/components/home/HeroSection";
 import { useRevealOnScroll } from "@/hooks/useRevealOnScroll";
@@ -126,6 +127,9 @@ export default function Home() {
 
       {/* AI Digital Human Service */}
       <DigitalHumanSection lang="en" />
+
+      {/* AI Video launch */}
+      <AiVideoLaunchSection lang="en" />
 
       {/* Why creators choose Cricher AI */}
       <section className="bg-surface-sunken py-[--space-section]">
