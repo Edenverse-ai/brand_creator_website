@@ -85,6 +85,9 @@ export default {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",
         "gradient-conic": "conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))",
         "gradient-hero": "var(--gradient-hero)",
+        // Feature-launch band: fades from the section above into the one below.
+        "gradient-feature":
+          "linear-gradient(to bottom, var(--surface), var(--accent-soft) 45%, var(--surface-sunken))",
       },
     },
   },

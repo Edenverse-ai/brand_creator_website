@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ArrowRight, BarChart3, Search, Users } from "lucide-react";
+import AiVideoLaunchSection from "@/components/home/AiVideoLaunchSection";
 import DigitalHumanSection from "@/components/home/DigitalHumanSection";
 import HeroSection from "@/components/home/HeroSection";
 import { useRevealOnScroll } from "@/hooks/useRevealOnScroll";
@@ -41,6 +42,9 @@ export default function HomeChinese() {
 
       {/* AI 数字人服务 */}
       <DigitalHumanSection lang="zh" />
+
+      {/* AI Video launch */}
+      <AiVideoLaunchSection lang="zh" />
 
       {/* Features */}
       <section className="bg-surface-sunken py-[--space-section]">
