@@ -30,7 +30,11 @@
       "Read(//c/Users/qingy_fr6f9x6/.claude/projects/d--Work-BorderX-Cricher-Creator-Web-brand-creator-website/memory/**)",
       "PowerShell($env:Path = [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"Machine\"\\) + \";\" + [System.Environment]::GetEnvironmentVariable\\(\"Path\",\"User\"\\); gh pr view 29 --repo Edenverse-ai/brand_creator_website --json state,mergeable,reviewDecision --jq '\"state=\\\\\\(.state\\) mergeable=\\\\\\(.mergeable\\) review=\\\\\\(.reviewDecision\\)\"'; gh pr checks 29 --repo Edenverse-ai/brand_creator_website 2>&1 | ForEach-Object { \\($_ -split \"`t\"\\)[0..1] -join \": \" })",
       "Bash(git fetch *)",
-      "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" pr view 29 --json body,title,mergeStateStatus --jq '.title, .mergeStateStatus, .body')"
+      "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" pr view 29 --json body,title,mergeStateStatus --jq '.title, .mergeStateStatus, .body')",
+      "Bash(grep -nE \"creatorportal/ai-video['\\\\\"\\\\`]|heading|TikTok|Connect|workspace|getByRole|getByText\" e2e/creator/ai-video-generate.spec.ts e2e/ai-video-tasks.spec.ts e2e/ai-video-fulfillment.spec.ts)",
+      "Bash(gh run *)",
+      "Bash(curl -s -o /dev/null -m 5 -w \"%{http_code}\\\\n\" http://localhost:12001/)",
+      "Bash(curl -s -m 20 -o /dev/null -w \"unauth api: %{http_code}\\\\n\" https://api.github.com/repos/Edenverse-ai/brand_creator_website/pulls/31)"
     ]
   },
   "hooks": {
