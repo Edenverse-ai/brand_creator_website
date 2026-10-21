@@ -41,6 +41,7 @@ import {
   type UploadKind,
 } from "../uploads";
 import { GENERIC_FAILURE, formatElapsed, useTaskPoll, type TaskOutcome } from "../useTaskPoll";
+import FailureReason from "../FailureReason";
 import type { ReplicateHistoryItem } from "./types";
 
 const CARD = "rounded-2xl border border-slate-100 bg-white p-5 shadow-sm";
@@ -612,8 +613,8 @@ export default function ReplicateForm({
   );
 }
 
-/** History shows the latest few; the full list lives on the tasks page. */
-const HISTORY_PREVIEW = 3;
+/** History shows the latest two; the full list lives on the tasks page. */
+const HISTORY_PREVIEW = 2;
 
 function HistoryList({
   items,
@@ -712,12 +713,7 @@ function HistoryRow({
         )}
       </div>
       {item.status === "FAILED" && item.errorMessage && (
-        <p
-          title={item.errorMessage}
-          className="mt-2 line-clamp-3 text-xs text-rose-600 [overflow-wrap:anywhere]"
-        >
-          {item.errorMessage}
-        </p>
+        <FailureReason message={item.errorMessage} className="mt-2" />
       )}
       {delivered && showVideo && (
         <div className="mt-2 space-y-1.5">

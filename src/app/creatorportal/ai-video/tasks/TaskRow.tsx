@@ -3,6 +3,7 @@ import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { FileAudio2 } from "lucide-react";
 import { STATUS_DISPLAY } from "@/lib/ai-video-task";
+import FailureReason from "../FailureReason";
 import type { AiVideoTaskStatus } from "@prisma/client";
 
 export type TaskRowData = {
@@ -63,9 +64,7 @@ export default function TaskRow({ task }: { task: TaskRowData }) {
           ) : null}
         </p>
         {task.status === "FAILED" && task.errorMessage ? (
-          <p className="mt-1 line-clamp-3 text-xs text-rose-600 [overflow-wrap:anywhere]">
-            {task.errorMessage}
-          </p>
+          <FailureReason message={task.errorMessage} className="mt-1" />
         ) : null}
       </div>
       <span

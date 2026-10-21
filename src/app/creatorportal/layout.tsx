@@ -169,35 +169,37 @@ export default function CreatorPortalLayout({ children }: { children: React.Reac
       {/* Content column */}
       <div className="flex min-h-screen min-w-0 flex-1 flex-col">
         {/* Desktop header */}
-        <header className="hidden items-center justify-between border-b border-slate-200 bg-white px-10 py-5 lg:flex">
+        <header className="hidden items-center justify-between border-b border-slate-200 bg-white px-10 py-2 lg:flex">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-400">
+            <p className="text-[10px] font-semibold uppercase leading-4 tracking-[0.3em] text-slate-400">
               Creator workspace
             </p>
-            <h1 className="text-xl font-semibold text-slate-900">Cricher AI CreatorHub</h1>
+            <h1 className="text-base font-semibold leading-6 text-slate-900">
+              Cricher AI CreatorHub
+            </h1>
           </div>
           <div className="relative">
             <button
               onClick={() => setShowDesktopDropdown((prev) => !prev)}
-              className="flex items-center gap-3 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700"
+              className="flex items-center gap-2.5 rounded-full border border-slate-200 px-3 py-1 text-sm font-medium text-slate-700"
             >
               {session?.user?.image ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={session.user.image}
                   alt={session.user.name || ""}
-                  className="h-8 w-8 rounded-full"
+                  className="h-7 w-7 rounded-full"
                 />
               ) : (
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-indigo-700">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-100 text-indigo-700">
                   {session?.user?.name?.[0] ?? "C"}
                 </div>
               )}
               <div className="text-left">
-                <p className="text-sm font-semibold text-slate-900">
+                <p className="text-sm font-semibold leading-5 text-slate-900">
                   {session?.user?.name ?? "Creator"}
                 </p>
-                <p className="text-xs text-slate-500">{session?.user?.email}</p>
+                <p className="text-xs leading-4 text-slate-500">{session?.user?.email}</p>
               </div>
               <ChevronDown className="h-4 w-4 text-slate-500" />
             </button>
