@@ -16,7 +16,9 @@ import {
  */
 
 // Provider limits for reference media (AI Open Platform video API v1.1 / Seedance 2.0).
-const MEDIA_MIN_SIDE = 300;
+// The 300 px minimum is documented for images only; videos have no minimum here and
+// the provider decides.
+const IMAGE_MIN_SIDE = 300;
 const MEDIA_MAX_SIDE = 6000;
 const MEDIA_MIN_ASPECT = 0.4;
 const MEDIA_MAX_ASPECT = 2.5;
@@ -60,9 +62,12 @@ export async function putFile(uploadUrl: string, file: File): Promise<void> {
   }
 }
 
-function frameProblem(width: number, height: number, noun: string): string | null {
-  if (Math.min(width, height) < MEDIA_MIN_SIDE || Math.max(width, height) > MEDIA_MAX_SIDE) {
-    return `Each side of the ${noun} must be between ${MEDIA_MIN_SIDE} and ${MEDIA_MAX_SIDE} pixels.`;
+function frameProblem(width: number, height: number, noun: "image" | "video"): string | null {
+  if (noun === "image" && Math.min(width, height) < IMAGE_MIN_SIDE) {
+    return `Each side of the image must be between ${IMAGE_MIN_SIDE} and ${MEDIA_MAX_SIDE} pixels.`;
+  }
+  if (Math.max(width, height) > MEDIA_MAX_SIDE) {
+    return `Each side of the ${noun} must be ${MEDIA_MAX_SIDE} pixels or fewer.`;
   }
   const aspect = width / height;
   if (aspect < MEDIA_MIN_ASPECT || aspect > MEDIA_MAX_ASPECT) {

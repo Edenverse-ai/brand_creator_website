@@ -51,7 +51,7 @@ The two tools have separate counts (`AiVideoTask.kind`). A paid tier would be on
 
 **Other limits:**
 
-- **Original video:** MP4 or MOV, up to 50 MB, each side 300–6000 px, aspect ratio 0.4–2.5.
+- **Original video:** MP4 or MOV, up to 50 MB, each side at most 6000 px, aspect ratio 0.4–2.5. There is no minimum resolution: the provider documents one only for images, so it decides for videos.
 - **Duration:** the browser reads it from the file's metadata, and the server re-checks it against the creator's ceiling, allowing 0.5 s of slack for clips that measure 15.0x s. The server can't probe the file. A forged duration only gets the task rejected by the provider, and rejected tasks are not billed.
 - **Product images:** the same rules as the Video Gen reference image: JPG/PNG/WebP, ≤ 10 MB, 300–6000 px per side, aspect ratio 0.4–2.5.
 
