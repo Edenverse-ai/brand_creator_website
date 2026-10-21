@@ -124,6 +124,34 @@ describe("POST /api/ai-videos/tasks/upload-url", () => {
     expect(body.taskId).toBe("existingtaskid1");
   });
 
+  it.each([
+    ["reference_video", "mp4", "reference-video.mp4"],
+    ["reference_video", "mov", "reference-video.mov"],
+    ["product_1", "jpg", "product-1.jpg"],
+    ["product_3", "webp", "product-3.webp"],
+  ])("mints a trend replicate upload: %s/%s → %s", async (kind, ext, fileName) => {
+    (getServerSession as any).mockResolvedValue({ user: { id: "user-1" } });
+
+    const res = await POST(jsonRequest({ kind, ext, taskId: "task1" }) as never);
+
+    expect(res.status).toBe(200);
+    expect(createSignedUpload).toHaveBeenCalledWith("ai-video-tasks", `user-1/task1/${fileName}`);
+  });
+
+  it.each([
+    ["reference_video", "jpg"],
+    ["reference_video", "webm"],
+    ["product_2", "mp4"],
+    ["product_4", "jpg"],
+  ])("returns 400 for %s with ext %s", async (kind, ext) => {
+    (getServerSession as any).mockResolvedValue({ user: { id: "user-1" } });
+
+    const res = await POST(jsonRequest({ kind, ext, taskId: "task1" }) as never);
+
+    expect(res.status).toBe(400);
+    expect(createSignedUpload).not.toHaveBeenCalled();
+  });
+
   it("returns 500 when minting the signed upload fails", async () => {
     (getServerSession as any).mockResolvedValue({ user: { id: "user-1" } });
     (createSignedUpload as any).mockRejectedValue(new Error("boom"));

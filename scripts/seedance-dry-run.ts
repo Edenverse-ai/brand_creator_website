@@ -9,11 +9,22 @@
  *   npx tsx --env-file=.env.local scripts/seedance-dry-run.ts --prompt "a cat" --image https://...
  *   npx tsx scripts/seedance-dry-run.ts --mode mini --resolution 1080p --duration 8
  *
+ * Trend replicate (composes the prompt the app would send; --max-sec is the
+ * creator's source ceiling: 15 on the free tier, 30 for unlimited accounts):
+ *   npx tsx scripts/seedance-dry-run.ts --replicate --video https://...  *     --images https://a.jpg,https://b.jpg --product "Ivory Mini Bag"  *     --audience "women 25-35" --points "vegan leather" --source-sec 14.2
+ *
  * Compare the output with the curl examples in the provider doc before any
  * manual live test.
  */
+import { replicateSourceCeiling } from "../src/lib/ai-video-entitlements";
 import { buildCreateRequest } from "../src/lib/seedance/client";
+import {
+  buildReplicateParams,
+  buildReplicatePrompt,
+  replicateInputSchema,
+} from "../src/lib/seedance/replicate";
 import { generationParamsSchema } from "../src/lib/seedance/schema";
+import type { CreateVideoTaskInput } from "../src/lib/seedance/types";
 
 function arg(name: string): string | undefined {
   const index = process.argv.indexOf(`--${name}`);
@@ -28,20 +39,50 @@ function mask(key: string): string {
 const baseUrl = process.env.VIDEO_API_BASE_URL?.trim() || "{BASE_URL}";
 const apiKey = process.env.VIDEO_API_KEY?.trim() ?? "";
 
-const params = generationParamsSchema.parse({
-  mode: arg("mode"),
-  ratio: arg("ratio"),
-  duration: arg("duration") ? Number(arg("duration")) : undefined,
-  resolution: arg("resolution"),
-  generateAudio: arg("audio") ? arg("audio") === "true" : undefined,
-});
+function generateInput(): CreateVideoTaskInput {
+  const image = arg("image");
+  return {
+    prompt: arg("prompt") ?? "A cat running through long grass, cinematic, golden hour",
+    params: generationParamsSchema.parse({
+      mode: arg("mode"),
+      ratio: arg("ratio"),
+      duration: arg("duration") ? Number(arg("duration")) : undefined,
+      resolution: arg("resolution"),
+      generateAudio: arg("audio") ? arg("audio") === "true" : undefined,
+    }),
+    ...(image ? { referenceImageUrls: [image] } : {}),
+  };
+}
+
+function replicateInput(): CreateVideoTaskInput {
+  const images = (arg("images") ?? "https://example.com/product-1.jpg").split(",");
+  const input = replicateInputSchema.parse({
+    productName: arg("product") ?? "Ivory Mini Top-Handle Bag",
+    targetAudience: arg("audience"),
+    sellingPoints: arg("points"),
+    referenceDurationSec: Number(arg("source-sec") ?? 15),
+    mode: arg("mode"),
+    resolution: arg("resolution"),
+    generateAudio: arg("audio") ? arg("audio") === "true" : undefined,
+  });
+  const params = buildReplicateParams(
+    input,
+    replicateSourceCeiling(Number(arg("max-sec") ?? 15), input.mode)
+  );
+  return {
+    prompt: buildReplicatePrompt(input, {
+      imageCount: images.length,
+      duration: params.duration,
+      generateAudio: params.generateAudio,
+    }),
+    params,
+    referenceImageUrls: images,
+    referenceVideoUrls: [arg("video") ?? "https://example.com/trending.mp4"],
+  };
+}
 
 const { url, init } = buildCreateRequest(
-  {
-    prompt: arg("prompt") ?? "A cat running through long grass, cinematic, golden hour",
-    params,
-    referenceImageUrl: arg("image") ?? null,
-  },
+  process.argv.includes("--replicate") ? replicateInput() : generateInput(),
   { baseUrl, apiKey: mask(apiKey) }
 );
 

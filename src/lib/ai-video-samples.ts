@@ -19,3 +19,17 @@ export const SAMPLE_VIDEOS: SampleVideo[] = [
     height: 9,
   },
 ];
+
+export type ReplicateSample = {
+  /** The trending video that was replicated. */
+  originalUrl: string;
+  /** Product photos, in the order they were uploaded ("Image 1"…). */
+  productImageUrls: string[];
+  productName: string;
+  /** The generated ad. */
+  resultUrl: string;
+};
+
+// Shown in the Trend Replicate "Example" tab. Null until the showcase assets are
+// uploaded to the public `studio-samples` bucket; the tab shows a placeholder.
+export const REPLICATE_SAMPLE: ReplicateSample | null = null;

@@ -14,13 +14,16 @@ export type TaskRowData = {
   outputSignedUrl: string | null;
   hasVoice: boolean;
   portraitSignedUrl: string | null;
+  /** Set for trend replicates; their prompt is composed by the app, not the creator. */
+  replicateProductName: string | null;
   createdAt: string;
 };
 
 export default function TaskRow({ task }: { task: TaskRowData }) {
   const display = STATUS_DISPLAY[task.status];
   const created = formatDistanceToNow(new Date(task.createdAt), { addSuffix: true });
-  const promptPreview = task.prompt.length > 80 ? `${task.prompt.slice(0, 80)}…` : task.prompt;
+  const summary = task.replicateProductName ?? task.prompt;
+  const promptPreview = summary.length > 80 ? `${summary.slice(0, 80)}…` : summary;
 
   const viewOutputHref =
     task.status === "DELIVERED" ? (task.outputSignedUrl ?? task.outputUrl ?? null) : null;
@@ -31,7 +34,7 @@ export default function TaskRow({ task }: { task: TaskRowData }) {
         {task.portraitSignedUrl ? (
           <Image
             src={task.portraitSignedUrl}
-            alt="Portrait reference"
+            alt={task.replicateProductName !== null ? "Product image" : "Portrait reference"}
             fill
             sizes="64px"
             className="object-cover"
@@ -43,7 +46,14 @@ export default function TaskRow({ task }: { task: TaskRowData }) {
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-slate-800">{promptPreview}</p>
+        <p className="flex items-center gap-2 text-sm font-medium text-slate-800">
+          {task.replicateProductName !== null && (
+            <span className="shrink-0 rounded-full bg-purple-100 px-2 py-0.5 text-[11px] font-semibold text-purple-700">
+              Replicate
+            </span>
+          )}
+          <span className="truncate">{promptPreview}</span>
+        </p>
         <p className="mt-1 text-xs text-slate-500">
           {created}
           {task.hasVoice ? (

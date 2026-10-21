@@ -1,10 +1,20 @@
-import type { GenerationParams } from "./schema";
+import type { GenerationParams, Ratio } from "./schema";
+
+/**
+ * Settings sent to the provider. Wider than what the generate form offers:
+ * trend replicates use `adaptive`, so the output keeps the source video's shape.
+ */
+export type ProviderParams = Omit<GenerationParams, "ratio"> & { ratio: Ratio | "adaptive" };
 
 export interface CreateVideoTaskInput {
   prompt: string;
-  params: GenerationParams;
-  /** Publicly readable HTTPS URL (signed Supabase URL). Omitted for text-to-video. */
-  referenceImageUrl?: string | null;
+  params: ProviderParams;
+  /**
+   * Publicly readable HTTPS URLs (signed Supabase URLs), in the order the prompt
+   * numbers them ("Image 1", "Video 1"). Omitted for text-to-video.
+   */
+  referenceImageUrls?: string[];
+  referenceVideoUrls?: string[];
 }
 
 export interface CreateVideoTaskResult {

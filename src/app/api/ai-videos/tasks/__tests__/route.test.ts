@@ -157,6 +157,25 @@ describe("POST /api/ai-videos/tasks (JSON path)", () => {
     expect(submitTask).not.toHaveBeenCalled();
   });
 
+  it("passes the free daily limit, or null for an unlimited account", async () => {
+    aiVideoTaskCreate.mockResolvedValue({ id: "taskabc", status: "QUEUED" });
+    vi.stubEnv("AI_VIDEO_DAILY_LIMIT", "5");
+    vi.stubEnv("AI_VIDEO_UNLIMITED_EMAILS", "tester@test.local");
+
+    (getServerSession as any).mockResolvedValue({ user: { id: OWNER, email: "a@b.c" } });
+    await POST(jsonRequest(validBody) as never);
+    expect(remainingToday).toHaveBeenLastCalledWith(OWNER, "generate", 5);
+
+    (getServerSession as any).mockResolvedValue({
+      user: { id: OWNER, email: "Tester@Test.local" },
+    });
+    remainingToday.mockResolvedValue({ remaining: null, limit: null });
+    const res = await POST(jsonRequest(validBody) as never);
+    expect(remainingToday).toHaveBeenLastCalledWith(OWNER, "generate", null);
+    expect(res.status).toBe(200);
+    vi.unstubAllEnvs();
+  });
+
   it("returns 400 when taskId contains characters outside [a-z0-9] (aligned with the minting route's charset)", async () => {
     (getServerSession as any).mockResolvedValue({ user: { id: OWNER } });
 

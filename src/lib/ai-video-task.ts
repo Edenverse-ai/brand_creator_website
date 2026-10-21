@@ -18,6 +18,21 @@ export const VOICE_MIME_TO_EXT = {
 
 export const OUTPUT_MAX_BYTES = 200 * 1024 * 1024;
 
+/** What an AiVideoTask produces: a prompt-driven generation or a trend replicate. */
+export const AI_VIDEO_TASK_KINDS = ["generate", "replicate"] as const;
+export type AiVideoTaskKind = (typeof AI_VIDEO_TASK_KINDS)[number];
+
+// Trend replicate inputs. The size cap is the provider's per-file limit for
+// reference videos (Seedance 2.0); durations live in src/lib/seedance/replicate.ts.
+// Product images reuse the portrait limits, which match its reference-image limits.
+export const REFERENCE_VIDEO_MAX_BYTES = 50 * 1024 * 1024;
+export const REFERENCE_VIDEO_MIME_TO_EXT = {
+  "video/mp4": "mp4",
+  "video/quicktime": "mov",
+} as const;
+export type ReferenceVideoMime = keyof typeof REFERENCE_VIDEO_MIME_TO_EXT;
+export const PRODUCT_IMAGES_MAX = 3;
+
 export const VIDEO_MIME_TO_EXT = {
   "video/mp4": "mp4",
   "video/webm": "webm",
@@ -74,6 +89,24 @@ export function buildVoicePath(creatorId: string, taskId: string, mime: VoiceMim
 
 export function buildOutputPath(creatorId: string, taskId: string, mime: VideoMime): string {
   return `${creatorId}/${taskId}/output.${VIDEO_MIME_TO_EXT[mime]}`;
+}
+
+export function buildReferenceVideoPath(
+  creatorId: string,
+  taskId: string,
+  ext: (typeof REFERENCE_VIDEO_MIME_TO_EXT)[ReferenceVideoMime]
+): string {
+  return `${creatorId}/${taskId}/reference-video.${ext}`;
+}
+
+/** `slot` is 1-based, matching the "Image N" numbering in the replicate prompt. */
+export function buildProductImagePath(
+  creatorId: string,
+  taskId: string,
+  slot: number,
+  ext: (typeof PORTRAIT_MIME_TO_EXT)[PortraitMime]
+): string {
+  return `${creatorId}/${taskId}/product-${slot}.${ext}`;
 }
 
 /** Object path of a generated video in the AI Video library bucket (aivideogenerated). */

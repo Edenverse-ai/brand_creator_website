@@ -134,11 +134,7 @@ describe("submitTask", () => {
     await submitTask("t1");
 
     expect(liveProvider.createTask).toHaveBeenCalledTimes(1);
-    expect(liveProvider.createTask).toHaveBeenCalledWith({
-      prompt: "a cat",
-      params,
-      referenceImageUrl: null,
-    });
+    expect(liveProvider.createTask).toHaveBeenCalledWith({ prompt: "a cat", params });
     expect(db.update).toHaveBeenCalledWith({
       where: { id: "t1" },
       data: {
@@ -194,9 +190,72 @@ describe("submitTask", () => {
     await submitTask("t1");
 
     expect(storage.createSignedUrl).toHaveBeenCalledWith("u1/t1/portrait.png", 6 * 3600);
-    expect(liveProvider.createTask.mock.calls[0][0].referenceImageUrl).toBe(
-      "https://storage.example/signed"
+    expect(liveProvider.createTask.mock.calls[0][0].referenceImageUrls).toEqual([
+      "https://storage.example/signed",
+    ]);
+    expect(liveProvider.createTask.mock.calls[0][0]).not.toHaveProperty("referenceVideoUrls");
+  });
+
+  it("sends a trend replicate's video and product images, signed, in prompt order", async () => {
+    db.updateMany.mockResolvedValue({ count: 1 });
+    const replicateParams = {
+      mode: "seedance2.5",
+      ratio: "adaptive",
+      duration: 15,
+      resolution: "720p",
+      generateAudio: true,
+    };
+    db.findUniqueOrThrow.mockResolvedValue({
+      id: "t1",
+      kind: "replicate",
+      prompt: "composed prompt",
+      portraitPath: null,
+      referenceVideoPath: "u1/t1/reference-video.mp4",
+      productImagePaths: ["u1/t1/product-1.jpg", "u1/t1/product-2.png"],
+      params: replicateParams,
+    });
+    storage.createSignedUrl.mockImplementation(async (path: string) => `https://signed/${path}`);
+    liveProvider.createTask.mockResolvedValue({ taskId: "kz-1", traceId: null });
+
+    await submitTask("t1");
+
+    expect(storage.createSignedUrl).toHaveBeenCalledWith("u1/t1/reference-video.mp4", 6 * 3600);
+    expect(liveProvider.createTask).toHaveBeenCalledWith({
+      prompt: "composed prompt",
+      params: replicateParams,
+      referenceImageUrls: [
+        "https://signed/u1/t1/product-1.jpg",
+        "https://signed/u1/t1/product-2.png",
+      ],
+      referenceVideoUrls: ["https://signed/u1/t1/reference-video.mp4"],
+    });
+  });
+
+  it("refuses to submit a replicate whose reference video cannot be signed", async () => {
+    db.updateMany.mockResolvedValue({ count: 1 });
+    db.findUniqueOrThrow.mockResolvedValue({
+      id: "t1",
+      kind: "replicate",
+      prompt: "composed prompt",
+      portraitPath: null,
+      referenceVideoPath: "u1/t1/reference-video.mp4",
+      productImagePaths: ["u1/t1/product-1.jpg"],
+      params: {
+        mode: "mini",
+        ratio: "adaptive",
+        duration: 8,
+        resolution: "1080p",
+        generateAudio: false,
+      },
+    });
+    storage.createSignedUrl.mockImplementation(async (path: string) =>
+      path.endsWith(".mp4") ? null : `https://signed/${path}`
     );
+
+    await submitTask("t1");
+
+    expect(liveProvider.createTask).not.toHaveBeenCalled();
+    expect(db.update.mock.calls[0][0].data).toMatchObject({ status: "FAILED" });
   });
 
   it("refuses to submit when the reference image cannot be signed", async () => {
@@ -618,6 +677,7 @@ describe("daily cap", () => {
     expect(db.count).toHaveBeenCalledWith({
       where: {
         creatorId: "u1",
+        kind: "generate",
         submitStartedAt: { gte: new Date("2026-10-05T00:00:00Z") },
         OR: [
           { status: { in: ["QUEUED", "GENERATING", "IN_REVIEW", "DELIVERED"] } },
@@ -633,5 +693,22 @@ describe("daily cap", () => {
     await expect(remainingToday("u1")).resolves.toEqual({ remaining: 0, limit: 2 });
     db.count.mockResolvedValue(1);
     await expect(remainingToday("u1")).resolves.toEqual({ remaining: 1, limit: 2 });
+  });
+
+  it("counts each tool against its own limit", async () => {
+    db.count.mockResolvedValue(1);
+    await expect(remainingToday("u1", "replicate", 1)).resolves.toEqual({
+      remaining: 0,
+      limit: 1,
+    });
+    expect(db.count.mock.calls[0][0].where.kind).toBe("replicate");
+  });
+
+  it("reports unlimited without counting when there is no limit", async () => {
+    await expect(remainingToday("u1", "replicate", null)).resolves.toEqual({
+      remaining: null,
+      limit: null,
+    });
+    expect(db.count).not.toHaveBeenCalled();
   });
 });

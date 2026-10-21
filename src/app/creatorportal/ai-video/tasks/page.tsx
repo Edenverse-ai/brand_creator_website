@@ -47,11 +47,17 @@ export default async function TasksPage() {
       aiVideoId: true,
       voicePath: true,
       portraitPath: true,
+      kind: true,
+      productImagePaths: true,
+      replicateInput: true,
       createdAt: true,
     },
   });
 
-  const portraitPaths = rows.map((r) => r.portraitPath).filter((p): p is string => p !== null);
+  // Replicates show their first product photo where generations show the reference image.
+  const thumbnailPathOf = (r: (typeof rows)[number]) =>
+    r.kind === "replicate" ? (r.productImagePaths[0] ?? null) : r.portraitPath;
+  const portraitPaths = rows.map(thumbnailPathOf).filter((p): p is string => p !== null);
   const outputPaths = rows.map((r) => r.outputPath).filter((p): p is string => p !== null);
   const generated = rows.filter((r) => r.status === "DELIVERED" && r.aiVideoId);
 
@@ -78,7 +84,11 @@ export default async function TasksPage() {
       ? (outputMap.get(r.outputPath) ?? null)
       : (libraryMap.get(r.id) ?? null),
     hasVoice: r.voicePath !== null,
-    portraitSignedUrl: r.portraitPath ? (portraitMap.get(r.portraitPath) ?? null) : null,
+    portraitSignedUrl: portraitMap.get(thumbnailPathOf(r) ?? "") ?? null,
+    replicateProductName:
+      r.kind === "replicate"
+        ? String((r.replicateInput as { productName?: unknown } | null)?.productName ?? "")
+        : null,
     createdAt: r.createdAt.toISOString(),
   }));
 

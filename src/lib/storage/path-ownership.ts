@@ -35,3 +35,14 @@ export function isOwnedStoragePath(path: string, ownerId: string): boolean {
 
   return true;
 }
+
+/**
+ * `isOwnedStoragePath` only constrains the FIRST path segment (the owner id) — it
+ * doesn't know about `taskId` at all, so a path under the same owner's OTHER task
+ * folder would still pass it. Require the SECOND segment to equal the task being
+ * created too, so ownership is validated against that specific task, not just
+ * "some folder this user owns somewhere."
+ */
+export function isOwnedTaskPath(path: string, ownerId: string, taskId: string): boolean {
+  return isOwnedStoragePath(path, ownerId) && path.split("/")[1] === taskId;
+}

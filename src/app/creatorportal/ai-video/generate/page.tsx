@@ -4,9 +4,11 @@ import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { ArrowLeft } from "lucide-react";
 import { authOptions } from "@/lib/auth";
+import { getEntitlements } from "@/lib/ai-video-entitlements";
 import { remainingToday } from "@/lib/ai-video-generation";
 import { isMockMode } from "@/lib/seedance";
 import { VIDEO_MODELS } from "@/lib/seedance/models";
+import ToolTabs from "../ToolTabs";
 import GenerateVideoForm from "./GenerateVideoForm";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +24,11 @@ export default async function GenerateAiVideoPage() {
     redirect("/login");
   }
 
-  const { remaining, limit } = await remainingToday(session.user.id);
+  const { remaining, limit } = await remainingToday(
+    session.user.id,
+    "generate",
+    getEntitlements(session.user.email).generate.dailyLimit
+  );
 
   return (
     <div className="space-y-8 py-8">
@@ -35,6 +41,8 @@ export default async function GenerateAiVideoPage() {
       </Link>
 
       <div className="space-y-8">
+        <ToolTabs active="generate" />
+
         <header className="space-y-3">
           <p className="text-sm uppercase tracking-[0.2em] text-indigo-500">AI production suite</p>
           <h1 className="text-3xl font-semibold text-slate-900">Generate a new AI video</h1>
