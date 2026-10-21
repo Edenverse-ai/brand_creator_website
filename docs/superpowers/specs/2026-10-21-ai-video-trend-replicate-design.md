@@ -25,14 +25,20 @@ URLs are 6-hour signed Supabase URLs, as before.
 
 ## 3. Prompt template
 
-The template is `buildReplicatePrompt` in `src/lib/seedance/replicate.ts`. Its full text and an example are pinned in `src/lib/seedance/__tests__/replicate.test.ts`. In order, it:
+The template is `buildReplicatePrompt` in `src/lib/seedance/replicate.ts`. Its full text and an example are pinned in `src/lib/seedance/__tests__/replicate.test.ts`.
 
-1. States the purpose: a brand-new N-second TikTok e-commerce ad meant to make viewers buy the product, in native UGC style rather than a TV commercial.
-2. Treats Video 1 as the style reference only (shot order, shot sizes, camera movement, pacing, transitions, lighting, energy), and asks for a hook in the first 2 seconds.
-3. Identifies the product from Image 1..N, shows it wherever Video 1 shows a product, keeps its look exactly, and shows it in real use.
-4. Adds the product name, target buyers and selling points (optional lines are dropped when empty), and ends on a hero shot.
-5. Sets guardrails: a different person from Video 1; none of Video 1's products, brands or logos; no on-screen text or prices.
-6. With audio on, matches Video 1's music and voiceover tone in the same language, with the voiceover recommending the product by name.
+**Video 1 is the master.** The result recreates it shot for shot, and the product is the only difference. In order, the prompt:
+
+1. Asks for Video 1 recreated shot for shot as an N-second TikTok e-commerce ad featuring the product.
+2. Lists what must match Video 1 exactly: camera angle, framing and shot size; camera movement, including handheld motion; hand and body poses; background and setting; lighting direction, brightness and color temperature; color grading; and pacing, cut timing and transitions.
+3. Names the product and its images ("Image 1..N"), and puts it wherever Video 1 shows its product, at the same position, size and angle, held and moved the same way.
+4. Keeps the product's look exactly as pictured.
+5. Sets guardrails: none of Video 1's products, brands or logos, and no on-screen text or prices.
+6. With audio on: keeps Video 1's music and voiceover tone and language. The voiceover names the product and, when given, speaks to the target buyers and mentions the selling points. It has a pace instruction and a word cap of 2 words per second (`voiceoverWordBudget`), because uncapped voiceovers came out rushed.
+
+**Creator inputs never touch the visuals.** Target buyers and selling points only feed the voiceover, so they can't pull the picture away from Video 1. Without audio they are not sent at all.
+
+**History.** The first version treated Video 1 only as a style reference: a "brand-new" ad with a hook, a closing hero shot, a setting matched to the buyers, and a different presenter. In a live test, that produced a different framing, background and lighting from the source, and a rushed voiceover.
 
 **Edit-intent words.** The fixed text never uses edit or extension verbs (replace, swap, add, remove, change, extend, continue, 编辑/替换/延长…). The provider infers "video edit" or "video extension" tasks from prompt intent, and edit tasks only accept `duration=-1`. A unit test enforces this. Creator text can still contain such words; it is quoted as data, which lowers the risk without removing it.
 

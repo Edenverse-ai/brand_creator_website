@@ -5,6 +5,7 @@ import {
   replicateInputSchema,
   replicateParamsSchema,
   sanitizePromptText,
+  voiceoverWordBudget,
 } from "../replicate";
 
 const BASE = {
@@ -75,46 +76,66 @@ describe("buildReplicateParams", () => {
 });
 
 describe("buildReplicatePrompt", () => {
-  it("matches the documented example (2 images, 15 s, audio on)", () => {
-    expect(buildReplicatePrompt(BASE, { imageCount: 2, duration: 15, generateAudio: true }))
-      .toBe(`Create a brand-new 15-second TikTok e-commerce ad for the product below. Its purpose is to promote this product and make viewers want to buy it.
-It should feel like a native, authentic TikTok creator video (UGC style), not a polished TV commercial.
-Video 1 is a trending TikTok video. Use it only as the style reference: follow its shot order, shot sizes, camera movement, pacing, transitions, lighting mood and overall energy as closely as possible.
-Like Video 1, open with a strong hook in the first 2 seconds that puts the product, or the problem it solves, front and center.
-The product being advertised is the one shown in Image 1 and Image 2; these images are different views of the same product.
-Wherever a product appears in Video 1, show this product in its place, held, used and framed the same way.
-Keep the product's shape, proportions, colors, materials, logo and printed details exactly as pictured, and keep it the clear visual focus of every shot.
-Show the product in real use so its benefits are obvious at a glance.
-Product name: "Ivory Mini Top-Handle Bag".
-Target buyers: "women 25-35". Cast, styling and setting should feel natural and relatable for them.
-Selling points to demonstrate on camera: "soft vegan leather, gold clasp, fits a phone and wallet".
-Make the final shot a clear, well-lit hero shot of the product so viewers remember exactly what to buy.
-If Video 1 features a person, cast a different creator with a similar role, pose and energy; do not reproduce the person from Video 1.
+  it("matches the documented example (2 images, 14 s, audio on)", () => {
+    expect(buildReplicatePrompt(BASE, { imageCount: 2, duration: 14, generateAudio: true }))
+      .toBe(`Recreate Video 1 shot for shot as a 14-second TikTok e-commerce ad for the product below. Video 1 is a trending TikTok video; the new video must look like the same video, featuring this product.
+Match Video 1 exactly in: camera angle, framing and shot size; camera movement, including any handheld motion; hand and body poses and how they move; the background and setting; lighting direction, brightness and color temperature; color grading; and the pacing, cut timing and transitions.
+The product is "Ivory Mini Top-Handle Bag", shown in Image 1 and Image 2; these images are different views of the same product.
+Show this product wherever Video 1 shows its product: in the same position, at the same size and angle in the frame, held and moved exactly the same way. The product is the only difference from Video 1.
+Keep the product's shape, proportions, colors, materials, logo and printed details exactly as pictured.
 Do not show any product, brand name or logo from Video 1.
 Do not include subtitles, captions, prices, watermarks or any on-screen text.
-Match the music style and voiceover tone of Video 1, in the same spoken language; the voiceover should sound like an excited creator genuinely recommending "Ivory Mini Top-Handle Bag" and mention it by name.`);
+Keep the music style and voiceover tone of Video 1, in the same spoken language.
+The voiceover recommends "Ivory Mini Top-Handle Bag" by name, speaking to "women 25-35", and mentions: "soft vegan leather, gold clasp, fits a phone and wallet".
+Speak at a calm, natural pace with short pauses between sentences, in at most 28 words in total. Never rush.`);
   });
 
   it.each([
-    [1, "The product being advertised is the one shown in Image 1."],
-    [2, "shown in Image 1 and Image 2; these images are different views"],
-    [3, "shown in Image 1, Image 2 and Image 3; these images are different views"],
+    [1, '"Bag", shown in Image 1.'],
+    [2, '"Bag", shown in Image 1 and Image 2; these images are different views'],
+    [3, '"Bag", shown in Image 1, Image 2 and Image 3; these images are different views'],
   ])("names %i product image(s)", (imageCount, expected) => {
-    const prompt = buildReplicatePrompt(BASE, { imageCount, duration: 8, generateAudio: true });
+    const prompt = buildReplicatePrompt(
+      { ...BASE, productName: "Bag" },
+      { imageCount, duration: 8, generateAudio: true }
+    );
     expect(prompt).toContain(expected);
     expect(prompt).not.toContain(`Image ${imageCount + 1}`);
   });
 
-  it("leaves out the optional lines when their input is empty", () => {
+  it("puts creator text only in the voiceover, and drops it without audio", () => {
+    const prompt = buildReplicatePrompt(BASE, {
+      imageCount: 1,
+      duration: 8,
+      generateAudio: false,
+    });
+    expect(prompt).toContain('The product is "Ivory Mini Top-Handle Bag", shown in Image 1.');
+    expect(prompt).not.toContain("women 25-35");
+    expect(prompt).not.toContain("vegan leather");
+    expect(prompt).not.toMatch(/voiceover/i);
+    expect(prompt.split("\n")).toHaveLength(7);
+  });
+
+  it("leaves out empty audience and selling points from the voiceover", () => {
     const prompt = buildReplicatePrompt(
       { productName: "Bag", targetAudience: "", sellingPoints: "" },
-      { imageCount: 1, duration: 8, generateAudio: false }
+      { imageCount: 1, duration: 8, generateAudio: true }
     );
-    expect(prompt).toContain('Product name: "Bag".');
-    expect(prompt).not.toContain("Target buyers");
-    expect(prompt).not.toContain("Selling points");
-    expect(prompt).not.toContain("voiceover");
-    expect(prompt.split("\n")).toHaveLength(13);
+    expect(prompt).toContain('The voiceover recommends "Bag" by name.');
+    expect(prompt).not.toContain("speaking to");
+    expect(prompt).not.toContain("mentions:");
+  });
+
+  it.each([
+    [4, 8],
+    [8, 16],
+    [15, 30],
+    [30, 60],
+  ])("caps a %i s voiceover at %i words", (duration, words) => {
+    expect(voiceoverWordBudget(duration)).toBe(words);
+    expect(buildReplicatePrompt(BASE, { imageCount: 1, duration, generateAudio: true })).toContain(
+      `in at most ${words} words in total`
+    );
   });
 
   it("uses no edit or extension wording of its own", () => {

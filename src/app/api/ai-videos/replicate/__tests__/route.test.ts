@@ -116,9 +116,8 @@ describe("POST /api/ai-videos/replicate", () => {
         generateAudio: true,
       },
     });
-    expect(data.prompt).toContain("Create a brand-new 15-second TikTok e-commerce ad");
-    expect(data.prompt).toContain("Image 1 and Image 2");
-    expect(data.prompt).toContain('Product name: "Ivory Mini Bag".');
+    expect(data.prompt).toContain("Recreate Video 1 shot for shot as a 15-second");
+    expect(data.prompt).toContain('The product is "Ivory Mini Bag", shown in Image 1 and Image 2');
     expect(submitTask).toHaveBeenCalledWith(TASK);
   });
 

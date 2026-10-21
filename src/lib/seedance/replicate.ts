@@ -94,39 +94,52 @@ function imageList(count: number): string {
 }
 
 /**
- * The fixed wording never uses edit/extend verbs (replace, swap, remove, extend…):
- * the provider infers "video edit" or "video extension" tasks from prompt intent,
- * and those fail unless the duration is left to the model.
+ * Voiceover budget: about two words per second reads at a relaxed pace. Without a
+ * cap the model crams the creator's selling points into a rushed monologue.
+ */
+export const VOICEOVER_WORDS_PER_SECOND = 2;
+
+export function voiceoverWordBudget(duration: number): number {
+  return Math.max(8, Math.floor(duration * VOICEOVER_WORDS_PER_SECOND));
+}
+
+/**
+ * Video 1 is the master: the result recreates it shot for shot (framing, camera
+ * movement, poses, background, lighting, timing) and differs only in the product.
+ * Creator inputs feed the voiceover, never the visuals, so they can't pull the
+ * picture away from Video 1.
+ *
+ * The fixed wording never uses edit/extend verbs (replace, swap, remove, change,
+ * extend…): the provider infers "video edit" or "video extension" tasks from prompt
+ * intent, and those fail unless the duration is left to the model.
  */
 export function buildReplicatePrompt(
   input: Pick<ReplicateInput, "productName" | "targetAudience" | "sellingPoints">,
   options: { imageCount: number; duration: number; generateAudio: boolean }
 ): string {
   const { imageCount, duration, generateAudio } = options;
+  const voiceover = [
+    `The voiceover recommends "${input.productName}" by name`,
+    input.targetAudience ? `, speaking to "${input.targetAudience}"` : "",
+    input.sellingPoints ? `, and mentions: "${input.sellingPoints}"` : "",
+    ".",
+  ].join("");
   const lines = [
-    `Create a brand-new ${duration}-second TikTok e-commerce ad for the product below. Its purpose is to promote this product and make viewers want to buy it.`,
-    "It should feel like a native, authentic TikTok creator video (UGC style), not a polished TV commercial.",
-    "Video 1 is a trending TikTok video. Use it only as the style reference: follow its shot order, shot sizes, camera movement, pacing, transitions, lighting mood and overall energy as closely as possible.",
-    "Like Video 1, open with a strong hook in the first 2 seconds that puts the product, or the problem it solves, front and center.",
+    `Recreate Video 1 shot for shot as a ${duration}-second TikTok e-commerce ad for the product below. Video 1 is a trending TikTok video; the new video must look like the same video, featuring this product.`,
+    "Match Video 1 exactly in: camera angle, framing and shot size; camera movement, including any handheld motion; hand and body poses and how they move; the background and setting; lighting direction, brightness and color temperature; color grading; and the pacing, cut timing and transitions.",
     imageCount > 1
-      ? `The product being advertised is the one shown in ${imageList(imageCount)}; these images are different views of the same product.`
-      : "The product being advertised is the one shown in Image 1.",
-    "Wherever a product appears in Video 1, show this product in its place, held, used and framed the same way.",
-    "Keep the product's shape, proportions, colors, materials, logo and printed details exactly as pictured, and keep it the clear visual focus of every shot.",
-    "Show the product in real use so its benefits are obvious at a glance.",
-    `Product name: "${input.productName}".`,
-    input.targetAudience
-      ? `Target buyers: "${input.targetAudience}". Cast, styling and setting should feel natural and relatable for them.`
-      : null,
-    input.sellingPoints
-      ? `Selling points to demonstrate on camera: "${input.sellingPoints}".`
-      : null,
-    "Make the final shot a clear, well-lit hero shot of the product so viewers remember exactly what to buy.",
-    "If Video 1 features a person, cast a different creator with a similar role, pose and energy; do not reproduce the person from Video 1.",
+      ? `The product is "${input.productName}", shown in ${imageList(imageCount)}; these images are different views of the same product.`
+      : `The product is "${input.productName}", shown in Image 1.`,
+    "Show this product wherever Video 1 shows its product: in the same position, at the same size and angle in the frame, held and moved exactly the same way. The product is the only difference from Video 1.",
+    "Keep the product's shape, proportions, colors, materials, logo and printed details exactly as pictured.",
     "Do not show any product, brand name or logo from Video 1.",
     "Do not include subtitles, captions, prices, watermarks or any on-screen text.",
     generateAudio
-      ? `Match the music style and voiceover tone of Video 1, in the same spoken language; the voiceover should sound like an excited creator genuinely recommending "${input.productName}" and mention it by name.`
+      ? "Keep the music style and voiceover tone of Video 1, in the same spoken language."
+      : null,
+    generateAudio ? voiceover : null,
+    generateAudio
+      ? `Speak at a calm, natural pace with short pauses between sentences, in at most ${voiceoverWordBudget(duration)} words in total. Never rush.`
       : null,
   ];
   return lines.filter((line): line is string => line !== null).join("\n");
