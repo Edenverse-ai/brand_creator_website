@@ -31,7 +31,7 @@ export default async function GenerateAiVideoPage() {
   );
 
   return (
-    <div className="space-y-4 py-6">
+    <div className="space-y-4 py-2">
       <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
         <Link
           href="/creatorportal/ai-video"
