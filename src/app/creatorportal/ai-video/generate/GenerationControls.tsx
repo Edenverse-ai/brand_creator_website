@@ -293,3 +293,73 @@ export function AudioToggle({
     </div>
   );
 }
+
+/** Resolution as a compact dropdown pill, for forms short on vertical space. */
+export function ResolutionPicker({
+  value,
+  resolutions,
+  onChange,
+  className = "",
+}: {
+  value: Resolution;
+  resolutions: readonly Resolution[];
+  onChange: (resolution: Resolution) => void;
+  className?: string;
+}) {
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger aria-label="Resolution" className={`${PILL} ${className}`}>
+        <span className="truncate">{value}</span>
+        <ChevronDown className="ml-auto h-4 w-4 shrink-0 text-slate-400" />
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content align="start" sideOffset={8} className={`${PANEL} w-40 p-2`}>
+          {resolutions.map((resolution) => {
+            const selected = resolution === value;
+            return (
+              <DropdownMenu.Item
+                key={resolution}
+                onSelect={() => onChange(resolution)}
+                className={`flex cursor-pointer select-none items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold outline-none data-[highlighted]:bg-slate-50 ${
+                  selected ? "bg-indigo-50 text-indigo-700" : "text-slate-700"
+                }`}
+              >
+                {resolution}
+                {selected && <Check className="ml-auto h-4 w-4 shrink-0" />}
+              </DropdownMenu.Item>
+            );
+          })}
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  );
+}
+
+/** Generate-audio as a single toggle pill. */
+export function AudioPill({
+  value,
+  onChange,
+  className = "",
+}: {
+  value: boolean;
+  onChange: (generateAudio: boolean) => void;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={value}
+      aria-label="Generate audio"
+      onClick={() => onChange(!value)}
+      className={`${PILL} ${value ? "" : "text-slate-400"} ${className}`}
+    >
+      {value ? (
+        <Volume2 className="h-4 w-4 text-indigo-500" />
+      ) : (
+        <VolumeX className="h-4 w-4 text-slate-400" />
+      )}
+      {value ? "Audio on" : "Audio off"}
+    </button>
+  );
+}

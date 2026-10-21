@@ -32,7 +32,7 @@ import {
   TARGET_AUDIENCE_MAX,
 } from "@/lib/seedance/replicate";
 import { DURATION_MIN, type Resolution } from "@/lib/seedance/schema";
-import { AudioToggle, ModelPicker, ResolutionField } from "../generate/GenerationControls";
+import { AudioPill, ModelPicker, ResolutionPicker } from "../generate/GenerationControls";
 import {
   putFile,
   requestUploadUrl,
@@ -43,10 +43,10 @@ import {
 import { GENERIC_FAILURE, formatElapsed, useTaskPoll, type TaskOutcome } from "../useTaskPoll";
 import type { ReplicateHistoryItem } from "./types";
 
-const CARD = "rounded-2xl border border-slate-100 bg-white p-6 shadow-sm";
+const CARD = "rounded-2xl border border-slate-100 bg-white p-5 shadow-sm";
 const LABEL = "text-sm font-semibold text-slate-800";
 const INPUT =
-  "mt-2 w-full rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-2.5 text-sm text-slate-700 transition focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100";
+  "mt-1.5 w-full rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-2 text-sm text-slate-700 transition focus:border-indigo-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-100";
 const DROP_ZONE =
   "flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed text-center transition";
 
@@ -321,10 +321,10 @@ export default function ReplicateForm({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {isMock && (
-        <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-sm text-amber-800">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+        <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-2 text-sm text-amber-800">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
           <p>
             <span className="font-semibold">Mock mode — no video credits used.</span> Replicates
             return a sample clip after about 10 seconds.
@@ -332,167 +332,174 @@ export default function ReplicateForm({
         </div>
       )}
 
-      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
-        <form className="min-w-0 space-y-6" onSubmit={handleSubmit} noValidate>
-          <fieldset disabled={submitting} className={`${CARD} min-w-0 space-y-6`}>
-            <section>
-              <h2 className={LABEL}>
-                Original video <span className="font-normal text-slate-400">(required)</span>
-              </h2>
-              <p className="mt-1 text-xs text-slate-500">
-                The trending TikTok to replicate. MP4 or MOV · 2–{ceiling} s · up to 50 MB.
-              </p>
-              {video ? (
-                <div className="mt-3 flex items-center gap-4 rounded-xl border border-slate-200 bg-slate-50/60 p-3">
-                  <video
-                    src={video.previewUrl}
-                    muted
-                    playsInline
-                    controls
-                    className="h-28 w-20 shrink-0 rounded-lg bg-slate-900 object-cover"
-                    aria-label="Original video preview"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-slate-700">{video.file.name}</p>
-                    <p className="mt-1 text-xs tabular-nums text-slate-500">
-                      {video.durationSec.toFixed(1)} s
-                    </p>
-                    {videoTooLong && (
-                      <p className="mt-1 text-xs font-medium text-rose-600">
-                        This model replicates videos up to {ceiling} seconds. Pick another model or
-                        a shorter video.
-                      </p>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={clearVideo}
-                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-slate-500 transition hover:bg-slate-200 hover:text-slate-900"
-                    aria-label="Remove original video"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              ) : (
-                <label
-                  htmlFor="original-video"
-                  onDragOver={allowDrop}
-                  onDrop={onVideoDrop}
-                  className={`${DROP_ZONE} mt-3 border-indigo-200 bg-indigo-50/40 p-8 hover:border-indigo-400 hover:bg-indigo-50`}
-                >
-                  <Film className="h-8 w-8 text-indigo-500" />
-                  <span className="mt-3 text-sm font-semibold text-indigo-700">
-                    Upload original video
-                  </span>
-                  <span className="mt-1 text-xs text-slate-500">Click or drag a file here</span>
-                </label>
-              )}
-              <input
-                id="original-video"
-                type="file"
-                accept="video/mp4,video/quicktime"
-                className="hidden"
-                ref={videoInputRef}
-                onChange={onVideoInput}
-              />
-              {videoError && <p className="mt-2 text-xs font-medium text-rose-600">{videoError}</p>}
-            </section>
-
-            <section>
-              <h2 className={LABEL}>
-                Product images <span className="font-normal text-slate-400">(required)</span>
-              </h2>
-              <p className="mt-1 text-xs text-slate-500">
-                Up to {PRODUCT_IMAGES_MAX} photos of the same product. Click, drag or paste to
-                upload. Only upload images you have the rights to use.
-              </p>
-              <div
-                className="mt-3 flex flex-wrap gap-3"
-                onDragOver={allowDrop}
-                onDrop={onProductDrop}
-              >
-                {products.map((product, index) => (
-                  <div
-                    key={product.id}
-                    className="relative h-24 w-24 overflow-hidden rounded-xl bg-slate-100"
-                  >
-                    <Image
-                      src={product.previewUrl}
-                      alt={`Product image ${index + 1}`}
-                      fill
-                      unoptimized
-                      sizes="96px"
-                      className="object-cover"
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+        <form className="min-w-0 space-y-3" onSubmit={handleSubmit} noValidate>
+          <fieldset disabled={submitting} className={`${CARD} min-w-0 space-y-4`}>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <section className="min-w-0">
+                <h2 className={LABEL}>
+                  Original video <span className="font-normal text-slate-400">(required)</span>
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  MP4 or MOV · 2–{ceiling} s · up to 50 MB
+                </p>
+                {video ? (
+                  <div className="mt-2 flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/60 p-2">
+                    <video
+                      src={video.previewUrl}
+                      muted
+                      playsInline
+                      controls
+                      className="h-20 w-14 shrink-0 rounded-lg bg-slate-900 object-cover"
+                      aria-label="Original video preview"
                     />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-slate-700">
+                        {video.file.name}
+                      </p>
+                      <p className="mt-0.5 text-xs tabular-nums text-slate-500">
+                        {video.durationSec.toFixed(1)} s
+                      </p>
+                      {videoTooLong && (
+                        <p className="mt-0.5 text-xs font-medium text-rose-600">
+                          This model replicates videos up to {ceiling} seconds. Pick another model
+                          or a shorter video.
+                        </p>
+                      )}
+                    </div>
                     <button
                       type="button"
-                      onClick={() => removeProduct(product.id)}
-                      className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-white transition hover:bg-black/80"
-                      aria-label={`Remove product image ${index + 1}`}
+                      onClick={clearVideo}
+                      className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-slate-500 transition hover:bg-slate-200 hover:text-slate-900"
+                      aria-label="Remove original video"
                     >
-                      <X className="h-3.5 w-3.5" />
+                      <X className="h-4 w-4" />
                     </button>
                   </div>
-                ))}
-                {products.length < PRODUCT_IMAGES_MAX && (
+                ) : (
                   <label
-                    htmlFor="product-images"
-                    className={`${DROP_ZONE} h-24 w-24 border-indigo-200 bg-indigo-50/40 hover:border-indigo-400 hover:bg-indigo-50`}
+                    htmlFor="original-video"
+                    onDragOver={allowDrop}
+                    onDrop={onVideoDrop}
+                    className={`${DROP_ZONE} mt-2 h-24 border-indigo-200 bg-indigo-50/40 hover:border-indigo-400 hover:bg-indigo-50`}
                   >
-                    {products.length === 0 ? (
-                      <ImagePlus className="h-6 w-6 text-indigo-500" />
-                    ) : (
-                      <Plus className="h-6 w-6 text-indigo-500" />
-                    )}
-                    <span className="mt-1.5 text-[11px] font-semibold text-indigo-700">
-                      Add image
+                    <Film className="h-6 w-6 text-indigo-500" />
+                    <span className="mt-1.5 text-sm font-semibold text-indigo-700">
+                      Upload original video
                     </span>
+                    <span className="text-xs text-slate-500">Click or drag a file here</span>
                   </label>
                 )}
-              </div>
-              <input
-                id="product-images"
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                multiple
-                className="hidden"
-                ref={productInputRef}
-                onChange={onProductInput}
-              />
-              {productError && (
-                <p className="mt-2 text-xs font-medium text-rose-600">{productError}</p>
-              )}
-            </section>
+                <input
+                  id="original-video"
+                  type="file"
+                  accept="video/mp4,video/quicktime"
+                  className="hidden"
+                  ref={videoInputRef}
+                  onChange={onVideoInput}
+                />
+                {videoError && (
+                  <p className="mt-1.5 text-xs font-medium text-rose-600">{videoError}</p>
+                )}
+              </section>
 
-            <section>
-              <label htmlFor="product-name" className={LABEL}>
-                Product name <span className="font-normal text-slate-400">(required)</span>
-              </label>
-              <input
-                id="product-name"
-                type="text"
-                maxLength={PRODUCT_NAME_MAX}
-                placeholder="e.g. Ivory Mini Top-Handle Bag"
-                className={INPUT}
-                value={productName}
-                onChange={(event) => setProductName(event.target.value)}
-              />
-            </section>
+              <section className="min-w-0">
+                <h2 className={LABEL}>
+                  Product images <span className="font-normal text-slate-400">(required)</span>
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Up to {PRODUCT_IMAGES_MAX} · click, drag or paste
+                </p>
+                <div
+                  className="mt-2 flex flex-wrap gap-2"
+                  onDragOver={allowDrop}
+                  onDrop={onProductDrop}
+                >
+                  {products.map((product, index) => (
+                    <div
+                      key={product.id}
+                      className="relative h-20 w-20 overflow-hidden rounded-xl bg-slate-100"
+                    >
+                      <Image
+                        src={product.previewUrl}
+                        alt={`Product image ${index + 1}`}
+                        fill
+                        unoptimized
+                        sizes="80px"
+                        className="object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeProduct(product.id)}
+                        className="absolute right-1 top-1 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-white transition hover:bg-black/80"
+                        aria-label={`Remove product image ${index + 1}`}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                  {products.length < PRODUCT_IMAGES_MAX && (
+                    <label
+                      htmlFor="product-images"
+                      className={`${DROP_ZONE} h-20 w-20 border-indigo-200 bg-indigo-50/40 hover:border-indigo-400 hover:bg-indigo-50`}
+                    >
+                      {products.length === 0 ? (
+                        <ImagePlus className="h-6 w-6 text-indigo-500" />
+                      ) : (
+                        <Plus className="h-6 w-6 text-indigo-500" />
+                      )}
+                      <span className="mt-1.5 text-[11px] font-semibold text-indigo-700">
+                        Add image
+                      </span>
+                    </label>
+                  )}
+                </div>
+                <input
+                  id="product-images"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  multiple
+                  className="hidden"
+                  ref={productInputRef}
+                  onChange={onProductInput}
+                />
+                {productError && (
+                  <p className="mt-1.5 text-xs font-medium text-rose-600">{productError}</p>
+                )}
+              </section>
+            </div>
 
-            <section>
-              <label htmlFor="target-audience" className={LABEL}>
-                Target audience
-              </label>
-              <input
-                id="target-audience"
-                type="text"
-                maxLength={TARGET_AUDIENCE_MAX}
-                placeholder="e.g. women 25-35"
-                className={INPUT}
-                value={targetAudience}
-                onChange={(event) => setTargetAudience(event.target.value)}
-              />
-            </section>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <section>
+                <label htmlFor="product-name" className={LABEL}>
+                  Product name <span className="font-normal text-slate-400">(required)</span>
+                </label>
+                <input
+                  id="product-name"
+                  type="text"
+                  maxLength={PRODUCT_NAME_MAX}
+                  placeholder="e.g. Ivory Mini Top-Handle Bag"
+                  className={INPUT}
+                  value={productName}
+                  onChange={(event) => setProductName(event.target.value)}
+                />
+              </section>
+
+              <section>
+                <label htmlFor="target-audience" className={LABEL}>
+                  Target audience
+                </label>
+                <input
+                  id="target-audience"
+                  type="text"
+                  maxLength={TARGET_AUDIENCE_MAX}
+                  placeholder="e.g. women 25-35"
+                  className={INPUT}
+                  value={targetAudience}
+                  onChange={(event) => setTargetAudience(event.target.value)}
+                />
+              </section>
+            </div>
 
             <section>
               <div className="flex items-baseline justify-between gap-4">
@@ -505,7 +512,7 @@ export default function ReplicateForm({
               </div>
               <textarea
                 id="selling-points"
-                rows={3}
+                rows={2}
                 maxLength={SELLING_POINTS_MAX}
                 placeholder="e.g. soft vegan leather, gold clasp, fits a phone and wallet"
                 className={`${INPUT} resize-none`}
@@ -514,29 +521,19 @@ export default function ReplicateForm({
               />
             </section>
 
-            <section className="space-y-5">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Model
-                </p>
-                <ModelPicker
-                  models={models}
-                  value={mode}
-                  onChange={changeMode}
-                  className="mt-2 w-full"
-                />
-              </div>
-              <ResolutionField
+            <div className="flex flex-wrap items-center gap-2">
+              <ModelPicker models={models} value={mode} onChange={changeMode} />
+              <ResolutionPicker
                 value={resolution}
                 resolutions={limits.resolutions}
                 onChange={setResolution}
               />
-              <AudioToggle value={generateAudio} onChange={setGenerateAudio} />
-            </section>
+              <AudioPill value={generateAudio} onChange={setGenerateAudio} />
+            </div>
           </fieldset>
 
           {formError && (
-            <div className="rounded-2xl border border-rose-200 bg-rose-50/70 p-4 text-sm text-rose-700">
+            <div className="rounded-xl border border-rose-200 bg-rose-50/70 px-4 py-2.5 text-sm text-rose-700">
               {formError}
             </div>
           )}
@@ -563,7 +560,7 @@ export default function ReplicateForm({
             <button
               type="submit"
               disabled={!canSubmit}
-              className="group relative inline-flex shrink-0 items-center justify-center overflow-hidden whitespace-nowrap rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 px-6 py-3 text-sm font-semibold text-white shadow-lg transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
+              className="group relative inline-flex shrink-0 items-center justify-center overflow-hidden whitespace-nowrap rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 px-6 py-2.5 text-sm font-semibold text-white shadow-lg transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <span className="absolute inset-0 bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
               <span className="relative inline-flex items-center gap-2">
@@ -578,7 +575,7 @@ export default function ReplicateForm({
           </div>
         </form>
 
-        <aside className={`${CARD} h-fit xl:sticky xl:top-6`}>
+        <aside className={`${CARD} h-fit lg:sticky lg:top-6`}>
           <div
             role="tablist"
             aria-label="Replicate results"
@@ -602,7 +599,7 @@ export default function ReplicateForm({
             ))}
           </div>
 
-          <div role="tabpanel" className="mt-5">
+          <div role="tabpanel" className="mt-4">
             {tab === "history" ? (
               <HistoryList items={history} onSettled={settleHistoryItem} />
             ) : (

@@ -34,25 +34,23 @@ export default async function ReplicatePage() {
   ]);
 
   return (
-    <div className="space-y-8 py-8">
-      <Link
-        href="/creatorportal/ai-video"
-        className="inline-flex items-center gap-2 text-sm font-semibold text-indigo-600 transition hover:text-indigo-800"
-      >
-        <ArrowLeft className="h-4 w-4" />
-        Back to AI Video Library
-      </Link>
-
-      <div className="space-y-8">
+    <div className="space-y-4 py-6">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+        <Link
+          href="/creatorportal/ai-video"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-indigo-600 transition hover:text-indigo-800"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to AI Video Library
+        </Link>
         <ToolTabs active="replicate" />
+      </div>
 
-        <header className="space-y-3">
-          <p className="text-sm uppercase tracking-[0.2em] text-indigo-500">AI production suite</p>
-          <h1 className="text-3xl font-semibold text-slate-900">Replicate a trending video</h1>
-          <p className="text-base text-slate-600">
-            Upload a trending TikTok and photos of your product. We recreate its shots, camera moves
-            and pacing as a new ad starring your product. Finished videos land in My Videos, ready
-            to post to TikTok.
+      <div className="space-y-4">
+        <header className="space-y-1">
+          <h1 className="text-2xl font-semibold text-slate-900">Replicate a trending video</h1>
+          <p className="text-sm text-slate-600">
+            Turn a trending TikTok into an ad for your product, with the same shots and pacing.
           </p>
         </header>
 
