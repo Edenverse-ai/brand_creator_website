@@ -612,6 +612,9 @@ export default function ReplicateForm({
   );
 }
 
+/** History shows the latest few; the full list lives on the tasks page. */
+const HISTORY_PREVIEW = 3;
+
 function HistoryList({
   items,
   onSettled,
@@ -621,26 +624,37 @@ function HistoryList({
 }) {
   if (items.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-slate-200 p-10 text-center">
-        <Clapperboard className="h-8 w-8 text-slate-400" />
+      <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-slate-200 p-8 text-center">
+        <Clapperboard className="h-7 w-7 text-slate-400" />
         <p className="text-sm text-slate-500">Your replicated videos will appear here.</p>
       </div>
     );
   }
   return (
-    <ul className="space-y-3">
-      {items.map((item) => (
-        <HistoryRow key={item.id} item={item} onSettled={onSettled} />
-      ))}
-    </ul>
+    <div className="space-y-3">
+      <ul className="space-y-2">
+        {items.slice(0, HISTORY_PREVIEW).map((item, index) => (
+          <HistoryRow key={item.id} item={item} expanded={index === 0} onSettled={onSettled} />
+        ))}
+      </ul>
+      <Link
+        href="/creatorportal/ai-video/tasks"
+        className="block text-center text-sm font-semibold text-slate-500 hover:text-slate-800"
+      >
+        View all generation tasks →
+      </Link>
+    </div>
   );
 }
 
 function HistoryRow({
   item,
+  expanded,
   onSettled,
 }: {
   item: ReplicateHistoryItem;
+  /** The newest row opens its player; older ones open on demand. */
+  expanded: boolean;
   onSettled: (id: string, outcome: TaskOutcome) => void;
 }) {
   const inFlight = isInFlight(item);
@@ -648,54 +662,74 @@ function HistoryRow({
     inFlight ? { taskId: item.id, startedAt: Date.parse(item.createdAt) } : null,
     (outcome) => onSettled(item.id, outcome)
   );
+  const [showVideo, setShowVideo] = useState(expanded);
   const display = STATUS_DISPLAY[item.status];
+  const delivered = item.status === "DELIVERED" && item.videoUrl;
 
   return (
-    <li data-testid="replicate-history-item" className="rounded-xl border border-slate-100 p-3">
+    <li
+      data-testid="replicate-history-item"
+      className="min-w-0 rounded-xl border border-slate-100 p-2.5"
+    >
       <div className="flex items-center gap-3">
-        <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-slate-100">
+        <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-slate-100">
           {item.thumbnailUrl && (
             <Image
               src={item.thumbnailUrl}
               alt=""
               fill
               unoptimized
-              sizes="48px"
+              sizes="40px"
               className="object-cover"
             />
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-slate-800">{item.productName}</p>
-          <p className="mt-0.5 text-xs text-slate-500">
+          <p className="truncate text-sm font-semibold text-slate-800" title={item.productName}>
+            {item.productName}
+          </p>
+          <p className="truncate text-xs text-slate-500">
             {inFlight
               ? `${formatElapsed(elapsed)} elapsed · usually a few minutes`
               : formatDistanceToNow(new Date(item.createdAt), { addSuffix: true })}
           </p>
         </div>
-        <span
-          className={`inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold ${display.className}`}
-        >
-          {inFlight && <Loader2 className="h-3 w-3 animate-spin" />}
-          {display.label}
-        </span>
+        {delivered && !showVideo ? (
+          <button
+            type="button"
+            onClick={() => setShowVideo(true)}
+            className="shrink-0 text-xs font-semibold text-indigo-600 hover:underline"
+          >
+            Watch
+          </button>
+        ) : (
+          <span
+            className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${display.className}`}
+          >
+            {inFlight && <Loader2 className="h-3 w-3 animate-spin" />}
+            {display.label}
+          </span>
+        )}
       </div>
       {item.status === "FAILED" && item.errorMessage && (
-        <p className="mt-2 text-xs text-rose-600">{item.errorMessage}</p>
+        <p
+          title={item.errorMessage}
+          className="mt-2 line-clamp-3 text-xs text-rose-600 [overflow-wrap:anywhere]"
+        >
+          {item.errorMessage}
+        </p>
       )}
-      {item.status === "DELIVERED" && (
-        <div className="mt-3 space-y-2">
-          {item.videoUrl && (
-            <video
-              src={item.videoUrl}
-              controls
-              playsInline
-              className="mx-auto max-h-[28rem] w-full rounded-lg bg-slate-900 object-contain"
-            />
-          )}
+      {delivered && showVideo && (
+        <div className="mt-2 space-y-1.5">
+          <video
+            src={item.videoUrl ?? undefined}
+            controls
+            playsInline
+            className="mx-auto max-h-72 w-full rounded-lg bg-slate-900 object-contain"
+          />
           <Link
             href="/creatorportal/ai-video"
-            className="inline-block text-sm font-semibold text-indigo-600 underline-offset-2 hover:underline"
+            className="inline-block text-xs font-semibold text-indigo-600 underline-offset-2 hover:underline"
           >
             Post it to TikTok from My Videos →
           </Link>

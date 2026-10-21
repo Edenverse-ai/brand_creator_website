@@ -55,6 +55,8 @@ export const CREATOR_MESSAGES = {
     "We couldn't confirm your submission. Please check your tasks before trying again.",
   timedOut: "Generation timed out. You were not charged.",
   generationFailed: "Video generation failed. You were not charged — please try again.",
+  referenceUnreadable:
+    "The video service couldn't load your uploaded video or images. Try again, or upload a different file. You were not charged.",
 } as const;
 
 export type SubmitFailureCode = "submit_rejected" | "unknown_outcome";
@@ -63,11 +65,14 @@ export type SubmitFailureCode = "submit_rejected" | "unknown_outcome";
 // error codes such as InputTextSensitiveContentDetected.
 const COPYRIGHT_PATTERN = /copyright|版权|侵权/i;
 const CONTENT_REVIEW_PATTERN = /审核|违规|敏感|content[_ ]?policy|moderation|safety|sensitive/i;
+// The provider couldn't fetch an uploaded reference (e.g. "资源同步失败: url=…").
+const REFERENCE_FETCH_PATTERN = /资源同步失败|资源下载失败/;
 const PASSTHROUGH_REASON_MAX_LENGTH = 300;
 
 function knownReasonMessage(providerText: string): string | null {
   if (COPYRIGHT_PATTERN.test(providerText)) return CREATOR_MESSAGES.copyright;
   if (CONTENT_REVIEW_PATTERN.test(providerText)) return CREATOR_MESSAGES.contentReview;
+  if (REFERENCE_FETCH_PATTERN.test(providerText)) return CREATOR_MESSAGES.referenceUnreadable;
   return null;
 }
 
@@ -97,8 +102,11 @@ export function describeProviderFailure(providerError: string): string {
   const known = knownReasonMessage(providerError);
   if (known) return known;
 
+  // URLs are dropped too: signed storage links carry access tokens.
   const reason = providerError
     .replace(/\s*Request id:[\s\S]*$/i, "")
+    .replace(/\s*(?:url\s*[=:]\s*)?https?:\/\/\S+/gi, "")
+    .replace(/[\s:：,，;；]+$/, "")
     .trim()
     .slice(0, PASSTHROUGH_REASON_MAX_LENGTH)
     .replace(/[.。]+$/, "");

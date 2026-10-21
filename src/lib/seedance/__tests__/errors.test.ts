@@ -72,6 +72,20 @@ describe("describeProviderFailure", () => {
     expect(describeProviderFailure(error)).toBe(CREATOR_MESSAGES.contentReview);
   });
 
+  it("explains a reference the provider couldn't load, without leaking the signed URL", () => {
+    const message = describeProviderFailure(
+      "资源同步失败: url=https://x.supabase.co/storage/v1/object/sign/ai-video-tasks/u/t/reference-video.mp4?token=eyJ.secret"
+    );
+    expect(message).toBe(CREATOR_MESSAGES.referenceUnreadable);
+    expect(message).not.toContain("token");
+  });
+
+  it("drops URLs from any passed-through reason", () => {
+    expect(
+      describeProviderFailure("Download failed: url=https://s.test/a.mp4?token=abc. Request id: 1")
+    ).toBe("Video generation failed: Download failed. You were not charged.");
+  });
+
   it("shows the provider's own reason for anything else, without the request id", () => {
     expect(
       describeProviderFailure(

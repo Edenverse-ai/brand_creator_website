@@ -3,7 +3,8 @@ import { buildLibraryVideoPath } from "@/lib/ai-video-task";
 import { createAiVideoSignedUrl, createSignedUrls } from "@/lib/supabase-admin";
 import type { ReplicateHistoryItem } from "./types";
 
-const HISTORY_SIZE = 20;
+// The History panel shows the latest three, plus one for a submission in flight.
+const HISTORY_SIZE = 4;
 
 function productNameOf(input: unknown): string {
   const name = (input as { productName?: unknown } | null)?.productName;

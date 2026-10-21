@@ -63,7 +63,9 @@ export default function TaskRow({ task }: { task: TaskRowData }) {
           ) : null}
         </p>
         {task.status === "FAILED" && task.errorMessage ? (
-          <p className="mt-1 text-xs text-rose-600">{task.errorMessage}</p>
+          <p className="mt-1 line-clamp-3 text-xs text-rose-600 [overflow-wrap:anywhere]">
+            {task.errorMessage}
+          </p>
         ) : null}
       </div>
       <span
