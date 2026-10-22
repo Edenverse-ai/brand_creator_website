@@ -2,7 +2,8 @@ import { getDailyLimit } from "@/lib/seedance/config";
 import { replicateLimitsFor, type ReplicateMode } from "@/lib/seedance/models";
 
 /**
- * What a creator may generate per UTC day, by tool. There is no paid tier yet:
+ * What a creator may generate, by tool: Video Gen per UTC day, Trend Replicate
+ * per UTC calendar month. There is no paid tier yet:
  * everyone is on the free tier except emails listed in AI_VIDEO_UNLIMITED_EMAILS
  * (comma-separated, case-insensitive), which get unlimited generations and the
  * longest trend-replicate source videos the models accept. A paid tier would be
@@ -12,14 +13,14 @@ import { replicateLimitsFor, type ReplicateMode } from "@/lib/seedance/models";
  * session email without a database round trip.
  */
 
-export const REPLICATE_FREE_DAILY_LIMIT = 1;
+export const REPLICATE_FREE_MONTHLY_LIMIT = 3;
 export const REPLICATE_FREE_MAX_SOURCE_SEC = 15;
 export const REPLICATE_UNLIMITED_MAX_SOURCE_SEC = 30;
 
 export type AiVideoEntitlements = {
   /** null = unlimited. */
   generate: { dailyLimit: number | null };
-  replicate: { dailyLimit: number | null; maxSourceSec: number };
+  replicate: { monthlyLimit: number | null; maxSourceSec: number };
 };
 
 export function isUnlimitedEmail(email: string | null | undefined): boolean {
@@ -35,13 +36,13 @@ export function getEntitlements(email: string | null | undefined): AiVideoEntitl
   if (isUnlimitedEmail(email)) {
     return {
       generate: { dailyLimit: null },
-      replicate: { dailyLimit: null, maxSourceSec: REPLICATE_UNLIMITED_MAX_SOURCE_SEC },
+      replicate: { monthlyLimit: null, maxSourceSec: REPLICATE_UNLIMITED_MAX_SOURCE_SEC },
     };
   }
   return {
     generate: { dailyLimit: getDailyLimit() },
     replicate: {
-      dailyLimit: REPLICATE_FREE_DAILY_LIMIT,
+      monthlyLimit: REPLICATE_FREE_MONTHLY_LIMIT,
       maxSourceSec: REPLICATE_FREE_MAX_SOURCE_SEC,
     },
   };

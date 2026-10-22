@@ -402,26 +402,38 @@ function startOfUtcDay(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 }
 
+function startOfUtcMonth(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+}
+
 /**
- * Tasks that may have used provider tokens today (spec §6 "Daily cap counting").
- * QUEUED rows with a submit claim are in flight and count; failures the provider
- * doesn't charge for don't.
+ * Tasks of `kind` that may have used provider tokens since `since` (spec §6
+ * "Daily cap counting"). QUEUED rows with a submit claim are in flight and count;
+ * failures the provider doesn't charge for don't.
  */
-export async function countTodayGenerations(
+async function countGenerationsSince(
   creatorId: string,
-  kind: AiVideoTaskKind = "generate"
+  kind: AiVideoTaskKind,
+  since: Date
 ): Promise<number> {
   return prisma.aiVideoTask.count({
     where: {
       creatorId,
       kind,
-      submitStartedAt: { gte: startOfUtcDay(new Date()) },
+      submitStartedAt: { gte: since },
       OR: [
         { status: { in: ["QUEUED", "GENERATING", "IN_REVIEW", "DELIVERED"] } },
         { status: "FAILED", failureCode: "unknown_outcome" },
       ],
     },
   });
+}
+
+export async function countTodayGenerations(
+  creatorId: string,
+  kind: AiVideoTaskKind = "generate"
+): Promise<number> {
+  return countGenerationsSince(creatorId, kind, startOfUtcDay(new Date()));
 }
 
 /**
@@ -436,5 +448,19 @@ export async function remainingToday(
 ): Promise<{ remaining: number | null; limit: number | null }> {
   if (limit === null) return { remaining: null, limit: null };
   const used = await countTodayGenerations(creatorId, kind);
+  return { remaining: Math.max(0, limit - used), limit };
+}
+
+/**
+ * Generations of `kind` the creator has left this UTC calendar month (Trend
+ * Replicate's free quota). Like remainingToday, a null `limit` means unlimited.
+ */
+export async function remainingThisMonth(
+  creatorId: string,
+  kind: AiVideoTaskKind,
+  limit: number | null
+): Promise<{ remaining: number | null; limit: number | null }> {
+  if (limit === null) return { remaining: null, limit: null };
+  const used = await countGenerationsSince(creatorId, kind, startOfUtcMonth(new Date()));
   return { remaining: Math.max(0, limit - used), limit };
 }

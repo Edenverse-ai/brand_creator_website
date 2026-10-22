@@ -18,10 +18,10 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 const submitTask = vi.fn();
-const remainingToday = vi.fn();
+const remainingThisMonth = vi.fn();
 vi.mock("@/lib/ai-video-generation", () => ({
   submitTask: (...args: unknown[]) => submitTask(...args),
-  remainingToday: (...args: unknown[]) => remainingToday(...args),
+  remainingThisMonth: (...args: unknown[]) => remainingThisMonth(...args),
 }));
 
 const deleteFromBucket = vi.fn();
@@ -70,7 +70,7 @@ function withInput(input: Record<string, unknown>) {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.stubEnv("AI_VIDEO_UNLIMITED_EMAILS", UNLIMITED);
-  remainingToday.mockResolvedValue({ remaining: 1, limit: 1 });
+  remainingThisMonth.mockResolvedValue({ remaining: 3, limit: 3 });
   aiVideoTaskCreate.mockResolvedValue({ id: TASK });
   submitTask.mockResolvedValue(undefined);
   aiVideoTaskFindUnique.mockResolvedValue({ id: TASK, status: "GENERATING", errorMessage: null });
@@ -94,7 +94,7 @@ describe("POST /api/ai-videos/replicate", () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ id: TASK, status: "GENERATING", errorMessage: null });
-    expect(remainingToday).toHaveBeenCalledWith(OWNER, "replicate", 1);
+    expect(remainingThisMonth).toHaveBeenCalledWith(OWNER, "replicate", 3);
     const { data } = aiVideoTaskCreate.mock.calls[0][0];
     expect(data).toMatchObject({
       id: TASK,
@@ -189,11 +189,11 @@ describe("POST /api/ai-videos/replicate", () => {
 
   it("lets unlimited accounts use 30 s sources on Seedance 2.5, but 15 s on Pro", async () => {
     signIn(UNLIMITED);
-    remainingToday.mockResolvedValue({ remaining: null, limit: null });
+    remainingThisMonth.mockResolvedValue({ remaining: null, limit: null });
 
     const res = await POST(jsonRequest(withInput({ referenceDurationSec: 29.8 })) as never);
     expect(res.status).toBe(200);
-    expect(remainingToday).toHaveBeenCalledWith(OWNER, "replicate", null);
+    expect(remainingThisMonth).toHaveBeenCalledWith(OWNER, "replicate", null);
     expect(aiVideoTaskCreate.mock.calls[0][0].data.prompt).toContain("at most 60 words");
 
     const pro = await POST(
@@ -229,17 +229,17 @@ describe("POST /api/ai-videos/replicate", () => {
     expect(aiVideoTaskCreate).not.toHaveBeenCalled();
   });
 
-  it("returns 429 once the free replicate of the day is used", async () => {
+  it("returns 429 once the month's free replicates are used", async () => {
     signIn();
-    remainingToday.mockResolvedValue({ remaining: 0, limit: 1 });
+    remainingThisMonth.mockResolvedValue({ remaining: 0, limit: 3 });
 
     const res = await POST(jsonRequest(validBody) as never);
 
     expect(res.status).toBe(429);
     expect(await res.json()).toEqual({
-      error: "You've used today's free trend replicate. Try again tomorrow.",
+      error: "You've used this month's 3 free trend replicates. Try again next month.",
       remaining: 0,
-      limit: 1,
+      limit: 3,
     });
     expect(aiVideoTaskCreate).not.toHaveBeenCalled();
   });

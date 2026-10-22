@@ -5,7 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PRODUCT_IMAGES_MAX } from "@/lib/ai-video-task";
 import { getEntitlements, replicateSourceCeiling } from "@/lib/ai-video-entitlements";
-import { remainingToday, submitTask } from "@/lib/ai-video-generation";
+import { remainingThisMonth, submitTask } from "@/lib/ai-video-generation";
 import {
   SOURCE_DURATION_TOLERANCE_SEC,
   buildReplicateParams,
@@ -93,15 +93,15 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { remaining, limit } = await remainingToday(
+  const { remaining, limit } = await remainingThisMonth(
     creatorId,
     "replicate",
-    entitlements.replicate.dailyLimit
+    entitlements.replicate.monthlyLimit
   );
   if (remaining !== null && remaining <= 0) {
     return NextResponse.json(
       {
-        error: `You've used today's free trend replicate${limit === 1 ? "" : "s"}. Try again tomorrow.`,
+        error: `You've used this month's ${limit} free trend replicate${limit === 1 ? "" : "s"}. Try again next month.`,
         remaining: 0,
         limit,
       },

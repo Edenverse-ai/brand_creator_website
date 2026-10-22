@@ -50,7 +50,7 @@ test.describe("creator / ai-video replicate", () => {
 
     await asCreator.goto("/creatorportal/ai-video/replicate");
     await expect(asCreator.getByText(/Mock mode/i)).toBeVisible();
-    await expect(asCreator.getByText(/1 free replicate left today/i)).toBeVisible();
+    await expect(asCreator.getByText(/3 free replicates left this month/i)).toBeVisible();
     const submit = asCreator.getByRole("button", { name: /Replicate video/i });
     await expect(submit).toBeDisabled();
 
@@ -94,7 +94,7 @@ test.describe("creator / ai-video replicate", () => {
 
     const item = asCreator.getByTestId("replicate-history-item").filter({ hasText: productName });
     await expect(item.getByText("Generating")).toBeVisible({ timeout: 30_000 });
-    await expect(asCreator.getByText(/0 free replicates left today/i)).toBeVisible();
+    await expect(asCreator.getByText(/2 free replicates left this month/i)).toBeVisible();
     await expect(item.locator("video")).toBeVisible({ timeout: 45_000 });
     await expect(item.getByText("Delivered")).toBeVisible();
 
@@ -137,24 +137,24 @@ test.describe("creator / ai-video replicate", () => {
     await expect(item.getByText(/You were not charged/i)).toBeVisible();
   });
 
-  test("blocks a second free replicate on the same day", async ({ asCreator }) => {
+  test("blocks a fourth free replicate in the same month", async ({ asCreator }) => {
     const db = testDb();
     const now = new Date();
-    await db.aiVideoTask.create({
-      data: {
-        id: `e2erepcap${now.getTime()}`,
+    await db.aiVideoTask.createMany({
+      data: Array.from({ length: 3 }, (_, i) => ({
+        id: `e2erepcap${i}${now.getTime()}`,
         creatorId: E2E_CREATOR_ID,
         kind: "replicate",
         prompt: "cap filler",
-        replicateInput: { productName: "Earlier bag" },
-        status: "DELIVERED",
+        replicateInput: { productName: `Earlier bag ${i}` },
+        status: "DELIVERED" as const,
         submitStartedAt: now,
-      },
+      })),
     });
     await db.$disconnect();
 
     await asCreator.goto("/creatorportal/ai-video/replicate");
-    await expect(asCreator.getByText(/0 free replicates left today/i)).toBeVisible();
+    await expect(asCreator.getByText(/0 free replicates left this month/i)).toBeVisible();
     await asCreator
       .locator("input#original-video")
       .setInputFiles(fixture("replicate-source-3s.mp4"));

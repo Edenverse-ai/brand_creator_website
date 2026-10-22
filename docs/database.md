@@ -98,7 +98,7 @@ Consequences:
 
 | Field                | Purpose                                                                                                  |
 | -------------------- | -------------------------------------------------------------------------------------------------------- |
-| `kind`               | `generate` (default; every earlier row) or `replicate`. Daily caps count each kind separately.           |
+| `kind`               | `generate` (default; every earlier row) or `replicate`. Free quotas count each kind separately.          |
 | `referenceVideoPath` | The trending video, `{creatorId}/{taskId}/reference-video.{mp4,mov}` in `ai-video-tasks`.                |
 | `productImagePaths`  | Product photos, `{creatorId}/{taskId}/product-{n}.{ext}`, in the "Image N" order of the composed prompt. |
 | `replicateInput`     | The creator's raw input: `productName`, `targetAudience`, `sellingPoints`, `referenceDurationSec`.       |

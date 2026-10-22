@@ -59,12 +59,12 @@ We can't inspect Video 1's audio or text ourselves, so both mirror rules are con
 
 The limits are in `src/lib/ai-video-entitlements.ts`. They come from the session email, with no database lookup.
 
-| Tier                                  | Video Gen / day        | Replicate / day | Replicate source length                        |
-| ------------------------------------- | ---------------------- | --------------- | ---------------------------------------------- |
-| Free (everyone)                       | `AI_VIDEO_DAILY_LIMIT` | 1               | 2–15 s                                         |
-| Listed in `AI_VIDEO_UNLIMITED_EMAILS` | unlimited              | unlimited       | 2 s up to the model max (2.5: 30 s, Pro: 15 s) |
+| Tier                                  | Video Gen / day        | Replicate / month | Replicate source length                        |
+| ------------------------------------- | ---------------------- | ----------------- | ---------------------------------------------- |
+| Free (everyone)                       | `AI_VIDEO_DAILY_LIMIT` | 3                 | 2–15 s                                         |
+| Listed in `AI_VIDEO_UNLIMITED_EMAILS` | unlimited              | unlimited         | 2 s up to the model max (2.5: 30 s, Pro: 15 s) |
 
-The two tools have separate counts (`AiVideoTask.kind`). A paid tier would be one more entitlements value.
+The two tools have separate counts (`AiVideoTask.kind`). Video Gen counts per UTC day; Trend Replicate counts per UTC calendar month and resets at 00:00 UTC on the 1st (`remainingThisMonth`). A paid tier would be one more entitlements value.
 
 **Models per tool** (`src/lib/seedance/models.ts`):
 
@@ -96,7 +96,7 @@ Video Gen follows the gateway matrix in `docs/openapi.md`, minus 4k.
   1. Ownership of every path, against this user and this task (`isOwnedTaskPath`), and the expected file names.
   2. The input schema.
   3. The source-length ceiling.
-  4. The replicate daily cap (429).
+  4. The monthly free replicate quota (429).
 
   It then composes the prompt, inserts the task (`kind: "replicate"`) and submits it. Its response matches `POST /api/ai-videos/tasks`, so the client polls `GET /api/ai-videos/tasks/:id`.
 

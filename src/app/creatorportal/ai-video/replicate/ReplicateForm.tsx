@@ -551,7 +551,7 @@ export default function ReplicateForm({
               ) : (
                 <p>
                   <span className="font-semibold text-slate-900">
-                    {remaining} free replicate{remaining === 1 ? "" : "s"} left today
+                    {remaining} free replicate{remaining === 1 ? "" : "s"} left this month
                   </span>{" "}
                   <span className="text-slate-400">of {limit}</span>
                 </p>

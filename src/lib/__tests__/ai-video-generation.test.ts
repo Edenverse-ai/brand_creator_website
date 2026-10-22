@@ -75,6 +75,7 @@ vi.mock("@/lib/seedance/mock", () => ({
 import {
   countTodayGenerations,
   finalizeTask,
+  remainingThisMonth,
   remainingToday,
   submitTask,
   syncTask,
@@ -702,6 +703,39 @@ describe("daily cap", () => {
       limit: 1,
     });
     expect(db.count.mock.calls[0][0].where.kind).toBe("replicate");
+  });
+
+  it("counts replicates against a monthly quota from the 1st of the UTC month", async () => {
+    db.count.mockResolvedValue(2);
+    await expect(remainingThisMonth("u1", "replicate", 3)).resolves.toEqual({
+      remaining: 1,
+      limit: 3,
+    });
+    expect(db.count).toHaveBeenCalledWith({
+      where: {
+        creatorId: "u1",
+        kind: "replicate",
+        submitStartedAt: { gte: new Date("2026-10-01T00:00:00Z") },
+        OR: [
+          { status: { in: ["QUEUED", "GENERATING", "IN_REVIEW", "DELIVERED"] } },
+          { status: "FAILED", failureCode: "unknown_outcome" },
+        ],
+      },
+    });
+
+    db.count.mockResolvedValue(5);
+    await expect(remainingThisMonth("u1", "replicate", 3)).resolves.toEqual({
+      remaining: 0,
+      limit: 3,
+    });
+  });
+
+  it("reports an unlimited monthly quota without counting", async () => {
+    await expect(remainingThisMonth("u1", "replicate", null)).resolves.toEqual({
+      remaining: null,
+      limit: null,
+    });
+    expect(db.count).not.toHaveBeenCalled();
   });
 
   it("reports unlimited without counting when there is no limit", async () => {

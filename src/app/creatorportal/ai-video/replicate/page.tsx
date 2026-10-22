@@ -5,7 +5,7 @@ import { getServerSession } from "next-auth";
 import { ArrowLeft } from "lucide-react";
 import { authOptions } from "@/lib/auth";
 import { getEntitlements } from "@/lib/ai-video-entitlements";
-import { remainingToday } from "@/lib/ai-video-generation";
+import { remainingThisMonth } from "@/lib/ai-video-generation";
 import { REPLICATE_SAMPLE } from "@/lib/ai-video-samples";
 import { isMockMode } from "@/lib/seedance";
 import { REPLICATE_MODELS } from "@/lib/seedance/models";
@@ -29,7 +29,7 @@ export default async function ReplicatePage() {
 
   const entitlements = getEntitlements(session.user.email);
   const [{ remaining, limit }, history] = await Promise.all([
-    remainingToday(session.user.id, "replicate", entitlements.replicate.dailyLimit),
+    remainingThisMonth(session.user.id, "replicate", entitlements.replicate.monthlyLimit),
     fetchReplicateHistory(session.user.id),
   ]);
 

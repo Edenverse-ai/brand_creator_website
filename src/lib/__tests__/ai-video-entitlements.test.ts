@@ -31,7 +31,7 @@ describe("getEntitlements", () => {
     vi.stubEnv("AI_VIDEO_DAILY_LIMIT", "5");
     expect(getEntitlements("someone@example.com")).toEqual({
       generate: { dailyLimit: 5 },
-      replicate: { dailyLimit: 1, maxSourceSec: 15 },
+      replicate: { monthlyLimit: 3, maxSourceSec: 15 },
     });
   });
 
@@ -39,7 +39,7 @@ describe("getEntitlements", () => {
     vi.stubEnv("AI_VIDEO_UNLIMITED_EMAILS", "creator-free@test.local");
     expect(getEntitlements("creator-free@test.local")).toEqual({
       generate: { dailyLimit: null },
-      replicate: { dailyLimit: null, maxSourceSec: 30 },
+      replicate: { monthlyLimit: null, maxSourceSec: 30 },
     });
   });
 });

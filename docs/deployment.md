@@ -57,7 +57,7 @@ Additional secrets (Supabase, TikTok, email) mirror what you have in `.env.local
 | `SEEDANCE_LIVE`             | `1` enables real, billable generation. Leave unset (mock) until launch is approved.                                                                                                                                            |
 | `VIDEO_API_BASE_URL`        | Base URL from the AI Open Platform console. No default in code.                                                                                                                                                                |
 | `VIDEO_API_KEY`             | Provider `ApiKey`. Never logged.                                                                                                                                                                                               |
-| `AI_VIDEO_DAILY_LIMIT`      | Video Gen generations per creator per UTC day (default 5). Trend replicate is fixed at 1 per day, with sources up to 15 s.                                                                                                     |
+| `AI_VIDEO_DAILY_LIMIT`      | Video Gen generations per creator per UTC day (default 5). Trend replicate is fixed at 3 per UTC calendar month, with sources up to 15 s.                                                                                      |
 | `AI_VIDEO_UNLIMITED_EMAILS` | Comma-separated emails with no daily cap on either tool, and trend-replicate sources up to the model maximum (30 s on Seedance 2.5). For test accounts such as `creator-free@test.local`; every generation they run is billed. |
 
 Live calls need all three of `SEEDANCE_LIVE`, `VIDEO_API_BASE_URL` and `VIDEO_API_KEY`; otherwise the app uses the mock provider.
