@@ -114,10 +114,14 @@ export function voiceoverWordBudget(duration: number): number {
 
 /**
  * An edit instruction: Video 1 stays as it is (framing, camera movement, poses,
- * background, lighting, timing) and only its product changes. Video 1's own
- * on-screen text gives way to the product name, plus selling points if there is
- * room. Creators tend to paste long selling-point lists, so the voiceover picks
- * the one or two that matter most instead of reading them all.
+ * background, lighting, timing) and only its product changes. Text and speech
+ * mirror Video 1, since we can't inspect it ourselves:
+ * - on-screen text, including animated text, keeps its position, style, animation,
+ *   timing and length, but Video 1's words give way to the product name and
+ *   selling points; no text is added where Video 1 has none;
+ * - new speech goes only where Video 1 speaks, with the same timing, so a source
+ *   without speech gets none. Creators tend to paste long selling-point lists, so
+ *   the speech picks the one or two that matter most instead of reading them all.
  */
 export function buildReplicatePrompt(
   input: Pick<ReplicateInput, "productName" | "targetAudience" | "sellingPoints">,
@@ -133,15 +137,16 @@ export function buildReplicatePrompt(
     "The new product sits in the same position, at the same size and angle, and is held and moved exactly as the original product.",
     "Keep the new product's shape, proportions, colors, materials, logo and printed details exactly as pictured. Remove every brand name and logo of the original product.",
     [
-      `None of the original on-screen text from Video 1 may appear. Wherever Video 1 shows on-screen text, show the product name ${name} in the same position and style instead`,
+      `None of Video 1's own on-screen text may appear. Wherever Video 1 shows on-screen text, including animated text, keep the same position, font style, size, animation and timing, and about the same number of words, but change the words to the product name ${name}`,
       input.sellingPoints
-        ? `, and if there is room, a few words from these selling points: "${input.sellingPoints}"`
+        ? ` and short phrases from these selling points: "${input.sellingPoints}"`
         : "",
-      ". Do not add prices or watermarks.",
+      ". If Video 1 has no on-screen text, add none. Do not add prices or watermarks.",
     ].join(""),
+    generateAudio ? "Keep Video 1's music and sound effects." : null,
     generateAudio
       ? [
-          `Keep the music of Video 1. Replace the voiceover with a new one in the same spoken language and tone: it recommends ${name} by name`,
+          `If Video 1 has speech or a voiceover, replace it with new speech in the same spoken language and tone, only where Video 1 has speech and with the same timing: it recommends ${name} by name`,
           input.targetAudience ? `, speaking to "${input.targetAudience}"` : "",
           ".",
         ].join("")
@@ -150,8 +155,9 @@ export function buildReplicatePrompt(
       ? `From these selling points, mention only the one or two that matter most to buyers: "${input.sellingPoints}".`
       : null,
     generateAudio
-      ? `Speak in at most ${voiceoverWordBudget(outputSeconds)} words in total. Never rush.`
+      ? `Use at most ${voiceoverWordBudget(outputSeconds)} words in total. Never rush.`
       : null,
+    generateAudio ? "If Video 1 has no speech, add no speech." : null,
   ];
   return lines.filter((line): line is string => line !== null).join("\n");
 }

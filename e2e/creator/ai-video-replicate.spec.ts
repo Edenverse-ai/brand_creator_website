@@ -31,7 +31,10 @@ test.describe("creator / ai-video replicate", () => {
     );
 
     await tools.getByRole("link", { name: "Trend Replicate" }).click();
-    await expect(asCreator).toHaveURL(/\/creatorportal\/ai-video\/replicate$/);
+    // A cold dev server compiles the route on first visit, which can take a while.
+    await expect(asCreator).toHaveURL(/\/creatorportal\/ai-video\/replicate$/, {
+      timeout: 20_000,
+    });
     await expect(
       asCreator.getByRole("heading", { name: "Replicate a trending video" })
     ).toBeVisible();

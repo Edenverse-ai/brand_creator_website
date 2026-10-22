@@ -91,10 +91,12 @@ describe("buildReplicatePrompt", () => {
 Keep everything else in Video 1 unchanged: camera angle, framing and shot size, camera movement including handheld motion, hands and poses and how they move, background and setting, lighting direction, brightness and color temperature, color grading, pacing and cut timing.
 The new product sits in the same position, at the same size and angle, and is held and moved exactly as the original product.
 Keep the new product's shape, proportions, colors, materials, logo and printed details exactly as pictured. Remove every brand name and logo of the original product.
-None of the original on-screen text from Video 1 may appear. Wherever Video 1 shows on-screen text, show the product name "Ivory Mini Top-Handle Bag" in the same position and style instead, and if there is room, a few words from these selling points: "soft vegan leather, gold clasp, fits a phone and wallet". Do not add prices or watermarks.
-Keep the music of Video 1. Replace the voiceover with a new one in the same spoken language and tone: it recommends "Ivory Mini Top-Handle Bag" by name, speaking to "women 25-35".
+None of Video 1's own on-screen text may appear. Wherever Video 1 shows on-screen text, including animated text, keep the same position, font style, size, animation and timing, and about the same number of words, but change the words to the product name "Ivory Mini Top-Handle Bag" and short phrases from these selling points: "soft vegan leather, gold clasp, fits a phone and wallet". If Video 1 has no on-screen text, add none. Do not add prices or watermarks.
+Keep Video 1's music and sound effects.
+If Video 1 has speech or a voiceover, replace it with new speech in the same spoken language and tone, only where Video 1 has speech and with the same timing: it recommends "Ivory Mini Top-Handle Bag" by name, speaking to "women 25-35".
 From these selling points, mention only the one or two that matter most to buyers: "soft vegan leather, gold clasp, fits a phone and wallet".
-Speak in at most 28 words in total. Never rush.`);
+Use at most 28 words in total. Never rush.
+If Video 1 has no speech, add no speech.`);
   });
 
   it.each([
@@ -113,16 +115,41 @@ Speak in at most 28 words in total. Never rush.`);
     expect(prompt).not.toContain(`Image ${imageCount + 1}`);
   });
 
-  it("without audio drops the voiceover and audience, but keeps the on-screen text", () => {
+  it("mirrors Video 1's on-screen text, animation included, with the new words", () => {
+    const prompt = buildReplicatePrompt(BASE, {
+      imageCount: 1,
+      outputSeconds: 8,
+      generateAudio: true,
+    });
+    expect(prompt).toContain("None of Video 1's own on-screen text may appear.");
+    expect(prompt).toContain(
+      "including animated text, keep the same position, font style, size, animation and timing, and about the same number of words"
+    );
+    expect(prompt).toContain("If Video 1 has no on-screen text, add none.");
+    expect(prompt).toContain("Remove every brand name and logo of the original product.");
+  });
+
+  it("mirrors Video 1's speech: only where it speaks, none if it doesn't", () => {
+    const prompt = buildReplicatePrompt(BASE, {
+      imageCount: 1,
+      outputSeconds: 8,
+      generateAudio: true,
+    });
+    expect(prompt).toContain("Keep Video 1's music and sound effects.");
+    expect(prompt).toContain("only where Video 1 has speech and with the same timing");
+    expect(prompt.split("\n").at(-1)).toBe("If Video 1 has no speech, add no speech.");
+  });
+
+  it("without audio drops the speech lines and audience, but keeps the on-screen text", () => {
     const prompt = buildReplicatePrompt(BASE, {
       imageCount: 1,
       outputSeconds: 8,
       generateAudio: false,
     });
-    expect(prompt).not.toMatch(/voiceover/i);
+    expect(prompt).not.toMatch(/speech|voiceover|music/i);
     expect(prompt).not.toContain("women 25-35");
     expect(prompt).toContain(
-      'show the product name "Ivory Mini Top-Handle Bag" in the same position and style instead, and if there is room, a few words from these selling points: "soft vegan leather'
+      'change the words to the product name "Ivory Mini Top-Handle Bag" and short phrases from these selling points: "soft vegan leather'
     );
     expect(prompt.split("\n")).toHaveLength(5);
   });
@@ -133,22 +160,12 @@ Speak in at most 28 words in total. Never rush.`);
       { imageCount: 1, outputSeconds: 8, generateAudio: true }
     );
     expect(prompt).toContain(
-      'show the product name "Bag" in the same position and style instead. Do not add prices or watermarks.'
+      'change the words to the product name "Bag". If Video 1 has no on-screen text, add none.'
     );
     expect(prompt).toContain('it recommends "Bag" by name.');
     expect(prompt).not.toContain("selling points");
     expect(prompt).not.toContain("speaking to");
-    expect(prompt.split("\n")).toHaveLength(7);
-  });
-
-  it("keeps Video 1's own on-screen text out", () => {
-    const prompt = buildReplicatePrompt(BASE, {
-      imageCount: 1,
-      outputSeconds: 8,
-      generateAudio: true,
-    });
-    expect(prompt).toContain("None of the original on-screen text from Video 1 may appear.");
-    expect(prompt).toContain("Remove every brand name and logo of the original product.");
+    expect(prompt.split("\n")).toHaveLength(9);
   });
 
   it.each([
@@ -160,7 +177,7 @@ Speak in at most 28 words in total. Never rush.`);
     expect(voiceoverWordBudget(outputSeconds)).toBe(words);
     expect(
       buildReplicatePrompt(BASE, { imageCount: 1, outputSeconds, generateAudio: true })
-    ).toContain(`Speak in at most ${words} words in total. Never rush.`);
+    ).toContain(`Use at most ${words} words in total. Never rush.`);
   });
 
   it("stays well inside the provider's prompt limit at the longest inputs", () => {

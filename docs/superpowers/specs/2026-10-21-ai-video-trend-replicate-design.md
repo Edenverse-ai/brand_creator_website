@@ -32,19 +32,24 @@ The template is `buildReplicatePrompt` in `src/lib/seedance/replicate.ts`. Its f
 1. Replaces Video 1's product with the named product from Image 1..N.
 2. Keeps everything else unchanged: camera angle, framing and shot size; camera movement, including handheld motion; hands and poses; background and setting; lighting direction, brightness and color temperature; color grading; and pacing and cut timing.
 3. Puts the new product in the same position, at the same size and angle, held and moved the same way. It keeps the product's look exactly as pictured and removes every brand name and logo of the original product.
-4. **On-screen text:** none of Video 1's own text may appear. Wherever Video 1 shows text, the product name goes in the same position and style. When selling points are given, a few of their words go there too, if there is room. No prices or watermarks.
-5. **With audio on:** keeps Video 1's music and replaces the voiceover with one in the same language and tone. The voiceover:
+4. **On-screen text mirrors Video 1:**
+   - None of Video 1's own words may appear.
+   - Wherever Video 1 shows text, including animated text, the result keeps the same position, font style, size, animation and timing, and about the same number of words.
+   - The words become the product name and, when given, short phrases from the selling points.
+   - If Video 1 has no text, none is added. No prices or watermarks.
+5. **Speech mirrors Video 1 (audio on):** Video 1's music and sound effects are kept. New speech goes only where Video 1 has speech, with the same timing, so a source without speech gets none and a source that speaks briefly gets brief speech. The speech:
    - recommends the product by name and, when given, speaks to the target buyers;
    - mentions only the one or two selling points that matter most, since creators paste long lists;
-   - stays within 2 words per second of the expected output length (`voiceoverWordBudget`, `expectedOutputSeconds`).
+   - uses at most 2 words per second of the expected output length (`voiceoverWordBudget`, `expectedOutputSeconds`).
 
-Without audio, the voiceover lines and the audience are dropped.
+We can't inspect Video 1's audio or text ourselves, so both mirror rules are conditional instructions that Seedance applies while editing. Without audio, the speech lines and the audience are dropped.
 
 **History.**
 
 - The first version treated Video 1 only as a style reference: a "brand-new" ad with a hook, a closing hero shot, a setting matched to the buyers, and a different presenter. In a live test it produced a different framing, background and lighting, and a rushed voiceover.
 - The second version asked for a shot-for-shot recreation but kept a fixed `duration`. Seedance classified it as a video edit and rejected it ("Seedance identified your task as video editing … duration … is not valid").
 - Edit mode is now deliberate, with `duration: -1`. The old rule against edit verbs in the prompt is gone.
+- The first edit-mode prompt always added a voiceover and swapped Video 1's text for a static product name. That didn't fit sources without speech or with animated captions, so speech and text now mirror Video 1.
 
 ## 4. Limits and entitlements
 

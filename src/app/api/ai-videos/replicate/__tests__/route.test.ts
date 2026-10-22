@@ -120,7 +120,7 @@ describe("POST /api/ai-videos/replicate", () => {
       /^Video 1 is a trending TikTok video\. Replace the product in Video 1 with "Ivory Mini Bag", the product shown in Image 1 and Image 2/
     );
     // 14.2 s source → a 15 s voiceover budget.
-    expect(data.prompt).toContain("Speak in at most 30 words in total.");
+    expect(data.prompt).toContain("Use at most 30 words in total.");
     expect(submitTask).toHaveBeenCalledWith(TASK);
   });
 
