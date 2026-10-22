@@ -53,7 +53,7 @@ We can't inspect Video 1's audio or text ourselves, so both mirror rules are con
 - The second version asked for a shot-for-shot recreation but kept a fixed `duration`. Seedance classified it as a video edit and rejected it ("Seedance identified your task as video editing … duration … is not valid").
 - Edit mode is now deliberate, with `duration: -1`. The old rule against edit verbs in the prompt is gone.
 - The first edit-mode prompt always added a voiceover and swapped Video 1's text for a static product name. That didn't fit sources without speech or with animated captions, so speech and text now mirror Video 1.
-- Keeping Video 1's music got a Pro replicate rejected: "the output audio may be related to copyright restrictions". Trending clips use copyrighted songs. Now the music is original, the voice is new, and an audio-copyright failure tells creators to retry or turn off audio.
+- Keeping Video 1's music got a Pro replicate rejected: "the output audio may be related to copyright restrictions". Trending clips use copyrighted songs. Now the music is original and the voice is new.
 
 ## 4. Limits and entitlements
 

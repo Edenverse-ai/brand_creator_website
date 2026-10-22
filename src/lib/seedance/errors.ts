@@ -46,8 +46,6 @@ export class ProviderUnknownOutcomeError extends Error {
 }
 
 export const CREATOR_MESSAGES = {
-  audioCopyright:
-    "The generated audio may match copyrighted music or a voice. Try again, or turn off Generate audio. You were not charged.",
   copyright:
     "This video couldn't be generated because it may involve copyrighted material, such as a well-known character, brand or artwork. Please change your prompt and try again. You were not charged.",
   contentReview: "Your prompt or image didn't pass content review. Please revise and try again.",
@@ -72,11 +70,7 @@ const REFERENCE_FETCH_PATTERN = /资源同步失败|资源下载失败/;
 const PASSTHROUGH_REASON_MAX_LENGTH = 300;
 
 function knownReasonMessage(providerText: string): string | null {
-  if (COPYRIGHT_PATTERN.test(providerText)) {
-    return /audio/i.test(providerText)
-      ? CREATOR_MESSAGES.audioCopyright
-      : CREATOR_MESSAGES.copyright;
-  }
+  if (COPYRIGHT_PATTERN.test(providerText)) return CREATOR_MESSAGES.copyright;
   if (CONTENT_REVIEW_PATTERN.test(providerText)) return CREATOR_MESSAGES.contentReview;
   if (REFERENCE_FETCH_PATTERN.test(providerText)) return CREATOR_MESSAGES.referenceUnreadable;
   return null;

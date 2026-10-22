@@ -86,14 +86,6 @@ describe("describeProviderFailure", () => {
     ).toBe("Video generation failed: Download failed. You were not charged.");
   });
 
-  it("points at the audio when the provider flags the output audio for copyright", () => {
-    expect(
-      describeProviderFailure(
-        "The request failed because the output audio may be related to copyright restrictions. Request id: 0217abc"
-      )
-    ).toBe(CREATOR_MESSAGES.audioCopyright);
-  });
-
   it("shows the provider's own reason for anything else, without the request id", () => {
     expect(
       describeProviderFailure(
