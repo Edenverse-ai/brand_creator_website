@@ -29,13 +29,13 @@ The template is `buildReplicatePrompt` in `src/lib/seedance/replicate.ts`. Its f
 
 **The wording comes from the product owner.** It is one paragraph, sent the same way whether or not audio is generated. It asks Seedance to:
 
-1. Recreate Video 1 shot for shot with the creator's product instead of the original, matching camera angle, framing and shot size, camera movement (handheld motion included), hand and body poses, background and setting, lighting, color grading, and pacing, cut timing and transitions.
+1. Recreate Video 1 shot for shot as a new N-second TikTok e-commerce ad ("the new video must look like the same video, featuring this product"), matching camera angle, framing and shot size, camera movement (handheld motion included), hand and body poses, background and setting, lighting, color grading, and pacing, cut timing and transitions.
 2. Show the named product (Image 1..N, "different views of the same product" when there are several) where Video 1 shows its product, at the same position, size and angle, held and moved the same way, as the only difference.
-3. Keep the product's look exactly as pictured, and show no product, brand name or logo from Video 1.
+3. Keep the product's look exactly as pictured, show no product, brand name or logo from Video 1, and include no subtitles, captions, prices, watermarks or on-screen text.
 4. Keep Video 1's music style and mood, and its voiceover tone and language. If Video 1 has no voiceover, add none.
-5. Have the voiceover recommend the product by name, speak to the target buyers, and mention only the one or two selling points that matter most. It speaks at a calm pace within 2 words per second of the expected output length (`voiceoverWordBudget`, `expectedOutputSeconds`).
+5. Have the voiceover recommend the product by name, speak to the target buyers, and mention only the one or two selling points that matter most. It speaks at a calm pace within 3 words per second of the expected output length (`voiceoverWordBudget`, `expectedOutputSeconds`).
 
-The audience and selling-point clauses are dropped when those fields are empty. There is no on-screen-text instruction.
+The audience and selling-point clauses are dropped when those fields are empty.
 
 **History.**
 
@@ -46,6 +46,7 @@ The audience and selling-point clauses are dropped when those fields are empty. 
 - Keeping Video 1's music got a Pro replicate rejected: "the output audio may be related to copyright restrictions". Trending clips use copyrighted songs. Now the music is original and the voice is new.
 - The product owner then supplied the current wording. It keeps Video 1's music style and voiceover tone (rather than "original music, new voice") and has no on-screen-text rules. If the output-audio copyright rejection returns, revisit the music and voice sentences first.
 - That rejection did return with `duration: -1`, while an earlier request with the same audio wording and a fixed `duration` (14) succeeded. Under `-1` the task runs as an edit and keeps the source's soundtrack, so `duration` went back to the fixed source length, and the prompt is unchanged.
+- The fixed length was then rejected as a video edit again: the product owner's first sentence ("featuring the product below instead of the original product") reads as a replacement. The opening now frames a new N-second ad ("…the new video must look like the same video, featuring this product"), as in the request that succeeded. The no-on-screen-text sentence is back, "Never rush." is gone, and the voiceover cap is 3 words per second.
 
 ## 4. Limits and entitlements
 

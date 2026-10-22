@@ -112,7 +112,7 @@ describe("buildReplicatePrompt", () => {
     expect(
       buildReplicatePrompt(BASE, { imageCount: 2, outputSeconds: 15, generateAudio: true })
     ).toBe(
-      'Recreate Video 1 shot for shot, featuring the product below instead of the original product. Match Video 1 exactly in: camera angle, framing and shot size; camera movement, including any handheld motion; hand and body poses and how they move; the background and setting; lighting direction, brightness and color temperature; color grading; and the pacing, cut timing and transitions. The product is "Ivory Mini Top-Handle Bag", shown in Image 1 and Image 2; these images are different views of the same product. Show this product wherever Video 1 shows its product: in the same position, at the same size and angle in the frame, held and moved exactly the same way. The product is the only difference from Video 1. Keep the product\'s shape, proportions, colors, materials, logo and printed details exactly as pictured. Do not show any product, brand name or logo from Video 1. Keep the music style and mood of Video 1. Keep the voiceover tone of Video 1, in the same spoken language. If Video 1 has no voiceover, add none. The voiceover recommends "Ivory Mini Top-Handle Bag" by name, speaking to "women 25-35", and mentions only the one or two selling points that matter most to buyers from: "soft vegan leather, gold clasp, fits a phone and wallet". Speak at a calm, natural pace with short pauses between sentences, in at most 30 words in total. Never rush.'
+      'Recreate Video 1 shot for shot as a 15-second TikTok e-commerce ad for the product below. Video 1 is a trending TikTok video; the new video must look like the same video, featuring this product. Match Video 1 exactly in: camera angle, framing and shot size; camera movement, including any handheld motion; hand and body poses and how they move; the background and setting; lighting direction, brightness and color temperature; color grading; and the pacing, cut timing and transitions. The product is "Ivory Mini Top-Handle Bag", shown in Image 1 and Image 2; these images are different views of the same product. Show this product wherever Video 1 shows its product: in the same position, at the same size and angle in the frame, held and moved exactly the same way. The product is the only difference from Video 1. Keep the product\'s shape, proportions, colors, materials, logo and printed details exactly as pictured. Do not show any product, brand name or logo from Video 1. Do not include subtitles, captions, prices, watermarks or any on-screen text. Keep the music style and mood of Video 1. Keep the voiceover tone of Video 1, in the same spoken language. If Video 1 has no voiceover, add none. The voiceover recommends "Ivory Mini Top-Handle Bag" by name, speaking to "women 25-35", and mentions only the one or two selling points that matter most to buyers from: "soft vegan leather, gold clasp, fits a phone and wallet". Speak at a calm, natural pace with short pauses between sentences, in at most 45 words in total.'
     );
   });
 
@@ -159,15 +159,28 @@ describe("buildReplicatePrompt", () => {
   });
 
   it.each([
-    [4, 8],
-    [8, 16],
-    [15, 30],
-    [30, 60],
+    [4, 12],
+    [8, 24],
+    [15, 45],
+    [30, 90],
   ])("caps a %i s voiceover at %i words", (outputSeconds, words) => {
     expect(voiceoverWordBudget(outputSeconds)).toBe(words);
-    expect(
-      buildReplicatePrompt(BASE, { imageCount: 1, outputSeconds, generateAudio: true })
-    ).toContain(`in at most ${words} words in total. Never rush.`);
+    const prompt = buildReplicatePrompt(BASE, {
+      imageCount: 1,
+      outputSeconds,
+      generateAudio: true,
+    });
+    expect(prompt.endsWith(`in at most ${words} words in total.`)).toBe(true);
+    expect(prompt).not.toContain("Never rush");
+  });
+
+  it("frames the task as a new ad, not a replacement", () => {
+    const prompt = buildReplicatePrompt(
+      { productName: "Bag", targetAudience: "", sellingPoints: "" },
+      { imageCount: 1, outputSeconds: 8, generateAudio: true }
+    );
+    expect(prompt.startsWith("Recreate Video 1 shot for shot as a 8-second TikTok")).toBe(true);
+    expect(prompt).not.toMatch(/instead of|replace/i);
   });
 
   it("stays well inside the provider's prompt limit at the longest inputs", () => {

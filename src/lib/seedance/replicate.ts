@@ -104,10 +104,10 @@ function imageList(count: number): string {
 }
 
 /**
- * Voiceover budget: about two words per second reads at a relaxed pace. Without a
- * cap the model crams the creator's selling points into a rushed monologue.
+ * Voiceover budget per second of output. Without a cap the model crams the
+ * creator's selling points into a rushed monologue.
  */
-export const VOICEOVER_WORDS_PER_SECOND = 2;
+export const VOICEOVER_WORDS_PER_SECOND = 3;
 
 export function voiceoverWordBudget(duration: number): number {
   return Math.max(8, Math.floor(duration * VOICEOVER_WORDS_PER_SECOND));
@@ -117,6 +117,9 @@ export function voiceoverWordBudget(duration: number): number {
  * The replicate prompt, worded by the product owner: Video 1 recreated shot for
  * shot with the creator's product as the only difference, keeping Video 1's music
  * style and voiceover tone. Sent in full whether or not audio is generated.
+ * It opens by framing the task as a new N-second ad: Seedance infers "video edit"
+ * from replace/modify intent (e.g. "instead of the original product"), and edit
+ * tasks reject the fixed duration we send.
  * Creators tend to paste long selling-point lists, so the voiceover picks the one
  * or two that matter most, within a word cap that follows the output length.
  */
@@ -131,13 +134,15 @@ export function buildReplicatePrompt(
       ? `${imageList(imageCount)}; these images are different views of the same product`
       : "Image 1";
   return [
-    "Recreate Video 1 shot for shot, featuring the product below instead of the original product.",
+    `Recreate Video 1 shot for shot as a ${outputSeconds}-second TikTok e-commerce ad for the product below.`,
+    "Video 1 is a trending TikTok video; the new video must look like the same video, featuring this product.",
     "Match Video 1 exactly in: camera angle, framing and shot size; camera movement, including any handheld motion; hand and body poses and how they move; the background and setting; lighting direction, brightness and color temperature; color grading; and the pacing, cut timing and transitions.",
     `The product is ${name}, shown in ${images}.`,
     "Show this product wherever Video 1 shows its product: in the same position, at the same size and angle in the frame, held and moved exactly the same way.",
     "The product is the only difference from Video 1.",
     "Keep the product's shape, proportions, colors, materials, logo and printed details exactly as pictured.",
     "Do not show any product, brand name or logo from Video 1.",
+    "Do not include subtitles, captions, prices, watermarks or any on-screen text.",
     "Keep the music style and mood of Video 1.",
     "Keep the voiceover tone of Video 1, in the same spoken language.",
     "If Video 1 has no voiceover, add none.",
@@ -150,6 +155,5 @@ export function buildReplicatePrompt(
       ".",
     ].join(""),
     `Speak at a calm, natural pace with short pauses between sentences, in at most ${voiceoverWordBudget(outputSeconds)} words in total.`,
-    "Never rush.",
   ].join(" ");
 }

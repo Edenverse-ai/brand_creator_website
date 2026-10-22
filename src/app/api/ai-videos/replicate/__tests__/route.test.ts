@@ -116,10 +116,14 @@ describe("POST /api/ai-videos/replicate", () => {
         generateAudio: true,
       },
     });
-    expect(data.prompt.startsWith("Recreate Video 1 shot for shot")).toBe(true);
+    expect(
+      data.prompt.startsWith(
+        "Recreate Video 1 shot for shot as a 15-second TikTok e-commerce ad for the product below."
+      )
+    ).toBe(true);
     expect(data.prompt).toContain('The product is "Ivory Mini Bag", shown in Image 1 and Image 2');
     // 14.2 s source → a 15 s voiceover budget.
-    expect(data.prompt).toContain("in at most 30 words in total.");
+    expect(data.prompt).toContain("in at most 45 words in total.");
     expect(submitTask).toHaveBeenCalledWith(TASK);
   });
 
@@ -194,7 +198,7 @@ describe("POST /api/ai-videos/replicate", () => {
     expect(res.status).toBe(200);
     expect(remainingThisMonth).toHaveBeenCalledWith(OWNER, "replicate", null);
     expect(aiVideoTaskCreate.mock.calls[0][0].data.params.duration).toBe(30);
-    expect(aiVideoTaskCreate.mock.calls[0][0].data.prompt).toContain("at most 60 words");
+    expect(aiVideoTaskCreate.mock.calls[0][0].data.prompt).toContain("at most 90 words");
 
     const pro = await POST(
       jsonRequest(
