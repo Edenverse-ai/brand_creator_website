@@ -105,8 +105,8 @@ Keep everything else in Video 1 unchanged: camera angle, framing and shot size, 
 The new product sits in the same position, at the same size and angle, and is held and moved exactly as the original product.
 Keep the new product's shape, proportions, colors, materials, logo and printed details exactly as pictured. Remove every brand name and logo of the original product.
 None of Video 1's own on-screen text may appear. Wherever Video 1 shows on-screen text, including animated text, keep the same position, font style, size, animation and timing, and about the same number of words, but change the words to the product name "Ivory Mini Top-Handle Bag" and short phrases from these selling points: "soft vegan leather, gold clasp, fits a phone and wallet". If Video 1 has no on-screen text, add none. Do not add prices or watermarks.
-Keep Video 1's music and sound effects.
-If Video 1 has speech or a voiceover, replace it with new speech in the same spoken language and tone, only where Video 1 has speech and with the same timing: it recommends "Ivory Mini Top-Handle Bag" by name, speaking to "women 25-35".
+Do not reuse any music, song or audio from Video 1. Add new, original background music with a similar mood, tempo and energy, timed to the same cuts.
+If Video 1 has speech or a voiceover, add new speech in a new, natural voice that does not imitate the original speaker, in the same spoken language and a similar tone, only where Video 1 has speech and with the same timing: it recommends "Ivory Mini Top-Handle Bag" by name, speaking to "women 25-35".
 From these selling points, mention only the one or two that matter most to buyers: "soft vegan leather, gold clasp, fits a phone and wallet".
 Use at most 28 words in total. Never rush.
 If Video 1 has no speech, add no speech.`);
@@ -148,7 +148,8 @@ If Video 1 has no speech, add no speech.`);
       outputSeconds: 8,
       generateAudio: true,
     });
-    expect(prompt).toContain("Keep Video 1's music and sound effects.");
+    expect(prompt).toContain("Do not reuse any music, song or audio from Video 1.");
+    expect(prompt).toContain("does not imitate the original speaker");
     expect(prompt).toContain("only where Video 1 has speech and with the same timing");
     expect(prompt.split("\n").at(-1)).toBe("If Video 1 has no speech, add no speech.");
   });

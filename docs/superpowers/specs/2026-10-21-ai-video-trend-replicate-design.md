@@ -37,10 +37,13 @@ The template is `buildReplicatePrompt` in `src/lib/seedance/replicate.ts`. Its f
    - Wherever Video 1 shows text, including animated text, the result keeps the same position, font style, size, animation and timing, and about the same number of words.
    - The words become the product name and, when given, short phrases from the selling points.
    - If Video 1 has no text, none is added. No prices or watermarks.
-5. **Speech mirrors Video 1 (audio on):** Video 1's music and sound effects are kept. New speech goes only where Video 1 has speech, with the same timing, so a source without speech gets none and a source that speaks briefly gets brief speech. The speech:
-   - recommends the product by name and, when given, speaks to the target buyers;
-   - mentions only the one or two selling points that matter most, since creators paste long lists;
-   - uses at most 2 words per second of the expected output length (`voiceoverWordBudget`, `expectedOutputSeconds`).
+5. **Audio follows Video 1's rhythm, not its sound (audio on):**
+   - Music: none of Video 1's music or audio is reused. The result gets original background music with a similar mood, tempo and energy, timed to the same cuts.
+   - Speech: new speech goes only where Video 1 has speech, with the same timing, in a new voice that doesn't imitate the original speaker. A source without speech gets none, and a source that speaks briefly gets brief speech.
+   - The speech:
+     - recommends the product by name and, when given, speaks to the target buyers;
+     - mentions only the one or two selling points that matter most, since creators paste long lists;
+     - uses at most 2 words per second of the expected output length (`voiceoverWordBudget`, `expectedOutputSeconds`).
 
 We can't inspect Video 1's audio or text ourselves, so both mirror rules are conditional instructions that Seedance applies while editing. Without audio, the speech lines and the audience are dropped.
 
@@ -50,6 +53,7 @@ We can't inspect Video 1's audio or text ourselves, so both mirror rules are con
 - The second version asked for a shot-for-shot recreation but kept a fixed `duration`. Seedance classified it as a video edit and rejected it ("Seedance identified your task as video editing … duration … is not valid").
 - Edit mode is now deliberate, with `duration: -1`. The old rule against edit verbs in the prompt is gone.
 - The first edit-mode prompt always added a voiceover and swapped Video 1's text for a static product name. That didn't fit sources without speech or with animated captions, so speech and text now mirror Video 1.
+- Keeping Video 1's music got a Pro replicate rejected: "the output audio may be related to copyright restrictions". Trending clips use copyrighted songs. Now the music is original, the voice is new, and an audio-copyright failure tells creators to retry or turn off audio.
 
 ## 4. Limits and entitlements
 

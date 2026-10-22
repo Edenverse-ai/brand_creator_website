@@ -122,7 +122,10 @@ export function voiceoverWordBudget(duration: number): number {
  *   selling points; no text is added where Video 1 has none;
  * - new speech goes only where Video 1 speaks, with the same timing, so a source
  *   without speech gets none. Creators tend to paste long selling-point lists, so
- *   the speech picks the one or two that matter most instead of reading them all.
+ *   the speech picks the one or two that matter most instead of reading them all;
+ * - the audio follows Video 1's rhythm but never its music or voice: the provider
+ *   rejects output audio that may be copyrighted, and trending clips use
+ *   copyrighted songs.
  */
 export function buildReplicatePrompt(
   input: Pick<ReplicateInput, "productName" | "targetAudience" | "sellingPoints">,
@@ -144,10 +147,12 @@ export function buildReplicatePrompt(
         : "",
       ". If Video 1 has no on-screen text, add none. Do not add prices or watermarks.",
     ].join(""),
-    generateAudio ? "Keep Video 1's music and sound effects." : null,
+    generateAudio
+      ? "Do not reuse any music, song or audio from Video 1. Add new, original background music with a similar mood, tempo and energy, timed to the same cuts."
+      : null,
     generateAudio
       ? [
-          `If Video 1 has speech or a voiceover, replace it with new speech in the same spoken language and tone, only where Video 1 has speech and with the same timing: it recommends ${name} by name`,
+          `If Video 1 has speech or a voiceover, add new speech in a new, natural voice that does not imitate the original speaker, in the same spoken language and a similar tone, only where Video 1 has speech and with the same timing: it recommends ${name} by name`,
           input.targetAudience ? `, speaking to "${input.targetAudience}"` : "",
           ".",
         ].join("")
