@@ -8,7 +8,7 @@ import { getEntitlements } from "@/lib/ai-video-entitlements";
 import { remainingToday } from "@/lib/ai-video-generation";
 import { REPLICATE_SAMPLE } from "@/lib/ai-video-samples";
 import { isMockMode } from "@/lib/seedance";
-import { VIDEO_MODELS } from "@/lib/seedance/models";
+import { REPLICATE_MODELS } from "@/lib/seedance/models";
 import ToolTabs from "../ToolTabs";
 import { fetchReplicateHistory } from "./data";
 import ReplicateForm from "./ReplicateForm";
@@ -59,7 +59,7 @@ export default async function ReplicatePage() {
           limit={limit}
           maxSourceSec={entitlements.replicate.maxSourceSec}
           isMock={isMockMode()}
-          models={VIDEO_MODELS}
+          models={REPLICATE_MODELS}
           initialHistory={history}
           sample={REPLICATE_SAMPLE}
         />

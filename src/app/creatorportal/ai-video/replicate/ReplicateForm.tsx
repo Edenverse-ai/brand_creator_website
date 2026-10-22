@@ -24,7 +24,12 @@ import {
   type ReferenceVideoMime,
 } from "@/lib/ai-video-task";
 import type { ReplicateSample } from "@/lib/ai-video-samples";
-import { DEFAULT_MODE, limitsFor, type VideoMode, type VideoModel } from "@/lib/seedance/models";
+import {
+  DEFAULT_REPLICATE_MODE,
+  replicateLimitsFor,
+  type ReplicateMode,
+  type VideoModel,
+} from "@/lib/seedance/models";
 import {
   PRODUCT_NAME_MAX,
   SELLING_POINTS_MAX,
@@ -77,7 +82,7 @@ export default function ReplicateForm({
   /** The creator's source-length ceiling before the model's own limit. */
   maxSourceSec: number;
   isMock: boolean;
-  models: readonly VideoModel[];
+  models: readonly (VideoModel & { mode: ReplicateMode })[];
   initialHistory: ReplicateHistoryItem[];
   sample: ReplicateSample | null;
 }) {
@@ -88,7 +93,7 @@ export default function ReplicateForm({
   const [productName, setProductName] = useState("");
   const [targetAudience, setTargetAudience] = useState("");
   const [sellingPoints, setSellingPoints] = useState("");
-  const [mode, setMode] = useState<VideoMode>(DEFAULT_MODE);
+  const [mode, setMode] = useState<ReplicateMode>(DEFAULT_REPLICATE_MODE);
   const [resolution, setResolution] = useState<Resolution>("720p");
   const [generateAudio, setGenerateAudio] = useState(true);
   const [remaining, setRemaining] = useState(initialRemaining);
@@ -99,7 +104,7 @@ export default function ReplicateForm({
   const videoInputRef = useRef<HTMLInputElement>(null);
   const productInputRef = useRef<HTMLInputElement>(null);
 
-  const limits = limitsFor(mode);
+  const limits = replicateLimitsFor(mode);
   const ceiling = replicateSourceCeiling(maxSourceSec, mode);
   const videoTooLong =
     video !== null && video.durationSec > ceiling + SOURCE_DURATION_TOLERANCE_SEC;
@@ -126,8 +131,8 @@ export default function ReplicateForm({
     []
   );
 
-  const changeMode = (next: VideoMode) => {
-    const nextLimits = limitsFor(next);
+  const changeMode = (next: ReplicateMode) => {
+    const nextLimits = replicateLimitsFor(next);
     setMode(next);
     if (!nextLimits.resolutions.includes(resolution)) setResolution(nextLimits.resolutions[0]);
   };

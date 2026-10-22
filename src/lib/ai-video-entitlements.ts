@@ -1,5 +1,5 @@
 import { getDailyLimit } from "@/lib/seedance/config";
-import { limitsFor, type VideoMode } from "@/lib/seedance/models";
+import { replicateLimitsFor, type ReplicateMode } from "@/lib/seedance/models";
 
 /**
  * What a creator may generate per UTC day, by tool. There is no paid tier yet:
@@ -51,6 +51,6 @@ export function getEntitlements(email: string | null | undefined): AiVideoEntitl
  * Longest source video a replicate may use: the tier's ceiling, but never longer
  * than the model can generate (the output follows the source's length).
  */
-export function replicateSourceCeiling(maxSourceSec: number, mode: VideoMode): number {
-  return Math.min(maxSourceSec, limitsFor(mode).maxDuration);
+export function replicateSourceCeiling(maxSourceSec: number, mode: ReplicateMode): number {
+  return Math.min(maxSourceSec, replicateLimitsFor(mode).maxDuration);
 }

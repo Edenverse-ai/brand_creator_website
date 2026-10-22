@@ -55,12 +55,27 @@ We can't inspect Video 1's audio or text ourselves, so both mirror rules are con
 
 The limits are in `src/lib/ai-video-entitlements.ts`. They come from the session email, with no database lookup.
 
-| Tier                                  | Video Gen / day        | Replicate / day | Replicate source length                         |
-| ------------------------------------- | ---------------------- | --------------- | ----------------------------------------------- |
-| Free (everyone)                       | `AI_VIDEO_DAILY_LIMIT` | 1               | 2–15 s                                          |
-| Listed in `AI_VIDEO_UNLIMITED_EMAILS` | unlimited              | unlimited       | 2 s up to the model max (2.5: 30 s, Mini: 15 s) |
+| Tier                                  | Video Gen / day        | Replicate / day | Replicate source length                        |
+| ------------------------------------- | ---------------------- | --------------- | ---------------------------------------------- |
+| Free (everyone)                       | `AI_VIDEO_DAILY_LIMIT` | 1               | 2–15 s                                         |
+| Listed in `AI_VIDEO_UNLIMITED_EMAILS` | unlimited              | unlimited       | 2 s up to the model max (2.5: 30 s, Pro: 15 s) |
 
 The two tools have separate counts (`AiVideoTask.kind`). A paid tier would be one more entitlements value.
+
+**Models per tool** (`src/lib/seedance/models.ts`):
+
+| Tool            | Models                       | Resolutions         | Max length |
+| --------------- | ---------------------------- | ------------------- | ---------- |
+| Video Gen       | Seedance 2.5 (default)       | 480p / 720p         | 30 s       |
+| Video Gen       | Seedance 2.0 Pro, Fast, Mini | 480p / 720p / 1080p | 15 s       |
+| Trend Replicate | Seedance 2.5 (default)       | 480p / 720p         | 30 s       |
+| Trend Replicate | Seedance 2.0 Pro             | 480p / 720p / 1080p | 15 s       |
+
+Video Gen follows the gateway matrix in `docs/openapi.md`, minus 4k.
+
+**Why Trend Replicate drops Mini and Fast.** A replicate is a reference-video request ("r2v"), and the provider rejected Mini at 1080p there: "resolution … is not valid for model doubao-seedance-2-0-mini in r2v". The gateway doc lists Mini at 1080p and documents no resolution limits specific to r2v.
+
+**Not confirmed live yet:** Pro at 1080p in r2v, and a 30 s reference video on 2.5. The doc gives 2.5 outputs up to 30 s but doesn't say how long a reference video may be.
 
 **Other limits:**
 

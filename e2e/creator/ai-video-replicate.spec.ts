@@ -70,6 +70,23 @@ test.describe("creator / ai-video replicate", () => {
       .setInputFiles([fixture("reference-512.png"), fixture("reference-512.png")]);
     await expect(asCreator.getByAltText("Product image 2")).toBeVisible();
 
+    // Replicates offer Seedance 2.5 (default, up to 720p) and 2.0 Pro (up to 1080p).
+    const model = asCreator.getByRole("button", { name: "Model" });
+    const resolution = asCreator.getByRole("button", { name: "Resolution" });
+    await expect(model).toContainText("Seedance 2.5");
+    await model.click();
+    await expect(asCreator.getByRole("menuitem")).toHaveCount(2);
+    await expect(asCreator.getByRole("menu")).not.toContainText("Mini");
+    await asCreator.getByRole("menuitem", { name: /Seedance 2\.0 Pro/ }).click();
+    await resolution.click();
+    await expect(asCreator.getByRole("menuitem", { name: "1080p" })).toBeVisible();
+    await asCreator.keyboard.press("Escape");
+    await model.click();
+    await asCreator.getByRole("menuitem", { name: /Seedance 2\.5/ }).click();
+    await resolution.click();
+    await expect(asCreator.getByRole("menuitem", { name: "1080p" })).toHaveCount(0);
+    await asCreator.keyboard.press("Escape");
+
     await asCreator.getByLabel(/Product name/i).fill(productName);
     await asCreator.getByLabel(/Target audience/i).fill("women 25-35");
     await asCreator.getByLabel(/Selling points/i).fill("vegan leather, gold clasp");

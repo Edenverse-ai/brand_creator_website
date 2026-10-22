@@ -110,7 +110,7 @@ describe("POST /api/ai-videos/tasks (JSON path)", () => {
   });
 
   it.each([
-    ["a model that isn't offered", { mode: "pro" }],
+    ["a model that isn't offered", { mode: "ultra" }],
     ["a resolution the model can't produce", { mode: "seedance2.5", resolution: "1080p" }],
     ["a duration beyond the model's limit", { mode: "mini", duration: 20 }],
     ["a resolution nothing offers", { resolution: "4k" }],
@@ -127,6 +127,8 @@ describe("POST /api/ai-videos/tasks (JSON path)", () => {
   it.each([
     ["Seedance 2.5 at 30 s", { mode: "seedance2.5", duration: 30 }],
     ["Mini at 1080p", { mode: "mini", resolution: "1080p", duration: 15 }],
+    ["Pro at 1080p", { mode: "pro", resolution: "1080p", duration: 15 }],
+    ["Fast at 1080p", { mode: "fast", resolution: "1080p", duration: 8 }],
   ])("accepts %s", async (_label, params) => {
     aiVideoTaskCreate.mockResolvedValue({ id: "taskabc", status: "QUEUED" });
     (getServerSession as any).mockResolvedValue({ user: { id: OWNER } });

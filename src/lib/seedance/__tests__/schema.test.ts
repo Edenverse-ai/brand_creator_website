@@ -35,14 +35,13 @@ describe("generationParamsSchema", () => {
     ).toThrow();
   });
 
-  it("lets Mini go up to 1080p, but only 15 s", () => {
+  it.each(["pro", "fast", "mini"])("lets %s go up to 1080p, but only 15 s", (mode) => {
     for (const resolution of ["480p", "720p", "1080p"]) {
-      expect(generationParamsSchema.parse({ mode: "mini", resolution }).resolution).toBe(
-        resolution
-      );
+      expect(generationParamsSchema.parse({ mode, resolution }).resolution).toBe(resolution);
     }
-    expect(generationParamsSchema.parse({ mode: "mini", duration: 15 }).duration).toBe(15);
-    expect(() => generationParamsSchema.parse({ mode: "mini", duration: 16 })).toThrow();
+    expect(generationParamsSchema.parse({ mode, duration: 15 }).duration).toBe(15);
+    expect(() => generationParamsSchema.parse({ mode, duration: 16 })).toThrow();
+    expect(() => generationParamsSchema.parse({ mode, duration: 20 })).toThrow();
   });
 
   it("still accepts the settings saved on earlier tasks", () => {
@@ -57,7 +56,7 @@ describe("generationParamsSchema", () => {
   });
 
   it("rejects values outside the offered set", () => {
-    for (const mode of ["fast", "pro", "ultra"]) {
+    for (const mode of ["ultra", "seedance2.0"]) {
       expect(() => generationParamsSchema.parse({ mode })).toThrow();
     }
     expect(() => generationParamsSchema.parse({ ratio: "21:9" })).toThrow();

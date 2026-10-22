@@ -40,7 +40,9 @@ describe("replicateInputSchema", () => {
     ["a source shorter than 2 s", { ...BASE, referenceDurationSec: 1.9 }],
     ["a missing source duration", { productName: "Bag" }],
     ["a resolution the model can't produce", { ...BASE, mode: "seedance2.5", resolution: "1080p" }],
-    ["a model that isn't offered", { ...BASE, mode: "pro" }],
+    ["Mini, which the provider rejects at 1080p with a reference video", { ...BASE, mode: "mini" }],
+    ["Fast, which isn't offered for replicates", { ...BASE, mode: "fast" }],
+    ["Pro at 4k", { ...BASE, mode: "pro", resolution: "4k" }],
   ])("rejects %s", (_label, raw) => {
     expect(replicateInputSchema.safeParse(raw).success).toBe(false);
   });
@@ -48,16 +50,27 @@ describe("replicateInputSchema", () => {
 
 describe("buildReplicateParams", () => {
   it("leaves the length to the source: adaptive ratio, duration -1", () => {
-    const input = replicateInputSchema.parse({ ...BASE, mode: "mini", resolution: "1080p" });
+    const input = replicateInputSchema.parse({ ...BASE, mode: "pro", resolution: "1080p" });
     const params = buildReplicateParams(input);
     expect(params).toEqual({
-      mode: "mini",
+      mode: "pro",
       ratio: "adaptive",
       duration: -1,
       resolution: "1080p",
       generateAudio: true,
     });
     expect(replicateParamsSchema.parse(params)).toEqual(params);
+  });
+
+  it("still accepts tasks queued with Mini or a fixed length", () => {
+    const queued = {
+      mode: "mini",
+      ratio: "adaptive",
+      duration: -1,
+      resolution: "720p",
+      generateAudio: true,
+    };
+    expect(replicateParamsSchema.parse(queued)).toEqual(queued);
   });
 
   it("still accepts a fixed length on tasks queued before -1", () => {

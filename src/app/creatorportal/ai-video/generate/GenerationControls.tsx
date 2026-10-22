@@ -39,15 +39,16 @@ export function RatioGlyph({ ratio, size = 18 }: { ratio: Ratio; size?: number }
   );
 }
 
-export function ModelPicker({
+/** Generic over the mode so each tool's picker only offers that tool's models. */
+export function ModelPicker<M extends VideoMode>({
   models,
   value,
   onChange,
   className = "",
 }: {
-  models: readonly VideoModel[];
-  value: VideoMode;
-  onChange: (mode: VideoMode) => void;
+  models: readonly (VideoModel & { mode: M })[];
+  value: M;
+  onChange: (mode: M) => void;
   className?: string;
 }) {
   const current = models.find((model) => model.mode === value);

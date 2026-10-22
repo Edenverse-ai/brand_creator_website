@@ -47,7 +47,7 @@ describe("getEntitlements", () => {
 describe("replicateSourceCeiling", () => {
   it("never exceeds what the model can generate", () => {
     expect(replicateSourceCeiling(30, "seedance2.5")).toBe(30);
-    expect(replicateSourceCeiling(30, "mini")).toBe(15);
+    expect(replicateSourceCeiling(30, "pro")).toBe(15);
     expect(replicateSourceCeiling(15, "seedance2.5")).toBe(15);
   });
 });

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { DEFAULT_MODE, VIDEO_MODES, limitsFor } from "./models";
+import { DEFAULT_REPLICATE_MODE, REPLICATE_MODES, replicateLimitsFor } from "./models";
 import { DURATION_MAX, DURATION_MIN, RESOLUTIONS } from "./schema";
 import type { ProviderParams } from "./types";
 
@@ -44,12 +44,12 @@ export const replicateInputSchema = z
     targetAudience: promptText(TARGET_AUDIENCE_MAX).default(""),
     sellingPoints: promptText(SELLING_POINTS_MAX).default(""),
     referenceDurationSec: z.number().finite().min(REFERENCE_DURATION_MIN_SEC),
-    mode: z.enum(VIDEO_MODES).default(DEFAULT_MODE),
+    mode: z.enum(REPLICATE_MODES).default(DEFAULT_REPLICATE_MODE),
     resolution: z.enum(RESOLUTIONS).default("720p"),
     generateAudio: z.boolean().default(true),
   })
   .superRefine((input, ctx) => {
-    if (!limitsFor(input.mode).resolutions.includes(input.resolution)) {
+    if (!replicateLimitsFor(input.mode).resolutions.includes(input.resolution)) {
       ctx.addIssue({
         code: "custom",
         path: ["resolution"],
@@ -62,10 +62,11 @@ export type ReplicateInput = z.infer<typeof replicateInputSchema>;
 
 /**
  * Settings saved on a replicate task and sent to the provider as-is. New tasks use
- * `duration: -1`; a fixed length is still accepted for tasks queued before that.
+ * `duration: -1` and a replicate model; a fixed length and `mini` are still
+ * accepted for tasks queued before those changes.
  */
 export const replicateParamsSchema = z.object({
-  mode: z.enum(VIDEO_MODES),
+  mode: z.enum([...REPLICATE_MODES, "mini"]),
   ratio: z.literal("adaptive"),
   duration: z.union([z.literal(-1), z.number().int().min(DURATION_MIN).max(DURATION_MAX)]),
   resolution: z.enum(RESOLUTIONS),

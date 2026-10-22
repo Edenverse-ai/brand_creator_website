@@ -187,7 +187,7 @@ describe("POST /api/ai-videos/replicate", () => {
     expect(aiVideoTaskCreate).toHaveBeenCalledTimes(1);
   });
 
-  it("lets unlimited accounts use 30 s sources on Seedance 2.5, but 15 s on Mini", async () => {
+  it("lets unlimited accounts use 30 s sources on Seedance 2.5, but 15 s on Pro", async () => {
     signIn(UNLIMITED);
     remainingToday.mockResolvedValue({ remaining: null, limit: null });
 
@@ -196,12 +196,37 @@ describe("POST /api/ai-videos/replicate", () => {
     expect(remainingToday).toHaveBeenCalledWith(OWNER, "replicate", null);
     expect(aiVideoTaskCreate.mock.calls[0][0].data.prompt).toContain("at most 60 words");
 
-    const mini = await POST(
+    const pro = await POST(
       jsonRequest(
-        withInput({ referenceDurationSec: 20, mode: "mini", resolution: "1080p" })
+        withInput({ referenceDurationSec: 20, mode: "pro", resolution: "1080p" })
       ) as never
     );
-    expect(mini.status).toBe(400);
+    expect(pro.status).toBe(400);
+    expect(await pro.json()).toEqual({
+      error: "The original video can be up to 15 seconds. Trim it and try again.",
+    });
+  });
+
+  it("replicates on Seedance 2.0 Pro at 1080p", async () => {
+    signIn();
+
+    const res = await POST(jsonRequest(withInput({ mode: "pro", resolution: "1080p" })) as never);
+
+    expect(res.status).toBe(200);
+    expect(aiVideoTaskCreate.mock.calls[0][0].data.params).toMatchObject({
+      mode: "pro",
+      resolution: "1080p",
+      duration: -1,
+    });
+  });
+
+  it("rejects Mini, which the provider refuses at 1080p with a reference video", async () => {
+    signIn();
+
+    const res = await POST(jsonRequest(withInput({ mode: "mini", resolution: "720p" })) as never);
+
+    expect(res.status).toBe(400);
+    expect(aiVideoTaskCreate).not.toHaveBeenCalled();
   });
 
   it("returns 429 once the free replicate of the day is used", async () => {
