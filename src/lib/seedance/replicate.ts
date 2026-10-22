@@ -114,56 +114,42 @@ export function voiceoverWordBudget(duration: number): number {
 }
 
 /**
- * An edit instruction: Video 1 stays as it is (framing, camera movement, poses,
- * background, lighting, timing) and only its product changes. Text and speech
- * mirror Video 1, since we can't inspect it ourselves:
- * - on-screen text, including animated text, keeps its position, style, animation,
- *   timing and length, but Video 1's words give way to the product name and
- *   selling points; no text is added where Video 1 has none;
- * - new speech goes only where Video 1 speaks, with the same timing, so a source
- *   without speech gets none. Creators tend to paste long selling-point lists, so
- *   the speech picks the one or two that matter most instead of reading them all;
- * - the audio follows Video 1's rhythm but never its music or voice: the provider
- *   rejects output audio that may be copyrighted, and trending clips use
- *   copyrighted songs.
+ * The replicate prompt, worded by the product owner: Video 1 recreated shot for
+ * shot with the creator's product as the only difference, keeping Video 1's music
+ * style and voiceover tone. Sent in full whether or not audio is generated.
+ * Creators tend to paste long selling-point lists, so the voiceover picks the one
+ * or two that matter most, within a word cap that follows the output length.
  */
 export function buildReplicatePrompt(
   input: Pick<ReplicateInput, "productName" | "targetAudience" | "sellingPoints">,
   options: { imageCount: number; outputSeconds: number; generateAudio: boolean }
 ): string {
-  const { imageCount, outputSeconds, generateAudio } = options;
+  const { imageCount, outputSeconds } = options;
   const name = `"${input.productName}"`;
-  const lines = [
+  const images =
     imageCount > 1
-      ? `Video 1 is a trending TikTok video. Replace the product in Video 1 with ${name}, the product shown in ${imageList(imageCount)}; these images are different views of the same product.`
-      : `Video 1 is a trending TikTok video. Replace the product in Video 1 with ${name}, the product shown in Image 1.`,
-    "Keep everything else in Video 1 unchanged: camera angle, framing and shot size, camera movement including handheld motion, hands and poses and how they move, background and setting, lighting direction, brightness and color temperature, color grading, pacing and cut timing.",
-    "The new product sits in the same position, at the same size and angle, and is held and moved exactly as the original product.",
-    "Keep the new product's shape, proportions, colors, materials, logo and printed details exactly as pictured. Remove every brand name and logo of the original product.",
+      ? `${imageList(imageCount)}; these images are different views of the same product`
+      : "Image 1";
+  return [
+    "Recreate Video 1 shot for shot, featuring the product below instead of the original product.",
+    "Match Video 1 exactly in: camera angle, framing and shot size; camera movement, including any handheld motion; hand and body poses and how they move; the background and setting; lighting direction, brightness and color temperature; color grading; and the pacing, cut timing and transitions.",
+    `The product is ${name}, shown in ${images}.`,
+    "Show this product wherever Video 1 shows its product: in the same position, at the same size and angle in the frame, held and moved exactly the same way.",
+    "The product is the only difference from Video 1.",
+    "Keep the product's shape, proportions, colors, materials, logo and printed details exactly as pictured.",
+    "Do not show any product, brand name or logo from Video 1.",
+    "Keep the music style and mood of Video 1.",
+    "Keep the voiceover tone of Video 1, in the same spoken language.",
+    "If Video 1 has no voiceover, add none.",
     [
-      `None of Video 1's own on-screen text may appear. Wherever Video 1 shows on-screen text, including animated text, keep the same position, font style, size, animation and timing, and about the same number of words, but change the words to the product name ${name}`,
+      `The voiceover recommends ${name} by name`,
+      input.targetAudience ? `, speaking to "${input.targetAudience}"` : "",
       input.sellingPoints
-        ? ` and short phrases from these selling points: "${input.sellingPoints}"`
+        ? `, and mentions only the one or two selling points that matter most to buyers from: "${input.sellingPoints}"`
         : "",
-      ". If Video 1 has no on-screen text, add none. Do not add prices or watermarks.",
+      ".",
     ].join(""),
-    generateAudio
-      ? "Do not reuse any music, song or audio from Video 1. Add new, original background music with a similar mood, tempo and energy, timed to the same cuts."
-      : null,
-    generateAudio
-      ? [
-          `If Video 1 has speech or a voiceover, add new speech in a new, natural voice that does not imitate the original speaker, in the same spoken language and a similar tone, only where Video 1 has speech and with the same timing: it recommends ${name} by name`,
-          input.targetAudience ? `, speaking to "${input.targetAudience}"` : "",
-          ".",
-        ].join("")
-      : null,
-    generateAudio && input.sellingPoints
-      ? `From these selling points, mention only the one or two that matter most to buyers: "${input.sellingPoints}".`
-      : null,
-    generateAudio
-      ? `Use at most ${voiceoverWordBudget(outputSeconds)} words in total. Never rush.`
-      : null,
-    generateAudio ? "If Video 1 has no speech, add no speech." : null,
-  ];
-  return lines.filter((line): line is string => line !== null).join("\n");
+    `Speak at a calm, natural pace with short pauses between sentences, in at most ${voiceoverWordBudget(outputSeconds)} words in total.`,
+    "Never rush.",
+  ].join(" ");
 }

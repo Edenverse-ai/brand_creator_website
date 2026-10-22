@@ -116,11 +116,10 @@ describe("POST /api/ai-videos/replicate", () => {
         generateAudio: true,
       },
     });
-    expect(data.prompt).toMatch(
-      /^Video 1 is a trending TikTok video\. Replace the product in Video 1 with "Ivory Mini Bag", the product shown in Image 1 and Image 2/
-    );
+    expect(data.prompt.startsWith("Recreate Video 1 shot for shot")).toBe(true);
+    expect(data.prompt).toContain('The product is "Ivory Mini Bag", shown in Image 1 and Image 2');
     // 14.2 s source → a 15 s voiceover budget.
-    expect(data.prompt).toContain("Use at most 30 words in total.");
+    expect(data.prompt).toContain("in at most 30 words in total.");
     expect(submitTask).toHaveBeenCalledWith(TASK);
   });
 

@@ -106,7 +106,7 @@ test.describe("creator / ai-video replicate", () => {
     expect(task?.referenceVideoPath).toMatch(/\/reference-video\.mp4$/);
     expect(task?.productImagePaths).toHaveLength(2);
     expect(task?.params).toMatchObject({ ratio: "adaptive", duration: -1 });
-    expect(task?.prompt).toContain(`Replace the product in Video 1 with "${productName}"`);
+    expect(task?.prompt).toContain(`The product is "${productName}", shown in Image 1 and Image 2`);
 
     // The task list marks it as a replicate and shows the product name.
     await asCreator.goto("/creatorportal/ai-video/tasks");

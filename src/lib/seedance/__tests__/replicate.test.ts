@@ -98,26 +98,23 @@ describe("expectedOutputSeconds", () => {
 });
 
 describe("buildReplicatePrompt", () => {
-  it("matches the documented example (2 images, 14 s, audio on)", () => {
-    expect(buildReplicatePrompt(BASE, { imageCount: 2, outputSeconds: 14, generateAudio: true }))
-      .toBe(`Video 1 is a trending TikTok video. Replace the product in Video 1 with "Ivory Mini Top-Handle Bag", the product shown in Image 1 and Image 2; these images are different views of the same product.
-Keep everything else in Video 1 unchanged: camera angle, framing and shot size, camera movement including handheld motion, hands and poses and how they move, background and setting, lighting direction, brightness and color temperature, color grading, pacing and cut timing.
-The new product sits in the same position, at the same size and angle, and is held and moved exactly as the original product.
-Keep the new product's shape, proportions, colors, materials, logo and printed details exactly as pictured. Remove every brand name and logo of the original product.
-None of Video 1's own on-screen text may appear. Wherever Video 1 shows on-screen text, including animated text, keep the same position, font style, size, animation and timing, and about the same number of words, but change the words to the product name "Ivory Mini Top-Handle Bag" and short phrases from these selling points: "soft vegan leather, gold clasp, fits a phone and wallet". If Video 1 has no on-screen text, add none. Do not add prices or watermarks.
-Do not reuse any music, song or audio from Video 1. Add new, original background music with a similar mood, tempo and energy, timed to the same cuts.
-If Video 1 has speech or a voiceover, add new speech in a new, natural voice that does not imitate the original speaker, in the same spoken language and a similar tone, only where Video 1 has speech and with the same timing: it recommends "Ivory Mini Top-Handle Bag" by name, speaking to "women 25-35".
-From these selling points, mention only the one or two that matter most to buyers: "soft vegan leather, gold clasp, fits a phone and wallet".
-Use at most 28 words in total. Never rush.
-If Video 1 has no speech, add no speech.`);
+  it("matches the agreed template (2 images, 15 s)", () => {
+    expect(
+      buildReplicatePrompt(BASE, { imageCount: 2, outputSeconds: 15, generateAudio: true })
+    ).toBe(
+      'Recreate Video 1 shot for shot, featuring the product below instead of the original product. Match Video 1 exactly in: camera angle, framing and shot size; camera movement, including any handheld motion; hand and body poses and how they move; the background and setting; lighting direction, brightness and color temperature; color grading; and the pacing, cut timing and transitions. The product is "Ivory Mini Top-Handle Bag", shown in Image 1 and Image 2; these images are different views of the same product. Show this product wherever Video 1 shows its product: in the same position, at the same size and angle in the frame, held and moved exactly the same way. The product is the only difference from Video 1. Keep the product\'s shape, proportions, colors, materials, logo and printed details exactly as pictured. Do not show any product, brand name or logo from Video 1. Keep the music style and mood of Video 1. Keep the voiceover tone of Video 1, in the same spoken language. If Video 1 has no voiceover, add none. The voiceover recommends "Ivory Mini Top-Handle Bag" by name, speaking to "women 25-35", and mentions only the one or two selling points that matter most to buyers from: "soft vegan leather, gold clasp, fits a phone and wallet". Speak at a calm, natural pace with short pauses between sentences, in at most 30 words in total. Never rush.'
+    );
   });
 
   it.each([
-    [1, 'with "Bag", the product shown in Image 1.'],
-    [2, 'with "Bag", the product shown in Image 1 and Image 2; these images are different views'],
+    [1, 'The product is "Bag", shown in Image 1. Show this product'],
+    [
+      2,
+      'The product is "Bag", shown in Image 1 and Image 2; these images are different views of the same product.',
+    ],
     [
       3,
-      'with "Bag", the product shown in Image 1, Image 2 and Image 3; these images are different views',
+      'The product is "Bag", shown in Image 1, Image 2 and Image 3; these images are different views of the same product.',
     ],
   ])("names %i product image(s)", (imageCount, expected) => {
     const prompt = buildReplicatePrompt(
@@ -128,58 +125,27 @@ If Video 1 has no speech, add no speech.`);
     expect(prompt).not.toContain(`Image ${imageCount + 1}`);
   });
 
-  it("mirrors Video 1's on-screen text, animation included, with the new words", () => {
-    const prompt = buildReplicatePrompt(BASE, {
-      imageCount: 1,
-      outputSeconds: 8,
-      generateAudio: true,
-    });
-    expect(prompt).toContain("None of Video 1's own on-screen text may appear.");
-    expect(prompt).toContain(
-      "including animated text, keep the same position, font style, size, animation and timing, and about the same number of words"
-    );
-    expect(prompt).toContain("If Video 1 has no on-screen text, add none.");
-    expect(prompt).toContain("Remove every brand name and logo of the original product.");
-  });
-
-  it("mirrors Video 1's speech: only where it speaks, none if it doesn't", () => {
-    const prompt = buildReplicatePrompt(BASE, {
-      imageCount: 1,
-      outputSeconds: 8,
-      generateAudio: true,
-    });
-    expect(prompt).toContain("Do not reuse any music, song or audio from Video 1.");
-    expect(prompt).toContain("does not imitate the original speaker");
-    expect(prompt).toContain("only where Video 1 has speech and with the same timing");
-    expect(prompt.split("\n").at(-1)).toBe("If Video 1 has no speech, add no speech.");
-  });
-
-  it("without audio drops the speech lines and audience, but keeps the on-screen text", () => {
-    const prompt = buildReplicatePrompt(BASE, {
-      imageCount: 1,
-      outputSeconds: 8,
-      generateAudio: false,
-    });
-    expect(prompt).not.toMatch(/speech|voiceover|music/i);
-    expect(prompt).not.toContain("women 25-35");
-    expect(prompt).toContain(
-      'change the words to the product name "Ivory Mini Top-Handle Bag" and short phrases from these selling points: "soft vegan leather'
-    );
-    expect(prompt.split("\n")).toHaveLength(5);
-  });
-
-  it("leaves out the selling-point and audience parts when they are empty", () => {
+  it("leaves out the audience and selling-point clauses when they are empty", () => {
     const prompt = buildReplicatePrompt(
       { productName: "Bag", targetAudience: "", sellingPoints: "" },
       { imageCount: 1, outputSeconds: 8, generateAudio: true }
     );
-    expect(prompt).toContain(
-      'change the words to the product name "Bag". If Video 1 has no on-screen text, add none.'
-    );
-    expect(prompt).toContain('it recommends "Bag" by name.');
-    expect(prompt).not.toContain("selling points");
+    expect(prompt).toContain('The voiceover recommends "Bag" by name. Speak at a calm');
     expect(prompt).not.toContain("speaking to");
-    expect(prompt.split("\n")).toHaveLength(9);
+    expect(prompt).not.toContain("selling points");
+  });
+
+  it("sends the same prompt with audio on or off", () => {
+    const options = { imageCount: 2, outputSeconds: 15 };
+    expect(buildReplicatePrompt(BASE, { ...options, generateAudio: false })).toBe(
+      buildReplicatePrompt(BASE, { ...options, generateAudio: true })
+    );
+  });
+
+  it("is a single paragraph", () => {
+    expect(
+      buildReplicatePrompt(BASE, { imageCount: 1, outputSeconds: 8, generateAudio: true })
+    ).not.toContain("\n");
   });
 
   it.each([
@@ -191,7 +157,7 @@ If Video 1 has no speech, add no speech.`);
     expect(voiceoverWordBudget(outputSeconds)).toBe(words);
     expect(
       buildReplicatePrompt(BASE, { imageCount: 1, outputSeconds, generateAudio: true })
-    ).toContain(`Use at most ${words} words in total. Never rush.`);
+    ).toContain(`in at most ${words} words in total. Never rush.`);
   });
 
   it("stays well inside the provider's prompt limit at the longest inputs", () => {

@@ -27,25 +27,15 @@ URLs are 6-hour signed Supabase URLs, as before.
 
 The template is `buildReplicatePrompt` in `src/lib/seedance/replicate.ts`. Its full text and an example are pinned in `src/lib/seedance/__tests__/replicate.test.ts`.
 
-**It is an edit instruction.** The prompt asks Seedance to put the creator's product into Video 1 and keep everything else. In order, it:
+**The wording comes from the product owner.** It is one paragraph, sent the same way whether or not audio is generated. It asks Seedance to:
 
-1. Replaces Video 1's product with the named product from Image 1..N.
-2. Keeps everything else unchanged: camera angle, framing and shot size; camera movement, including handheld motion; hands and poses; background and setting; lighting direction, brightness and color temperature; color grading; and pacing and cut timing.
-3. Puts the new product in the same position, at the same size and angle, held and moved the same way. It keeps the product's look exactly as pictured and removes every brand name and logo of the original product.
-4. **On-screen text mirrors Video 1:**
-   - None of Video 1's own words may appear.
-   - Wherever Video 1 shows text, including animated text, the result keeps the same position, font style, size, animation and timing, and about the same number of words.
-   - The words become the product name and, when given, short phrases from the selling points.
-   - If Video 1 has no text, none is added. No prices or watermarks.
-5. **Audio follows Video 1's rhythm, not its sound (audio on):**
-   - Music: none of Video 1's music or audio is reused. The result gets original background music with a similar mood, tempo and energy, timed to the same cuts.
-   - Speech: new speech goes only where Video 1 has speech, with the same timing, in a new voice that doesn't imitate the original speaker. A source without speech gets none, and a source that speaks briefly gets brief speech.
-   - The speech:
-     - recommends the product by name and, when given, speaks to the target buyers;
-     - mentions only the one or two selling points that matter most, since creators paste long lists;
-     - uses at most 2 words per second of the expected output length (`voiceoverWordBudget`, `expectedOutputSeconds`).
+1. Recreate Video 1 shot for shot with the creator's product instead of the original, matching camera angle, framing and shot size, camera movement (handheld motion included), hand and body poses, background and setting, lighting, color grading, and pacing, cut timing and transitions.
+2. Show the named product (Image 1..N, "different views of the same product" when there are several) where Video 1 shows its product, at the same position, size and angle, held and moved the same way, as the only difference.
+3. Keep the product's look exactly as pictured, and show no product, brand name or logo from Video 1.
+4. Keep Video 1's music style and mood, and its voiceover tone and language. If Video 1 has no voiceover, add none.
+5. Have the voiceover recommend the product by name, speak to the target buyers, and mention only the one or two selling points that matter most. It speaks at a calm pace within 2 words per second of the expected output length (`voiceoverWordBudget`, `expectedOutputSeconds`).
 
-We can't inspect Video 1's audio or text ourselves, so both mirror rules are conditional instructions that Seedance applies while editing. Without audio, the speech lines and the audience are dropped.
+The audience and selling-point clauses are dropped when those fields are empty. There is no on-screen-text instruction.
 
 **History.**
 
@@ -54,6 +44,7 @@ We can't inspect Video 1's audio or text ourselves, so both mirror rules are con
 - Edit mode is now deliberate, with `duration: -1`. The old rule against edit verbs in the prompt is gone.
 - The first edit-mode prompt always added a voiceover and swapped Video 1's text for a static product name. That didn't fit sources without speech or with animated captions, so speech and text now mirror Video 1.
 - Keeping Video 1's music got a Pro replicate rejected: "the output audio may be related to copyright restrictions". Trending clips use copyrighted songs. Now the music is original and the voice is new.
+- The product owner then supplied the current wording. It keeps Video 1's music style and voiceover tone (rather than "original music, new voice") and has no on-screen-text rules. If the output-audio copyright rejection returns, revisit the music and voice sentences first.
 
 ## 4. Limits and entitlements
 
