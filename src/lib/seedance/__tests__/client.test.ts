@@ -72,11 +72,34 @@ describe("buildCreateRequest", () => {
 
   it("adds the reference image only when one is given", () => {
     const req = buildCreateRequest(
-      { ...input, referenceImageUrl: "https://storage.example.test/signed.png" },
+      { ...input, referenceImageUrls: ["https://storage.example.test/signed.png"] },
       { baseUrl: BASE, apiKey: KEY }
     );
-    expect(JSON.parse(req.init.body as string).images).toEqual([
+    const body = JSON.parse(req.init.body as string);
+    expect(body.images).toEqual([
       { url: "https://storage.example.test/signed.png", role: "reference_image" },
+    ]);
+    expect(body).not.toHaveProperty("videos");
+  });
+
+  it("sends a trend replicate's video and product images in prompt order", () => {
+    const req = buildCreateRequest(
+      {
+        ...input,
+        params: { ...input.params, ratio: "adaptive", duration: 15 },
+        referenceImageUrls: ["https://s.test/product-1.jpg", "https://s.test/product-2.png"],
+        referenceVideoUrls: ["https://s.test/reference-video.mp4"],
+      },
+      { baseUrl: BASE, apiKey: KEY }
+    );
+    const body = JSON.parse(req.init.body as string);
+    expect(body).toMatchObject({ ratio: "adaptive", duration: 15 });
+    expect(body.images).toEqual([
+      { url: "https://s.test/product-1.jpg", role: "reference_image" },
+      { url: "https://s.test/product-2.png", role: "reference_image" },
+    ]);
+    expect(body.videos).toEqual([
+      { url: "https://s.test/reference-video.mp4", role: "reference_video" },
     ]);
   });
 });

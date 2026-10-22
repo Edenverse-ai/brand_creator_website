@@ -52,12 +52,13 @@ Additional secrets (Supabase, TikTok, email) mirror what you have in `.env.local
 
 ### AI video generation
 
-| Variable               | Purpose                                                                             |
-| ---------------------- | ----------------------------------------------------------------------------------- |
-| `SEEDANCE_LIVE`        | `1` enables real, billable generation. Leave unset (mock) until launch is approved. |
-| `VIDEO_API_BASE_URL`   | Base URL from the AI Open Platform console. No default in code.                     |
-| `VIDEO_API_KEY`        | Provider `ApiKey`. Never logged.                                                    |
-| `AI_VIDEO_DAILY_LIMIT` | Generations per creator per UTC day (default 5).                                    |
+| Variable                    | Purpose                                                                                                                                                                                                                        |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `SEEDANCE_LIVE`             | `1` enables real, billable generation. Leave unset (mock) until launch is approved.                                                                                                                                            |
+| `VIDEO_API_BASE_URL`        | Base URL from the AI Open Platform console. No default in code.                                                                                                                                                                |
+| `VIDEO_API_KEY`             | Provider `ApiKey`. Never logged.                                                                                                                                                                                               |
+| `AI_VIDEO_DAILY_LIMIT`      | Video Gen generations per creator per UTC day (default 5). Trend replicate is fixed at 3 per UTC calendar month, with sources up to 15 s.                                                                                      |
+| `AI_VIDEO_UNLIMITED_EMAILS` | Comma-separated emails with no daily cap on either tool, and trend-replicate sources up to the model maximum (30 s on Seedance 2.5). For test accounts such as `creator-free@test.local`; every generation they run is billed. |
 
 Live calls need all three of `SEEDANCE_LIVE`, `VIDEO_API_BASE_URL` and `VIDEO_API_KEY`; otherwise the app uses the mock provider.
 
@@ -65,6 +66,7 @@ Before enabling live generation in production:
 
 - **No IP allowlist on the key.** Netlify functions have no fixed egress IP. If the provider key has a source-IP allowlist, every live call from Netlify is rejected.
 - **Apply the migration.** `20261005221656_ai_video_task_generation` must be applied to the production database; the build does not run migrations (see [database.md](database.md)).
+- **Trend replicate.** Apply `20261021120000_ai_video_task_replicate`. Raise the `ai-video-tasks` bucket's file size limit to 50 MB in the Supabase dashboard, because the setup script only applies limits when it creates a bucket.
 - **Scheduled sweep.** `netlify/functions/ai-video-sync-scheduled.ts` runs every 10 minutes, but only on published production deploys. On previews, invoke it by hand to test it.
 - **Verify on a preview.** Check that `ai-video-finalize-background` and `ai-video-sync-scheduled` load and reach Postgres, i.e. that the Prisma engine is bundled. This can't be tested locally.
 

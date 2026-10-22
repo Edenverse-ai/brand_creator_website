@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { isUniqueViolation, nextVideoName } from "@/lib/ai-video-name";
-import { buildLibraryVideoPath } from "@/lib/ai-video-task";
+import { buildLibraryVideoPath, type AiVideoTaskKind } from "@/lib/ai-video-task";
 import { createSignedUrl, uploadToAiVideoBucket } from "@/lib/supabase-admin-core";
 import { buildFinalizeAuthHeaders } from "@/lib/ai-video-finalize-auth";
 import { fetchWithTimeout } from "@/lib/tiktok/fetch-with-timeout";
@@ -13,8 +13,9 @@ import {
   describeProviderFailure,
   describeSubmitError,
 } from "@/lib/seedance/errors";
+import { replicateParamsSchema } from "@/lib/seedance/replicate";
 import { generationParamsSchema } from "@/lib/seedance/schema";
-import type { VideoProvider } from "@/lib/seedance/types";
+import type { ProviderParams, VideoProvider } from "@/lib/seedance/types";
 
 /**
  * Lifecycle of an automated generation task
@@ -78,6 +79,17 @@ function providerForTask(name: string | null): VideoProvider | null {
   }
 }
 
+/** Signed URLs the provider can fetch, in order; throws if any reference can't be signed. */
+async function signReferences(paths: string[]): Promise<string[]> {
+  return Promise.all(
+    paths.map(async (path) => {
+      const url = await createSignedUrl(path, REFERENCE_URL_TTL_SEC);
+      if (!url) throw new Error("reference file could not be signed");
+      return url;
+    })
+  );
+}
+
 export async function submitTask(taskId: string): Promise<void> {
   const claimed = await prisma.aiVideoTask.updateMany({
     where: { id: taskId, status: "QUEUED", submitStartedAt: null },
@@ -87,24 +99,44 @@ export async function submitTask(taskId: string): Promise<void> {
 
   const task = await prisma.aiVideoTask.findUniqueOrThrow({
     where: { id: taskId },
-    select: { id: true, prompt: true, portraitPath: true, params: true },
+    select: {
+      id: true,
+      kind: true,
+      prompt: true,
+      portraitPath: true,
+      referenceVideoPath: true,
+      productImagePaths: true,
+      params: true,
+    },
   });
-  const params = generationParamsSchema.parse(task.params ?? {});
+  const isReplicate = task.kind === "replicate";
+  const params: ProviderParams = isReplicate
+    ? replicateParamsSchema.parse(task.params)
+    : generationParamsSchema.parse(task.params ?? {});
 
   let provider: VideoProvider | null = null;
   try {
     provider = getVideoProvider();
 
-    let referenceImageUrl: string | null = null;
-    if (task.portraitPath) {
-      referenceImageUrl = await createSignedUrl(task.portraitPath, REFERENCE_URL_TTL_SEC);
-      if (!referenceImageUrl) throw new Error("reference image could not be signed");
+    const imagePaths = isReplicate
+      ? task.productImagePaths
+      : task.portraitPath
+        ? [task.portraitPath]
+        : [];
+    const videoPaths = isReplicate && task.referenceVideoPath ? [task.referenceVideoPath] : [];
+    if (isReplicate && (videoPaths.length === 0 || imagePaths.length === 0)) {
+      throw new Error("replicate task is missing its reference video or product images");
     }
+    const [referenceImageUrls, referenceVideoUrls] = await Promise.all([
+      signReferences(imagePaths),
+      signReferences(videoPaths),
+    ]);
 
     const created = await provider.createTask({
       prompt: task.prompt,
       params,
-      referenceImageUrl,
+      ...(referenceImageUrls.length ? { referenceImageUrls } : {}),
+      ...(referenceVideoUrls.length ? { referenceVideoUrls } : {}),
     });
 
     await prisma.aiVideoTask.update({
@@ -370,16 +402,25 @@ function startOfUtcDay(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
 }
 
+function startOfUtcMonth(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+}
+
 /**
- * Tasks that may have used provider tokens today (spec §6 "Daily cap counting").
- * QUEUED rows with a submit claim are in flight and count; failures the provider
- * doesn't charge for don't.
+ * Tasks of `kind` that may have used provider tokens since `since` (spec §6
+ * "Daily cap counting"). QUEUED rows with a submit claim are in flight and count;
+ * failures the provider doesn't charge for don't.
  */
-export async function countTodayGenerations(creatorId: string): Promise<number> {
+async function countGenerationsSince(
+  creatorId: string,
+  kind: AiVideoTaskKind,
+  since: Date
+): Promise<number> {
   return prisma.aiVideoTask.count({
     where: {
       creatorId,
-      submitStartedAt: { gte: startOfUtcDay(new Date()) },
+      kind,
+      submitStartedAt: { gte: since },
       OR: [
         { status: { in: ["QUEUED", "GENERATING", "IN_REVIEW", "DELIVERED"] } },
         { status: "FAILED", failureCode: "unknown_outcome" },
@@ -388,10 +429,38 @@ export async function countTodayGenerations(creatorId: string): Promise<number> 
   });
 }
 
+export async function countTodayGenerations(
+  creatorId: string,
+  kind: AiVideoTaskKind = "generate"
+): Promise<number> {
+  return countGenerationsSince(creatorId, kind, startOfUtcDay(new Date()));
+}
+
+/**
+ * Generations of `kind` the creator has left today. Each tool has its own cap
+ * (see src/lib/ai-video-entitlements.ts); a null `limit` means unlimited, and
+ * then `remaining` is null too.
+ */
 export async function remainingToday(
-  creatorId: string
-): Promise<{ remaining: number; limit: number }> {
-  const limit = getDailyLimit();
-  const used = await countTodayGenerations(creatorId);
+  creatorId: string,
+  kind: AiVideoTaskKind = "generate",
+  limit: number | null = getDailyLimit()
+): Promise<{ remaining: number | null; limit: number | null }> {
+  if (limit === null) return { remaining: null, limit: null };
+  const used = await countTodayGenerations(creatorId, kind);
+  return { remaining: Math.max(0, limit - used), limit };
+}
+
+/**
+ * Generations of `kind` the creator has left this UTC calendar month (Trend
+ * Replicate's free quota). Like remainingToday, a null `limit` means unlimited.
+ */
+export async function remainingThisMonth(
+  creatorId: string,
+  kind: AiVideoTaskKind,
+  limit: number | null
+): Promise<{ remaining: number | null; limit: number | null }> {
+  if (limit === null) return { remaining: null, limit: null };
+  const used = await countGenerationsSince(creatorId, kind, startOfUtcMonth(new Date()));
   return { remaining: Math.max(0, limit - used), limit };
 }

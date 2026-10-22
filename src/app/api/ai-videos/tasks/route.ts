@@ -19,7 +19,8 @@ import {
   deleteFromBucket,
   uploadToBucket,
 } from "@/lib/supabase-admin";
-import { isOwnedStoragePath } from "@/lib/storage/path-ownership";
+import { isOwnedTaskPath } from "@/lib/storage/path-ownership";
+import { getEntitlements } from "@/lib/ai-video-entitlements";
 import { remainingToday, submitTask } from "@/lib/ai-video-generation";
 import { generationParamsSchema } from "@/lib/seedance/schema";
 
@@ -49,19 +50,6 @@ const JsonBody = z
   });
 
 /**
- * `isOwnedStoragePath` only constrains the FIRST path segment (the owner id) — it
- * doesn't know about `taskId` at all, so a portrait/voice path under the same
- * owner's OTHER task folder would still pass it. Require the SECOND segment to
- * equal the submitted taskId too, so ownership is validated against the specific
- * task this request is creating, not just "some folder this user owns somewhere."
- * Same-user-only impact today (no cross-user path gets any closer to passing), but
- * it closes that gap.
- */
-function isOwnedTaskPath(path: string, ownerId: string, taskId: string): boolean {
-  return isOwnedStoragePath(path, ownerId) && path.split("/")[1] === taskId;
-}
-
-/**
  * Native JSON path: the optional reference image was already uploaded
  * direct-to-storage via POST /api/ai-videos/tasks/upload-url. Validates ownership
  * and the daily cap, writes the AiVideoTask row, then submits it to the video
@@ -70,7 +58,8 @@ function isOwnedTaskPath(path: string, ownerId: string, taskId: string): boolean
  */
 async function handleJsonTaskCreate(
   request: NextRequest,
-  sessionUserId: string
+  sessionUserId: string,
+  sessionEmail: string | null | undefined
 ): Promise<NextResponse> {
   const parsed = JsonBody.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
@@ -100,8 +89,12 @@ async function handleJsonTaskCreate(
     );
   }
 
-  const { remaining, limit } = await remainingToday(sessionUserId);
-  if (remaining <= 0) {
+  const { remaining, limit } = await remainingToday(
+    sessionUserId,
+    "generate",
+    getEntitlements(sessionEmail).generate.dailyLimit
+  );
+  if (remaining !== null && remaining <= 0) {
     return NextResponse.json(
       { error: "Daily generation limit reached. Try again tomorrow.", remaining: 0, limit },
       { status: 429 }
@@ -237,7 +230,7 @@ export async function POST(request: NextRequest) {
 
   const contentType = request.headers.get("content-type") ?? "";
   if (contentType.includes("application/json")) {
-    return handleJsonTaskCreate(request, creatorId);
+    return handleJsonTaskCreate(request, creatorId, session.user.email);
   }
 
   return handleMultipartTaskCreate(request, creatorId);

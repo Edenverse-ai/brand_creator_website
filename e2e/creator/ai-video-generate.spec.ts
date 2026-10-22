@@ -43,11 +43,13 @@ test.describe("creator / ai-video generate", () => {
     await asCreator.keyboard.press("Escape");
     await expect(format).toContainText("30s");
 
-    // Two models, both free to pick. Mini trades length for 1080p, and switching
-    // pulls the format back inside the new model's limits.
+    // Every gateway model, all free to pick. The 2.0 models trade length for 1080p,
+    // and switching pulls the format back inside the new model's limits.
     await model.click();
-    await expect(asCreator.getByRole("menuitem")).toHaveCount(2);
-    await expect(asCreator.getByRole("menu")).not.toContainText("PRO");
+    await expect(asCreator.getByRole("menuitem")).toHaveCount(4);
+    for (const name of ["Seedance 2.0 Pro", "Seedance 2.0 Fast", "Seedance 2.0 Mini"]) {
+      await expect(asCreator.getByRole("menuitem", { name: new RegExp(name) })).toBeVisible();
+    }
     await asCreator.getByRole("menuitem", { name: /Seedance 2\.0 Mini/ }).click();
     await expect(format).toContainText("15s");
     await format.click();

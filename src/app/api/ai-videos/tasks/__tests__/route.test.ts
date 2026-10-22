@@ -110,7 +110,7 @@ describe("POST /api/ai-videos/tasks (JSON path)", () => {
   });
 
   it.each([
-    ["a model that isn't offered", { mode: "pro" }],
+    ["a model that isn't offered", { mode: "ultra" }],
     ["a resolution the model can't produce", { mode: "seedance2.5", resolution: "1080p" }],
     ["a duration beyond the model's limit", { mode: "mini", duration: 20 }],
     ["a resolution nothing offers", { resolution: "4k" }],
@@ -127,6 +127,8 @@ describe("POST /api/ai-videos/tasks (JSON path)", () => {
   it.each([
     ["Seedance 2.5 at 30 s", { mode: "seedance2.5", duration: 30 }],
     ["Mini at 1080p", { mode: "mini", resolution: "1080p", duration: 15 }],
+    ["Pro at 1080p", { mode: "pro", resolution: "1080p", duration: 15 }],
+    ["Fast at 1080p", { mode: "fast", resolution: "1080p", duration: 8 }],
   ])("accepts %s", async (_label, params) => {
     aiVideoTaskCreate.mockResolvedValue({ id: "taskabc", status: "QUEUED" });
     (getServerSession as any).mockResolvedValue({ user: { id: OWNER } });
@@ -155,6 +157,25 @@ describe("POST /api/ai-videos/tasks (JSON path)", () => {
     });
     expect(aiVideoTaskCreate).not.toHaveBeenCalled();
     expect(submitTask).not.toHaveBeenCalled();
+  });
+
+  it("passes the free daily limit, or null for an unlimited account", async () => {
+    aiVideoTaskCreate.mockResolvedValue({ id: "taskabc", status: "QUEUED" });
+    vi.stubEnv("AI_VIDEO_DAILY_LIMIT", "5");
+    vi.stubEnv("AI_VIDEO_UNLIMITED_EMAILS", "tester@test.local");
+
+    (getServerSession as any).mockResolvedValue({ user: { id: OWNER, email: "a@b.c" } });
+    await POST(jsonRequest(validBody) as never);
+    expect(remainingToday).toHaveBeenLastCalledWith(OWNER, "generate", 5);
+
+    (getServerSession as any).mockResolvedValue({
+      user: { id: OWNER, email: "Tester@Test.local" },
+    });
+    remainingToday.mockResolvedValue({ remaining: null, limit: null });
+    const res = await POST(jsonRequest(validBody) as never);
+    expect(remainingToday).toHaveBeenLastCalledWith(OWNER, "generate", null);
+    expect(res.status).toBe(200);
+    vi.unstubAllEnvs();
   });
 
   it("returns 400 when taskId contains characters outside [a-z0-9] (aligned with the minting route's charset)", async () => {

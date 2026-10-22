@@ -94,7 +94,18 @@ Consequences:
 
 **`AiVideo.name`** (migration `20261008180000_ai_video_name`). Every video in My Videos has a name, unique per creator (`AiVideo_creator_id_name_key` on `creator_id` + `name`). New videos are named `ai-video-<n>` by `nextVideoName` (`src/lib/ai-video-name.ts`), one past the creator's highest number; creators rename them through `PATCH /api/ai-videos/library/:id`. The column is nullable only so a writer that predates it can't fail; the migration back-fills existing rows. Like the migration above it is hand-written and re-runnable, and production gets it by running the SQL directly (production has no migration history table).
 
-See [the design spec](superpowers/specs/2026-10-05-seedance-video-generation-design.md) §6.
+**Trend replicate fields** (migration `20261021120000_ai_video_task_replicate`, additive):
+
+| Field                | Purpose                                                                                                  |
+| -------------------- | -------------------------------------------------------------------------------------------------------- |
+| `kind`               | `generate` (default; every earlier row) or `replicate`. Free quotas count each kind separately.          |
+| `referenceVideoPath` | The trending video, `{creatorId}/{taskId}/reference-video.{mp4,mov}` in `ai-video-tasks`.                |
+| `productImagePaths`  | Product photos, `{creatorId}/{taskId}/product-{n}.{ext}`, in the "Image N" order of the composed prompt. |
+| `replicateInput`     | The creator's raw input: `productName`, `targetAudience`, `sellingPoints`, `referenceDurationSec`.       |
+
+For a replicate, `prompt` holds the composed prompt and `params` the provider settings (`ratio: "adaptive"`, duration from the source).
+
+See [the design spec](superpowers/specs/2026-10-05-seedance-video-generation-design.md) §6 and [the trend replicate spec](superpowers/specs/2026-10-21-ai-video-trend-replicate-design.md).
 
 ---
 

@@ -53,8 +53,11 @@ export function buildCreateBody(input: CreateVideoTaskInput): Record<string, unk
     watermark: false,
     output_format: "mp4",
     execution_expires_after: EXECUTION_EXPIRES_AFTER_SECONDS,
-    ...(input.referenceImageUrl
-      ? { images: [{ url: input.referenceImageUrl, role: "reference_image" }] }
+    ...(input.referenceImageUrls?.length
+      ? { images: input.referenceImageUrls.map((url) => ({ url, role: "reference_image" })) }
+      : {}),
+    ...(input.referenceVideoUrls?.length
+      ? { videos: input.referenceVideoUrls.map((url) => ({ url, role: "reference_video" })) }
       : {}),
   };
 }

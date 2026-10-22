@@ -12,19 +12,14 @@ import {
   Sparkles,
   X,
 } from "lucide-react";
-import { PORTRAIT_MAX_BYTES, PORTRAIT_MIME_TO_EXT, type PortraitMime } from "@/lib/ai-video-task";
+import { PORTRAIT_MIME_TO_EXT, type PortraitMime } from "@/lib/ai-video-task";
 import { DEFAULT_MODE, limitsFor, type VideoMode, type VideoModel } from "@/lib/seedance/models";
 import type { Ratio } from "@/lib/seedance/schema";
+import { putFile, requestUploadUrl, validateImage, type UploadUrlResponse } from "../uploads";
+import { GENERIC_FAILURE, formatElapsed, useTaskPoll, type TaskOutcome } from "../useTaskPoll";
 import { FormatFields, FormatPopover, ModelPicker, type FormatValue } from "./GenerationControls";
 
 const PROMPT_MAX = 5000;
-const POLL_INTERVAL_MS = 10_000;
-// Provider limits for reference images (AI Open Platform video API v1.1).
-const IMAGE_MIN_SIDE = 300;
-const IMAGE_MAX_SIDE = 6000;
-const IMAGE_MIN_ASPECT = 0.4;
-const IMAGE_MAX_ASPECT = 2.5;
-const GENERIC_FAILURE = "Video generation failed. You were not charged — please try again.";
 
 const PROMPT_PLACEHOLDER =
   'Describe the subject, action, scene, style, camera movement and sound. Example: A barista slides a latte across a sunlit counter, slow push-in, warm film look. She smiles and says "Your usual."';
@@ -52,60 +47,7 @@ type TaskResponse = {
   id: string;
   status: string;
   errorMessage: string | null;
-  videoUrl?: string | null;
 };
-
-type UploadUrlResponse = { uploadUrl: string; path: string; token: string; taskId: string };
-
-async function requestUploadUrl(ext: string): Promise<UploadUrlResponse> {
-  const response = await fetch("/api/ai-videos/tasks/upload-url", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ kind: "portrait", ext }),
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(data.error || "Failed to prepare the image upload.");
-  }
-  return data as UploadUrlResponse;
-}
-
-async function putFile(uploadUrl: string, file: File): Promise<void> {
-  const response = await fetch(uploadUrl, {
-    method: "PUT",
-    headers: { "Content-Type": file.type },
-    body: file,
-  });
-  if (!response.ok) {
-    throw new Error("Failed to upload the image. Please try again.");
-  }
-}
-
-async function validateImage(file: File): Promise<string | null> {
-  if (!(file.type in PORTRAIT_MIME_TO_EXT)) return "Use a JPG, PNG or WebP image.";
-  if (file.size > PORTRAIT_MAX_BYTES) return "Images must be 10 MB or smaller.";
-  try {
-    const bitmap = await createImageBitmap(file);
-    const { width, height } = bitmap;
-    bitmap.close();
-    if (Math.min(width, height) < IMAGE_MIN_SIDE || Math.max(width, height) > IMAGE_MAX_SIDE) {
-      return `Each side must be between ${IMAGE_MIN_SIDE} and ${IMAGE_MAX_SIDE} pixels.`;
-    }
-    const aspect = width / height;
-    if (aspect < IMAGE_MIN_ASPECT || aspect > IMAGE_MAX_ASPECT) {
-      return "That image is too tall or too wide. Try a less extreme crop.";
-    }
-  } catch {
-    return "We couldn't read that image. Try another file.";
-  }
-  return null;
-}
-
-function formatElapsed(seconds: number): string {
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
 
 export default function GenerateVideoForm({
   initialRemaining,
@@ -113,8 +55,9 @@ export default function GenerateVideoForm({
   isMock,
   models,
 }: {
-  initialRemaining: number;
-  limit: number;
+  /** null = unlimited. */
+  initialRemaining: number | null;
+  limit: number | null;
   isMock: boolean;
   models: readonly VideoModel[];
 }) {
@@ -149,7 +92,6 @@ export default function GenerateVideoForm({
   const [remaining, setRemaining] = useState(initialRemaining);
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [formError, setFormError] = useState<string | null>(null);
-  const [elapsed, setElapsed] = useState(0);
   const imageInputRef = useRef<HTMLInputElement>(null);
 
   const busy = phase.kind === "submitting" || phase.kind === "generating";
@@ -164,38 +106,16 @@ export default function GenerateVideoForm({
     return () => URL.revokeObjectURL(url);
   }, [image]);
 
-  useEffect(() => {
-    if (phase.kind !== "generating") return;
-    const { taskId, startedAt } = phase;
-    let cancelled = false;
-
-    const tick = () => setElapsed(Math.floor((Date.now() - startedAt) / 1000));
-    tick();
-    const clock = setInterval(tick, 1000);
-
-    const poll = async () => {
-      try {
-        const response = await fetch(`/api/ai-videos/tasks/${taskId}`, { cache: "no-store" });
-        if (!response.ok || cancelled) return;
-        const data = (await response.json()) as TaskResponse;
-        if (cancelled) return;
-        if (data.status === "DELIVERED") {
-          setPhase({ kind: "delivered", videoUrl: data.videoUrl ?? null });
-        } else if (data.status === "FAILED") {
-          setPhase({ kind: "failed", message: data.errorMessage ?? GENERIC_FAILURE });
-        }
-      } catch {
-        // Transient network error: the next poll retries.
-      }
-    };
-    const poller = setInterval(poll, POLL_INTERVAL_MS);
-
-    return () => {
-      cancelled = true;
-      clearInterval(clock);
-      clearInterval(poller);
-    };
-  }, [phase]);
+  const elapsed = useTaskPoll(
+    phase.kind === "generating" ? { taskId: phase.taskId, startedAt: phase.startedAt } : null,
+    (outcome: TaskOutcome) =>
+      setPhase(
+        outcome.status === "DELIVERED"
+          ? { kind: "delivered", videoUrl: outcome.videoUrl }
+          : { kind: "failed", message: outcome.message }
+      )
+  );
+  const outOfGenerations = remaining !== null && remaining <= 0;
 
   const clearImage = () => {
     setImage(null);
@@ -223,7 +143,7 @@ export default function GenerateVideoForm({
       setFormError("Describe the video you want to generate.");
       return;
     }
-    if (remaining <= 0 || busy) return;
+    if (outOfGenerations || busy) return;
 
     setFormError(null);
     setPhase({ kind: "submitting" });
@@ -231,7 +151,10 @@ export default function GenerateVideoForm({
     try {
       let upload: UploadUrlResponse | null = null;
       if (image) {
-        upload = await requestUploadUrl(PORTRAIT_MIME_TO_EXT[image.type as PortraitMime]);
+        upload = await requestUploadUrl(
+          "portrait",
+          PORTRAIT_MIME_TO_EXT[image.type as PortraitMime]
+        );
         await putFile(upload.uploadUrl, image);
       }
 
@@ -259,7 +182,7 @@ export default function GenerateVideoForm({
         setPhase({ kind: "failed", message: task.errorMessage ?? GENERIC_FAILURE });
         return;
       }
-      setRemaining((value) => Math.max(0, value - 1));
+      setRemaining((value) => (value === null ? null : Math.max(0, value - 1)));
       setPhase({ kind: "generating", taskId: task.id, startedAt: Date.now() });
     } catch (error) {
       setPhase({ kind: "idle" });
@@ -269,15 +192,12 @@ export default function GenerateVideoForm({
     }
   };
 
-  const resetForAnother = () => {
-    setPhase({ kind: "idle" });
-    setElapsed(0);
-  };
+  const resetForAnother = () => setPhase({ kind: "idle" });
 
   const generateButton = (
     <button
       type="submit"
-      disabled={busy || !prompt.trim() || remaining <= 0}
+      disabled={busy || !prompt.trim() || outOfGenerations}
       className="group relative inline-flex items-center justify-center overflow-hidden rounded-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 px-6 py-3 text-sm font-semibold text-white shadow-lg transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 disabled:cursor-not-allowed disabled:opacity-60 lg:py-2.5"
     >
       <span className="absolute inset-0 bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
@@ -295,8 +215,8 @@ export default function GenerateVideoForm({
   return (
     <div className="space-y-6">
       {isMock && (
-        <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50/70 p-4 text-sm text-amber-800">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+        <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-2 text-sm text-amber-800">
+          <AlertTriangle className="h-4 w-4 shrink-0" />
           <p>
             <span className="font-semibold">Mock mode — no video credits used.</span> Generations
             return a sample clip after about 10 seconds.
@@ -304,8 +224,8 @@ export default function GenerateVideoForm({
         </div>
       )}
 
-      <div className="grid gap-6 2xl:grid-cols-[1.5fr_1fr]">
-        <form className="space-y-6" onSubmit={handleSubmit} noValidate>
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
+        <form className="min-w-0 space-y-4" onSubmit={handleSubmit} noValidate>
           <fieldset
             disabled={busy}
             className="space-y-6 lg:space-y-4 lg:rounded-2xl lg:border lg:border-slate-100 lg:bg-white lg:p-5 lg:shadow-sm"
@@ -472,12 +392,16 @@ export default function GenerateVideoForm({
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-sm text-slate-600">
-              <p>
-                <span className="font-semibold text-slate-900">
-                  {remaining} generation{remaining === 1 ? "" : "s"} left today
-                </span>{" "}
-                <span className="text-slate-400">of {limit}</span>
-              </p>
+              {remaining === null ? (
+                <p className="font-semibold text-slate-900">Unlimited generations</p>
+              ) : (
+                <p>
+                  <span className="font-semibold text-slate-900">
+                    {remaining} generation{remaining === 1 ? "" : "s"} left today
+                  </span>{" "}
+                  <span className="text-slate-400">of {limit}</span>
+                </p>
+              )}
               <p className="mt-0.5 text-xs text-slate-500">
                 Generation can&apos;t be cancelled once started.
               </p>
@@ -487,12 +411,12 @@ export default function GenerateVideoForm({
         </form>
 
         <aside className="h-fit space-y-4 xl:sticky xl:top-6">
-          <section className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+          <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
               Preview
             </h2>
             <div
-              className="relative mx-auto mt-4 w-full max-w-sm overflow-hidden rounded-xl bg-slate-900"
+              className="relative mx-auto mt-4 w-full max-w-[16rem] overflow-hidden rounded-xl bg-slate-900"
               style={{ aspectRatio: RATIO_ASPECT[format.ratio] }}
             >
               {phase.kind === "delivered" && phase.videoUrl ? (

@@ -39,15 +39,16 @@ export function RatioGlyph({ ratio, size = 18 }: { ratio: Ratio; size?: number }
   );
 }
 
-export function ModelPicker({
+/** Generic over the mode so each tool's picker only offers that tool's models. */
+export function ModelPicker<M extends VideoMode>({
   models,
   value,
   onChange,
   className = "",
 }: {
-  models: readonly VideoModel[];
-  value: VideoMode;
-  onChange: (mode: VideoMode) => void;
+  models: readonly (VideoModel & { mode: M })[];
+  value: M;
+  onChange: (mode: M) => void;
   className?: string;
 }) {
   const current = models.find((model) => model.mode === value);
@@ -135,34 +136,11 @@ export function FormatFields({
         </div>
       </div>
 
-      <div>
-        <p className={FIELD_LABEL}>Resolution</p>
-        <div
-          className="mt-2 grid gap-1 rounded-xl bg-slate-100 p-1"
-          style={{ gridTemplateColumns: `repeat(${limits.resolutions.length}, minmax(0, 1fr))` }}
-          role="group"
-          aria-label="Resolution"
-        >
-          {limits.resolutions.map((resolution) => {
-            const selected = resolution === value.resolution;
-            return (
-              <button
-                key={resolution}
-                type="button"
-                aria-pressed={selected}
-                onClick={() => onChange({ resolution })}
-                className={`rounded-lg py-1.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                  selected
-                    ? "bg-white text-indigo-700 shadow-sm"
-                    : "text-slate-500 hover:text-slate-900"
-                }`}
-              >
-                {resolution}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <ResolutionField
+        value={value.resolution}
+        resolutions={limits.resolutions}
+        onChange={(resolution) => onChange({ resolution })}
+      />
 
       <div>
         <p className={FIELD_LABEL}>Duration</p>
@@ -199,35 +177,10 @@ export function FormatFields({
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3">
-        <div className="flex items-center gap-3">
-          {value.generateAudio ? (
-            <Volume2 className="h-4 w-4 text-indigo-500" />
-          ) : (
-            <VolumeX className="h-4 w-4 text-slate-400" />
-          )}
-          <div>
-            <p className="text-sm font-semibold text-slate-700">Generate audio</p>
-            <p className="text-xs text-slate-500">Voices, sound effects and music.</p>
-          </div>
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={value.generateAudio}
-          aria-label="Generate audio"
-          onClick={() => onChange({ generateAudio: !value.generateAudio })}
-          className={`relative h-6 w-11 shrink-0 rounded-full transition disabled:opacity-60 ${
-            value.generateAudio ? "bg-indigo-500" : "bg-slate-300"
-          }`}
-        >
-          <span
-            className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
-              value.generateAudio ? "left-[22px]" : "left-0.5"
-            }`}
-          />
-        </button>
-      </div>
+      <AudioToggle
+        value={value.generateAudio}
+        onChange={(generateAudio) => onChange({ generateAudio })}
+      />
     </div>
   );
 }
@@ -258,5 +211,156 @@ export function FormatPopover({
         </Popover.Content>
       </Popover.Portal>
     </Popover.Root>
+  );
+}
+
+export function ResolutionField({
+  value,
+  resolutions,
+  onChange,
+}: {
+  value: Resolution;
+  resolutions: readonly Resolution[];
+  onChange: (resolution: Resolution) => void;
+}) {
+  return (
+    <div>
+      <p className={FIELD_LABEL}>Resolution</p>
+      <div
+        className="mt-2 grid gap-1 rounded-xl bg-slate-100 p-1"
+        style={{ gridTemplateColumns: `repeat(${resolutions.length}, minmax(0, 1fr))` }}
+        role="group"
+        aria-label="Resolution"
+      >
+        {resolutions.map((resolution) => {
+          const selected = resolution === value;
+          return (
+            <button
+              key={resolution}
+              type="button"
+              aria-pressed={selected}
+              onClick={() => onChange(resolution)}
+              className={`rounded-lg py-1.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                selected
+                  ? "bg-white text-indigo-700 shadow-sm"
+                  : "text-slate-500 hover:text-slate-900"
+              }`}
+            >
+              {resolution}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+export function AudioToggle({
+  value,
+  onChange,
+}: {
+  value: boolean;
+  onChange: (generateAudio: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50/60 px-4 py-3">
+      <div className="flex items-center gap-3">
+        {value ? (
+          <Volume2 className="h-4 w-4 text-indigo-500" />
+        ) : (
+          <VolumeX className="h-4 w-4 text-slate-400" />
+        )}
+        <div>
+          <p className="text-sm font-semibold text-slate-700">Generate audio</p>
+          <p className="text-xs text-slate-500">Voices, sound effects and music.</p>
+        </div>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={value}
+        aria-label="Generate audio"
+        onClick={() => onChange(!value)}
+        className={`relative h-6 w-11 shrink-0 rounded-full transition disabled:opacity-60 ${
+          value ? "bg-indigo-500" : "bg-slate-300"
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
+            value ? "left-[22px]" : "left-0.5"
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
+
+/** Resolution as a compact dropdown pill, for forms short on vertical space. */
+export function ResolutionPicker({
+  value,
+  resolutions,
+  onChange,
+  className = "",
+}: {
+  value: Resolution;
+  resolutions: readonly Resolution[];
+  onChange: (resolution: Resolution) => void;
+  className?: string;
+}) {
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger aria-label="Resolution" className={`${PILL} ${className}`}>
+        <span className="truncate">{value}</span>
+        <ChevronDown className="ml-auto h-4 w-4 shrink-0 text-slate-400" />
+      </DropdownMenu.Trigger>
+      <DropdownMenu.Portal>
+        <DropdownMenu.Content align="start" sideOffset={8} className={`${PANEL} w-40 p-2`}>
+          {resolutions.map((resolution) => {
+            const selected = resolution === value;
+            return (
+              <DropdownMenu.Item
+                key={resolution}
+                onSelect={() => onChange(resolution)}
+                className={`flex cursor-pointer select-none items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold outline-none data-[highlighted]:bg-slate-50 ${
+                  selected ? "bg-indigo-50 text-indigo-700" : "text-slate-700"
+                }`}
+              >
+                {resolution}
+                {selected && <Check className="ml-auto h-4 w-4 shrink-0" />}
+              </DropdownMenu.Item>
+            );
+          })}
+        </DropdownMenu.Content>
+      </DropdownMenu.Portal>
+    </DropdownMenu.Root>
+  );
+}
+
+/** Generate-audio as a single toggle pill. */
+export function AudioPill({
+  value,
+  onChange,
+  className = "",
+}: {
+  value: boolean;
+  onChange: (generateAudio: boolean) => void;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={value}
+      aria-label="Generate audio"
+      onClick={() => onChange(!value)}
+      className={`${PILL} ${value ? "" : "text-slate-400"} ${className}`}
+    >
+      {value ? (
+        <Volume2 className="h-4 w-4 text-indigo-500" />
+      ) : (
+        <VolumeX className="h-4 w-4 text-slate-400" />
+      )}
+      {value ? "Audio on" : "Audio off"}
+    </button>
   );
 }

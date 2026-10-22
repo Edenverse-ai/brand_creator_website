@@ -14,7 +14,10 @@ const client = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession:
 const BUCKETS = [
   { id: "studio-samples", public: true, fileSizeLimit: 30 * 1024 * 1024 },
   { id: "studio-outputs", public: false, fileSizeLimit: 200 * 1024 * 1024 },
-  { id: "ai-video-tasks", public: false, fileSizeLimit: 30 * 1024 * 1024 },
+  // AI video task inputs. 50 MB fits a trend replicate's source video (the provider's
+  // per-file cap). Only applies on create: raise an existing bucket's limit in the
+  // Supabase dashboard (Storage → ai-video-tasks → Edit bucket).
+  { id: "ai-video-tasks", public: false, fileSizeLimit: 50 * 1024 * 1024 },
   // AI Video library (My Videos, TikTok publish); generated videos land here.
   { id: "aivideogenerated", public: false, fileSizeLimit: 200 * 1024 * 1024 },
 ];

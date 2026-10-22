@@ -263,6 +263,12 @@ model AiVideoTask {
   lastCheckedAt     DateTime? // last provider status check; orders the scheduled sweep
   aiVideoId         String?   @db.Uuid // AiVideo row created on delivery
 
+  // Trend replicate (see docs/superpowers/specs/2026-10-21-ai-video-trend-replicate-design.md)
+  kind               String   @default("generate") // "generate" | "replicate"
+  referenceVideoPath String? // the trending video being replicated (ai-video-tasks bucket)
+  productImagePaths  String[] @default([]) // in "Image N" order of the composed prompt
+  replicateInput     Json? // { productName, targetAudience, sellingPoints, referenceDurationSec }
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

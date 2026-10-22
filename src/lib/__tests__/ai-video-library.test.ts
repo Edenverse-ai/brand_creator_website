@@ -290,7 +290,7 @@ describe("describeFormat", () => {
   });
 
   it("shows an unlisted model id as it is, and skips what is missing", () => {
-    expect(describeFormat({ mode: "fast", ratio: "1:1" })).toBe("fast · 1:1");
+    expect(describeFormat({ mode: "ultra", ratio: "1:1" })).toBe("ultra · 1:1");
   });
 
   it("returns null when there are no settings", () => {
