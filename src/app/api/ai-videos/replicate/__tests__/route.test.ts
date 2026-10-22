@@ -111,7 +111,7 @@ describe("POST /api/ai-videos/replicate", () => {
       params: {
         mode: "seedance2.5",
         ratio: "adaptive",
-        duration: -1,
+        duration: 15,
         resolution: "720p",
         generateAudio: true,
       },
@@ -193,6 +193,7 @@ describe("POST /api/ai-videos/replicate", () => {
     const res = await POST(jsonRequest(withInput({ referenceDurationSec: 29.8 })) as never);
     expect(res.status).toBe(200);
     expect(remainingThisMonth).toHaveBeenCalledWith(OWNER, "replicate", null);
+    expect(aiVideoTaskCreate.mock.calls[0][0].data.params.duration).toBe(30);
     expect(aiVideoTaskCreate.mock.calls[0][0].data.prompt).toContain("at most 60 words");
 
     const pro = await POST(
@@ -215,7 +216,7 @@ describe("POST /api/ai-videos/replicate", () => {
     expect(aiVideoTaskCreate.mock.calls[0][0].data.params).toMatchObject({
       mode: "pro",
       resolution: "1080p",
-      duration: -1,
+      duration: 15,
     });
   });
 

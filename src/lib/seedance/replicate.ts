@@ -62,8 +62,8 @@ export type ReplicateInput = z.infer<typeof replicateInputSchema>;
 
 /**
  * Settings saved on a replicate task and sent to the provider as-is. New tasks use
- * `duration: -1` and a replicate model; a fixed length and `mini` are still
- * accepted for tasks queued before those changes.
+ * a fixed length and a replicate model; `-1` and `mini` are still accepted for
+ * tasks queued while those were in use.
  */
 export const replicateParamsSchema = z.object({
   mode: z.enum([...REPLICATE_MODES, "mini"]),
@@ -74,18 +74,18 @@ export const replicateParamsSchema = z.object({
 });
 
 /**
- * A replicate is a Seedance video edit: the prompt asks to put the creator's
- * product into Video 1 and keep everything else. Edit tasks take their ratio and
- * length from the source and only accept `ratio: "adaptive"` and `duration: -1`;
- * if the model reads the task as a reference generation instead, `-1` lets it
- * choose the length. Either way the request is valid. The source length is capped
- * by the route (replicateSourceCeiling), so the output is too.
+ * A fixed length (the source's, see expectedOutputSeconds) keeps the task a
+ * reference generation, so its audio is generated fresh. With `duration: -1` and
+ * a "same as Video 1" prompt, Seedance treated it as a video edit, kept the
+ * source's soundtrack and rejected the output audio for copyright. The catch: if
+ * the model still reads the prompt as an edit, it rejects the fixed length
+ * (unbilled). `adaptive` keeps the source's aspect ratio.
  */
-export function buildReplicateParams(input: ReplicateInput): ProviderParams {
+export function buildReplicateParams(input: ReplicateInput, maxSec: number): ProviderParams {
   return {
     mode: input.mode,
     ratio: "adaptive",
-    duration: -1,
+    duration: expectedOutputSeconds(input.referenceDurationSec, maxSec),
     resolution: input.resolution,
     generateAudio: input.generateAudio,
   };

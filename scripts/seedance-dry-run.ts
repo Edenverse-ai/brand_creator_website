@@ -66,8 +66,8 @@ function replicateInput(): CreateVideoTaskInput {
     resolution: arg("resolution"),
     generateAudio: arg("audio") ? arg("audio") === "true" : undefined,
   });
-  const params = buildReplicateParams(input);
   const maxSec = replicateSourceCeiling(Number(arg("max-sec") ?? 15), input.mode);
+  const params = buildReplicateParams(input, maxSec);
   return {
     prompt: buildReplicatePrompt(input, {
       imageCount: images.length,

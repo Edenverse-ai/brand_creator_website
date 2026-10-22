@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const params = buildReplicateParams(input);
+  const params = buildReplicateParams(input, maxSec);
   const prompt = buildReplicatePrompt(input, {
     imageCount: imagePaths.length,
     outputSeconds: expectedOutputSeconds(input.referenceDurationSec, maxSec),

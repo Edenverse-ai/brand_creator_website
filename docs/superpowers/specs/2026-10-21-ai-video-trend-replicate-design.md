@@ -18,7 +18,7 @@ One create call per task, as for Video Gen (`src/lib/seedance/client.ts` `buildC
 - `videos: [{ url, role: "reference_video" }]` is the original video ("Video 1").
 - `images: [{ url, role: "reference_image" }, …]` are the product photos ("Image 1..3"), in upload order.
 - `ratio: "adaptive"` makes the output keep the source's shape. On Seedance 2.5 it is also the only ratio accepted if the model reads the task as a video edit.
-- `duration: -1`. The task is a Seedance **video edit**, and edit tasks take their length and ratio from the source; a fixed `duration` makes them fail. If the model reads the task as a reference generation instead, `-1` lets it choose the length. The source itself is capped (§4).
+- `duration` is the source length rounded up, clamped to `[4, ceiling]` (§4). A fixed length keeps the task a reference generation, with freshly generated audio. With `duration: -1` and a "same as Video 1" prompt, Seedance treated the task as a video edit, kept the source's soundtrack, and rejected the output audio for copyright. If the model still reads the prompt as an edit, it rejects the fixed length ("duration … is not valid"); that failure isn't billed.
 - `prompt` is composed server-side (§3). Creators never write it.
 
 URLs are 6-hour signed Supabase URLs, as before.
@@ -41,10 +41,11 @@ The audience and selling-point clauses are dropped when those fields are empty. 
 
 - The first version treated Video 1 only as a style reference: a "brand-new" ad with a hook, a closing hero shot, a setting matched to the buyers, and a different presenter. In a live test it produced a different framing, background and lighting, and a rushed voiceover.
 - The second version asked for a shot-for-shot recreation but kept a fixed `duration`. Seedance classified it as a video edit and rejected it ("Seedance identified your task as video editing … duration … is not valid").
-- Edit mode is now deliberate, with `duration: -1`. The old rule against edit verbs in the prompt is gone.
+- Edit mode was then made deliberate, with `duration: -1`, and the old rule against edit verbs in the prompt was dropped.
 - The first edit-mode prompt always added a voiceover and swapped Video 1's text for a static product name. That didn't fit sources without speech or with animated captions, so speech and text now mirror Video 1.
 - Keeping Video 1's music got a Pro replicate rejected: "the output audio may be related to copyright restrictions". Trending clips use copyrighted songs. Now the music is original and the voice is new.
 - The product owner then supplied the current wording. It keeps Video 1's music style and voiceover tone (rather than "original music, new voice") and has no on-screen-text rules. If the output-audio copyright rejection returns, revisit the music and voice sentences first.
+- That rejection did return with `duration: -1`, while an earlier request with the same audio wording and a fixed `duration` (14) succeeded. Under `-1` the task runs as an edit and keeps the source's soundtrack, so `duration` went back to the fixed source length, and the prompt is unchanged.
 
 ## 4. Limits and entitlements
 

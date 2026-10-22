@@ -49,16 +49,26 @@ describe("replicateInputSchema", () => {
 });
 
 describe("buildReplicateParams", () => {
-  it("leaves the length to the source: adaptive ratio, duration -1", () => {
-    const input = replicateInputSchema.parse({ ...BASE, mode: "pro", resolution: "1080p" });
-    const params = buildReplicateParams(input);
-    expect(params).toEqual({
-      mode: "pro",
+  it.each([
+    ["a 2 s source runs the 4 s minimum", 2, 15, 4],
+    ["a 14.2 s source rounds up", 14.2, 15, 15],
+    ["a 15.07 s source stays at the 15 s ceiling", 15.07, 15, 15],
+    ["a 30 s source on 2.5 for an unlimited account", 30, 30, 30],
+  ])("sends a fixed length: %s", (_label, referenceDurationSec, maxSec, duration) => {
+    const input = replicateInputSchema.parse({ ...BASE, referenceDurationSec });
+    expect(buildReplicateParams(input, maxSec)).toEqual({
+      mode: "seedance2.5",
       ratio: "adaptive",
-      duration: -1,
-      resolution: "1080p",
+      duration,
+      resolution: "720p",
       generateAudio: true,
     });
+  });
+
+  it("produces params the lifecycle accepts", () => {
+    const input = replicateInputSchema.parse({ ...BASE, mode: "pro", resolution: "1080p" });
+    const params = buildReplicateParams(input, 15);
+    expect(params).toMatchObject({ mode: "pro", resolution: "1080p", duration: 15 });
     expect(replicateParamsSchema.parse(params)).toEqual(params);
   });
 
