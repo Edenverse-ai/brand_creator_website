@@ -60,30 +60,39 @@ export const replicateInputSchema = z
 
 export type ReplicateInput = z.infer<typeof replicateInputSchema>;
 
-/** Settings saved on a replicate task and sent to the provider as-is. */
+/**
+ * Settings saved on a replicate task and sent to the provider as-is. New tasks use
+ * `duration: -1`; a fixed length is still accepted for tasks queued before that.
+ */
 export const replicateParamsSchema = z.object({
   mode: z.enum(VIDEO_MODES),
   ratio: z.literal("adaptive"),
-  duration: z.number().int().min(DURATION_MIN).max(DURATION_MAX),
+  duration: z.union([z.literal(-1), z.number().int().min(DURATION_MIN).max(DURATION_MAX)]),
   resolution: z.enum(RESOLUTIONS),
   generateAudio: z.boolean(),
 });
 
 /**
- * `adaptive` keeps the source's aspect ratio, and is also the only ratio Seedance
- * 2.5 accepts if it reads the task as a video edit (TaskTypeConstraint). The output
- * runs as long as the source, within 4 s and `maxSec` (the creator's source ceiling
- * for this model — see replicateSourceCeiling).
+ * A replicate is a Seedance video edit: the prompt asks to put the creator's
+ * product into Video 1 and keep everything else. Edit tasks take their ratio and
+ * length from the source and only accept `ratio: "adaptive"` and `duration: -1`;
+ * if the model reads the task as a reference generation instead, `-1` lets it
+ * choose the length. Either way the request is valid. The source length is capped
+ * by the route (replicateSourceCeiling), so the output is too.
  */
-export function buildReplicateParams(input: ReplicateInput, maxSec: number): ProviderParams {
-  const duration = Math.min(maxSec, Math.max(DURATION_MIN, Math.ceil(input.referenceDurationSec)));
+export function buildReplicateParams(input: ReplicateInput): ProviderParams {
   return {
     mode: input.mode,
     ratio: "adaptive",
-    duration,
+    duration: -1,
     resolution: input.resolution,
     generateAudio: input.generateAudio,
   };
+}
+
+/** How long the result should run: the source's length, within 4 s and `maxSec`. */
+export function expectedOutputSeconds(sourceSec: number, maxSec: number): number {
+  return Math.min(maxSec, Math.max(DURATION_MIN, Math.ceil(sourceSec)));
 }
 
 function imageList(count: number): string {
@@ -104,42 +113,44 @@ export function voiceoverWordBudget(duration: number): number {
 }
 
 /**
- * Video 1 is the master: the result recreates it shot for shot (framing, camera
- * movement, poses, background, lighting, timing) and differs only in the product.
- * Creator inputs feed the voiceover, never the visuals, so they can't pull the
- * picture away from Video 1.
- *
- * The fixed wording never uses edit/extend verbs (replace, swap, remove, change,
- * extend…): the provider infers "video edit" or "video extension" tasks from prompt
- * intent, and those fail unless the duration is left to the model.
+ * An edit instruction: Video 1 stays as it is (framing, camera movement, poses,
+ * background, lighting, timing) and only its product changes. Video 1's own
+ * on-screen text gives way to the product name, plus selling points if there is
+ * room. Creators tend to paste long selling-point lists, so the voiceover picks
+ * the one or two that matter most instead of reading them all.
  */
 export function buildReplicatePrompt(
   input: Pick<ReplicateInput, "productName" | "targetAudience" | "sellingPoints">,
-  options: { imageCount: number; duration: number; generateAudio: boolean }
+  options: { imageCount: number; outputSeconds: number; generateAudio: boolean }
 ): string {
-  const { imageCount, duration, generateAudio } = options;
-  const voiceover = [
-    `The voiceover recommends "${input.productName}" by name`,
-    input.targetAudience ? `, speaking to "${input.targetAudience}"` : "",
-    input.sellingPoints ? `, and mentions: "${input.sellingPoints}"` : "",
-    ".",
-  ].join("");
+  const { imageCount, outputSeconds, generateAudio } = options;
+  const name = `"${input.productName}"`;
   const lines = [
-    `Recreate Video 1 shot for shot as a ${duration}-second TikTok e-commerce ad for the product below. Video 1 is a trending TikTok video; the new video must look like the same video, featuring this product.`,
-    "Match Video 1 exactly in: camera angle, framing and shot size; camera movement, including any handheld motion; hand and body poses and how they move; the background and setting; lighting direction, brightness and color temperature; color grading; and the pacing, cut timing and transitions.",
     imageCount > 1
-      ? `The product is "${input.productName}", shown in ${imageList(imageCount)}; these images are different views of the same product.`
-      : `The product is "${input.productName}", shown in Image 1.`,
-    "Show this product wherever Video 1 shows its product: in the same position, at the same size and angle in the frame, held and moved exactly the same way. The product is the only difference from Video 1.",
-    "Keep the product's shape, proportions, colors, materials, logo and printed details exactly as pictured.",
-    "Do not show any product, brand name or logo from Video 1.",
-    "Do not include subtitles, captions, prices, watermarks or any on-screen text.",
+      ? `Video 1 is a trending TikTok video. Replace the product in Video 1 with ${name}, the product shown in ${imageList(imageCount)}; these images are different views of the same product.`
+      : `Video 1 is a trending TikTok video. Replace the product in Video 1 with ${name}, the product shown in Image 1.`,
+    "Keep everything else in Video 1 unchanged: camera angle, framing and shot size, camera movement including handheld motion, hands and poses and how they move, background and setting, lighting direction, brightness and color temperature, color grading, pacing and cut timing.",
+    "The new product sits in the same position, at the same size and angle, and is held and moved exactly as the original product.",
+    "Keep the new product's shape, proportions, colors, materials, logo and printed details exactly as pictured. Remove every brand name and logo of the original product.",
+    [
+      `None of the original on-screen text from Video 1 may appear. Wherever Video 1 shows on-screen text, show the product name ${name} in the same position and style instead`,
+      input.sellingPoints
+        ? `, and if there is room, a few words from these selling points: "${input.sellingPoints}"`
+        : "",
+      ". Do not add prices or watermarks.",
+    ].join(""),
     generateAudio
-      ? "Keep the music style and voiceover tone of Video 1, in the same spoken language."
+      ? [
+          `Keep the music of Video 1. Replace the voiceover with a new one in the same spoken language and tone: it recommends ${name} by name`,
+          input.targetAudience ? `, speaking to "${input.targetAudience}"` : "",
+          ".",
+        ].join("")
       : null,
-    generateAudio ? voiceover : null,
+    generateAudio && input.sellingPoints
+      ? `From these selling points, mention only the one or two that matter most to buyers: "${input.sellingPoints}".`
+      : null,
     generateAudio
-      ? `Speak at a calm, natural pace with short pauses between sentences, in at most ${voiceoverWordBudget(duration)} words in total. Never rush.`
+      ? `Speak in at most ${voiceoverWordBudget(outputSeconds)} words in total. Never rush.`
       : null,
   ];
   return lines.filter((line): line is string => line !== null).join("\n");

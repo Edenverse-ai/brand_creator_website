@@ -21,6 +21,7 @@ import { buildCreateRequest } from "../src/lib/seedance/client";
 import {
   buildReplicateParams,
   buildReplicatePrompt,
+  expectedOutputSeconds,
   replicateInputSchema,
 } from "../src/lib/seedance/replicate";
 import { generationParamsSchema } from "../src/lib/seedance/schema";
@@ -65,14 +66,12 @@ function replicateInput(): CreateVideoTaskInput {
     resolution: arg("resolution"),
     generateAudio: arg("audio") ? arg("audio") === "true" : undefined,
   });
-  const params = buildReplicateParams(
-    input,
-    replicateSourceCeiling(Number(arg("max-sec") ?? 15), input.mode)
-  );
+  const params = buildReplicateParams(input);
+  const maxSec = replicateSourceCeiling(Number(arg("max-sec") ?? 15), input.mode);
   return {
     prompt: buildReplicatePrompt(input, {
       imageCount: images.length,
-      duration: params.duration,
+      outputSeconds: expectedOutputSeconds(input.referenceDurationSec, maxSec),
       generateAudio: params.generateAudio,
     }),
     params,

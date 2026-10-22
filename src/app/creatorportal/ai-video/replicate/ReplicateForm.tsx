@@ -29,9 +29,10 @@ import {
   PRODUCT_NAME_MAX,
   SELLING_POINTS_MAX,
   SOURCE_DURATION_TOLERANCE_SEC,
+  expectedOutputSeconds,
   TARGET_AUDIENCE_MAX,
 } from "@/lib/seedance/replicate";
-import { DURATION_MIN, type Resolution } from "@/lib/seedance/schema";
+import type { Resolution } from "@/lib/seedance/schema";
 import { AudioPill, ModelPicker, ResolutionPicker } from "../generate/GenerationControls";
 import {
   putFile,
@@ -56,10 +57,6 @@ type ProductImage = { id: string; file: File; previewUrl: string };
 type Tab = "history" | "example";
 
 type TaskResponse = { id: string; status: string; errorMessage: string | null };
-
-function outputSeconds(sourceSec: number, ceiling: number): number {
-  return Math.min(ceiling, Math.max(DURATION_MIN, Math.ceil(sourceSec)));
-}
 
 function isInFlight(item: ReplicateHistoryItem): boolean {
   return item.status === "QUEUED" || item.status === "GENERATING";
@@ -520,6 +517,9 @@ export default function ReplicateForm({
                 value={sellingPoints}
                 onChange={(event) => setSellingPoints(event.target.value)}
               />
+              <p className="mt-1 text-xs text-slate-500">
+                List as many as you like — the video uses the strongest ones.
+              </p>
             </section>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -553,7 +553,7 @@ export default function ReplicateForm({
               )}
               <p className="mt-0.5 text-xs text-slate-500">
                 {video && !videoTooLong
-                  ? `Output ≈ ${outputSeconds(video.durationSec, ceiling)} s · `
+                  ? `Output ≈ ${expectedOutputSeconds(video.durationSec, ceiling)} s · `
                   : ""}
                 Generation can&apos;t be cancelled once started.
               </p>

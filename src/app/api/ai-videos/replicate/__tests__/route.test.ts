@@ -111,13 +111,16 @@ describe("POST /api/ai-videos/replicate", () => {
       params: {
         mode: "seedance2.5",
         ratio: "adaptive",
-        duration: 15,
+        duration: -1,
         resolution: "720p",
         generateAudio: true,
       },
     });
-    expect(data.prompt).toContain("Recreate Video 1 shot for shot as a 15-second");
-    expect(data.prompt).toContain('The product is "Ivory Mini Bag", shown in Image 1 and Image 2');
+    expect(data.prompt).toMatch(
+      /^Video 1 is a trending TikTok video\. Replace the product in Video 1 with "Ivory Mini Bag", the product shown in Image 1 and Image 2/
+    );
+    // 14.2 s source → a 15 s voiceover budget.
+    expect(data.prompt).toContain("Speak in at most 30 words in total.");
     expect(submitTask).toHaveBeenCalledWith(TASK);
   });
 
@@ -191,7 +194,7 @@ describe("POST /api/ai-videos/replicate", () => {
     const res = await POST(jsonRequest(withInput({ referenceDurationSec: 29.8 })) as never);
     expect(res.status).toBe(200);
     expect(remainingToday).toHaveBeenCalledWith(OWNER, "replicate", null);
-    expect(aiVideoTaskCreate.mock.calls[0][0].data.params.duration).toBe(30);
+    expect(aiVideoTaskCreate.mock.calls[0][0].data.prompt).toContain("at most 60 words");
 
     const mini = await POST(
       jsonRequest(

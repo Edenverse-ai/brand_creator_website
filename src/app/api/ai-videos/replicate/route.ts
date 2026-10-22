@@ -10,6 +10,7 @@ import {
   SOURCE_DURATION_TOLERANCE_SEC,
   buildReplicateParams,
   buildReplicatePrompt,
+  expectedOutputSeconds,
   replicateInputSchema,
 } from "@/lib/seedance/replicate";
 import { isOwnedTaskPath } from "@/lib/storage/path-ownership";
@@ -108,10 +109,10 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const params = buildReplicateParams(input, maxSec);
+  const params = buildReplicateParams(input);
   const prompt = buildReplicatePrompt(input, {
     imageCount: imagePaths.length,
-    duration: params.duration,
+    outputSeconds: expectedOutputSeconds(input.referenceDurationSec, maxSec),
     generateAudio: params.generateAudio,
   });
 

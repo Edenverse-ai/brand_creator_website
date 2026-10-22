@@ -18,7 +18,7 @@ One create call per task, as for Video Gen (`src/lib/seedance/client.ts` `buildC
 - `videos: [{ url, role: "reference_video" }]` is the original video ("Video 1").
 - `images: [{ url, role: "reference_image" }, …]` are the product photos ("Image 1..3"), in upload order.
 - `ratio: "adaptive"` makes the output keep the source's shape. On Seedance 2.5 it is also the only ratio accepted if the model reads the task as a video edit.
-- `duration` is the source length rounded up, clamped to `[4, ceiling]` (§4).
+- `duration: -1`. The task is a Seedance **video edit**, and edit tasks take their length and ratio from the source; a fixed `duration` makes them fail. If the model reads the task as a reference generation instead, `-1` lets it choose the length. The source itself is capped (§4).
 - `prompt` is composed server-side (§3). Creators never write it.
 
 URLs are 6-hour signed Supabase URLs, as before.
@@ -27,22 +27,24 @@ URLs are 6-hour signed Supabase URLs, as before.
 
 The template is `buildReplicatePrompt` in `src/lib/seedance/replicate.ts`. Its full text and an example are pinned in `src/lib/seedance/__tests__/replicate.test.ts`.
 
-**Video 1 is the master.** The result recreates it shot for shot, and the product is the only difference. In order, the prompt:
+**It is an edit instruction.** The prompt asks Seedance to put the creator's product into Video 1 and keep everything else. In order, it:
 
-1. Asks for Video 1 recreated shot for shot as an N-second TikTok e-commerce ad featuring the product.
-2. Lists what must match Video 1 exactly: camera angle, framing and shot size; camera movement, including handheld motion; hand and body poses; background and setting; lighting direction, brightness and color temperature; color grading; and pacing, cut timing and transitions.
-3. Names the product and its images ("Image 1..N"), and puts it wherever Video 1 shows its product, at the same position, size and angle, held and moved the same way.
-4. Keeps the product's look exactly as pictured.
-5. Sets guardrails: none of Video 1's products, brands or logos, and no on-screen text or prices.
-6. With audio on: keeps Video 1's music and voiceover tone and language. The voiceover names the product and, when given, speaks to the target buyers and mentions the selling points. It has a pace instruction and a word cap of 2 words per second (`voiceoverWordBudget`), because uncapped voiceovers came out rushed.
+1. Replaces Video 1's product with the named product from Image 1..N.
+2. Keeps everything else unchanged: camera angle, framing and shot size; camera movement, including handheld motion; hands and poses; background and setting; lighting direction, brightness and color temperature; color grading; and pacing and cut timing.
+3. Puts the new product in the same position, at the same size and angle, held and moved the same way. It keeps the product's look exactly as pictured and removes every brand name and logo of the original product.
+4. **On-screen text:** none of Video 1's own text may appear. Wherever Video 1 shows text, the product name goes in the same position and style. When selling points are given, a few of their words go there too, if there is room. No prices or watermarks.
+5. **With audio on:** keeps Video 1's music and replaces the voiceover with one in the same language and tone. The voiceover:
+   - recommends the product by name and, when given, speaks to the target buyers;
+   - mentions only the one or two selling points that matter most, since creators paste long lists;
+   - stays within 2 words per second of the expected output length (`voiceoverWordBudget`, `expectedOutputSeconds`).
 
-**Creator inputs never touch the visuals.** Target buyers and selling points only feed the voiceover, so they can't pull the picture away from Video 1. Without audio they are not sent at all.
+Without audio, the voiceover lines and the audience are dropped.
 
-**History.** The first version treated Video 1 only as a style reference: a "brand-new" ad with a hook, a closing hero shot, a setting matched to the buyers, and a different presenter. In a live test, that produced a different framing, background and lighting from the source, and a rushed voiceover.
+**History.**
 
-**Edit-intent words.** The fixed text never uses edit or extension verbs (replace, swap, add, remove, change, extend, continue, 编辑/替换/延长…). The provider infers "video edit" or "video extension" tasks from prompt intent, and edit tasks only accept `duration=-1`. A unit test enforces this. Creator text can still contain such words; it is quoted as data, which lowers the risk without removing it.
-
-**Creator text** is collapsed to one line, `"` becomes `'`, and `< > { }` are stripped. It is length-capped at 100 (name), 100 (audience) and 500 (selling points), and wrapped in quotes.
+- The first version treated Video 1 only as a style reference: a "brand-new" ad with a hook, a closing hero shot, a setting matched to the buyers, and a different presenter. In a live test it produced a different framing, background and lighting, and a rushed voiceover.
+- The second version asked for a shot-for-shot recreation but kept a fixed `duration`. Seedance classified it as a video edit and rejected it ("Seedance identified your task as video editing … duration … is not valid").
+- Edit mode is now deliberate, with `duration: -1`. The old rule against edit verbs in the prompt is gone.
 
 ## 4. Limits and entitlements
 
@@ -85,7 +87,7 @@ The two tools have separate counts (`AiVideoTask.kind`). A paid tier would be on
 ## 7. Testing
 
 - **Unit:**
-  - `src/lib/seedance/__tests__/replicate.test.ts`: the template, sanitising, durations and edit-intent words.
+  - `src/lib/seedance/__tests__/replicate.test.ts`: the template, sanitising, params (`duration: -1`), expected output length and the voiceover word cap.
   - `src/lib/__tests__/ai-video-entitlements.test.ts`.
   - `src/app/api/ai-videos/replicate/__tests__/route.test.ts`.
   - Additions to the client, lifecycle, upload-url and tasks-route tests.
